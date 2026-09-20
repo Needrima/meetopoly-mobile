@@ -42,4 +42,6 @@ Phase 0 home screen calls `GET /health` via TanStack Query (`hooks/useHealth`).
 ## Notes
 
 - No Docker.
+- **Landscape** only (`app.json` → `orientation: landscape`).
+- Theme: `theme/` (see `theme/README.md`) — colors + **Fraunces** (display) / **Figtree** (UI).
 - OpenAPI codegen into `api/` comes in Phase 1; Phase 0 uses a hand-written client stub.
