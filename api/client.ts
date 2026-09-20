@@ -1,4 +1,7 @@
-/** Base HTTP client for Meetopoly API. Phase 0: health only. */
+/**
+ * Shared HTTP layer for Meetopoly API.
+ * Used as the orval mutator — endpoint functions live in generated services.
+ */
 
 const DEFAULT_BASE_URL = 'http://localhost:8080';
 
@@ -23,23 +26,41 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${getApiBaseUrl()}${path}`;
-  const response = await fetch(url, {
+export type ApiMutatorOptions = RequestInit & {
+  /** Orval may pass query params separately; unused by this mutator. */
+  params?: Record<string, unknown>;
+};
+
+/**
+ * Orval mutator: `(url, options) => Promise<T>`.
+ * Relative URLs are prefixed with `getApiBaseUrl()`.
+ *
+ * `/health` returns JSON on both 200 and 503 — both are accepted when a body is present.
+ */
+export async function apiMutator<T>(url: string, options?: ApiMutatorOptions): Promise<T> {
+  const { params: _params, ...init } = options ?? {};
+  const path = url.startsWith('http') ? url : `${getApiBaseUrl()}${url}`;
+
+  const response = await fetch(path, {
     ...init,
     headers: {
       Accept: 'application/json',
-      ...(init?.headers ?? {}),
+      ...(init.headers ?? {}),
     },
   });
 
   const text = await response.text();
-  if (!response.ok) {
+  const acceptBody = response.ok || response.status === 503;
+
+  if (!acceptBody) {
     throw new ApiError(response.status, text);
   }
 
   if (!text) {
-    return undefined as T;
+    if (response.ok) {
+      return undefined as T;
+    }
+    throw new ApiError(response.status, text);
   }
 
   return JSON.parse(text) as T;

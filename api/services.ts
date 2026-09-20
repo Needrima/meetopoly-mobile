@@ -1,12 +1,6 @@
-import { apiFetch } from './client';
-
-export type HealthResponse = {
-  status: 'ok' | 'degraded';
-  mongo: 'ok' | 'error';
-  redis: 'ok' | 'error';
-  version?: string;
-};
-
-export function getHealth(): Promise<HealthResponse> {
-  return apiFetch<HealthResponse>('/health');
-}
+/**
+ * Public API service functions for Meetopoly.
+ * Re-exports orval-generated endpoints — do not add hand-written HTTP DTOs here.
+ * Regenerate: `npm run api:generate`
+ */
+export * from './generated/endpoints';

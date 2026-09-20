@@ -44,4 +44,5 @@ Phase 0 home screen calls `GET /health` via TanStack Query (`hooks/useHealth`).
 - No Docker.
 - **Landscape** only (`app.json` → `orientation: landscape`).
 - Theme: `theme/` (see `theme/README.md`) — colors + **Fraunces** (display) / **Figtree** (UI).
-- OpenAPI codegen into `api/` comes in Phase 1; Phase 0 uses a hand-written client stub.
+- OpenAPI codegen: **orval** (`npm run api:generate`) → `api/generated/` (see `api/README.md`).
+- Phase 0 health screen uses StyleSheet + theme tokens; NativeWind remains configured for later chrome.
