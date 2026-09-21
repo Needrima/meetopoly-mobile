@@ -7,22 +7,22 @@ import {
   AuthPrimaryButton,
   AuthScreen,
 } from '@/components/auth/AuthForm';
-import { useSignupPasswordForm } from '@/hooks/useAuthForms';
+import { usePasswordResetConfirmForm } from '@/hooks/useAuthForms';
 
-export default function SignupPasswordScreen() {
+export default function ForgotPasswordConfirmScreen() {
   const router = useRouter();
-  const form = useSignupPasswordForm();
+  const form = usePasswordResetConfirmForm();
 
   return (
     <AuthScreen
-      title="Create password"
+      title="New password"
       subtitle="At least 8 characters, with a letter and a digit."
       bottom={
         <AuthLink label="Go to login" onPress={() => router.replace('/(auth)/login')} />
       }
     >
       <AuthField
-        placeholder="Password"
+        placeholder="New password"
         secureTextEntry
         onChangeText={(value) => form.setFieldValue('password', value)}
       />
@@ -33,7 +33,7 @@ export default function SignupPasswordScreen() {
       />
       <AuthError message={form.error} />
       <AuthPrimaryButton
-        label="Continue"
+        label="Update password"
         loading={form.isSubmitting}
         disabled={!form.canSubmit}
         onPress={form.submit}

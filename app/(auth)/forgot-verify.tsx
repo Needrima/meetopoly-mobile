@@ -9,18 +9,17 @@ import {
 } from '@/components/auth/AuthForm';
 import { CodeResendTimer } from '@/components/auth/CodeResendTimer';
 import { OtpInput } from '@/components/auth/OtpInput';
-import { useSignupVerifyForm } from '@/hooks/useAuthForms';
+import { usePasswordResetVerifyForm } from '@/hooks/useAuthForms';
 
-/** Matches backend default VERIFICATION_CODE_TTL_MINUTES. */
 const CODE_TTL_SECONDS = 120;
 
-export default function SignupVerifyScreen() {
+export default function ForgotPasswordVerifyScreen() {
   const router = useRouter();
-  const form = useSignupVerifyForm();
+  const form = usePasswordResetVerifyForm();
 
   return (
     <AuthScreen
-      title="Verify email"
+      title="Check your email"
       subtitle={
         form.email
           ? `Enter the 6-digit code sent to ${form.email}.`
@@ -51,7 +50,7 @@ export default function SignupVerifyScreen() {
         onPress={form.submit}
       />
       <View style={styles.changeEmail}>
-        <AuthLink label="Change email" onPress={() => router.replace('/(auth)/email')} />
+        <AuthLink label="Change email" onPress={() => router.replace('/(auth)/forgot')} />
       </View>
     </AuthScreen>
   );

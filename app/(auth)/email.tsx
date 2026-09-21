@@ -17,11 +17,8 @@ export default function SignupEmailScreen() {
     <AuthScreen
       title="Create account"
       subtitle="Enter your email. We’ll send a 6-digit verification code."
-      footer={
-        <AuthLink
-          label="Already have an account? Log in"
-          onPress={() => router.replace('/(auth)/login')}
-        />
+      bottom={
+        <AuthLink label="Go to login" onPress={() => router.replace('/(auth)/login')} />
       }
     >
       <AuthField

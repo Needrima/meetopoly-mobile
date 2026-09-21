@@ -55,8 +55,21 @@ export const loginFormSchema = Yup.object({
   password: Yup.string().required('Password is required'),
 });
 
+export const passwordResetEmailFormSchema = Yup.object({
+  email: emailSchema,
+});
+
+export const passwordResetVerifyFormSchema = Yup.object({
+  code: verificationCodeSchema,
+});
+
+export const passwordResetConfirmFormSchema = signupPasswordFormSchema;
+
 export type SignupEmailFormValues = Yup.InferType<typeof signupEmailFormSchema>;
 export type SignupVerifyFormValues = Yup.InferType<typeof signupVerifyFormSchema>;
 export type SignupPasswordFormValues = Yup.InferType<typeof signupPasswordFormSchema>;
 export type SignupProfileFormValues = Yup.InferType<typeof signupProfileFormSchema>;
 export type LoginFormValues = Yup.InferType<typeof loginFormSchema>;
+export type PasswordResetEmailFormValues = Yup.InferType<typeof passwordResetEmailFormSchema>;
+export type PasswordResetVerifyFormValues = Yup.InferType<typeof passwordResetVerifyFormSchema>;
+export type PasswordResetConfirmFormValues = Yup.InferType<typeof passwordResetConfirmFormSchema>;

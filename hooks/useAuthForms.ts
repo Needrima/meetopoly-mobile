@@ -3,11 +3,17 @@ import { useRouter } from 'expo-router';
 
 import {
   loginFormSchema,
+  passwordResetConfirmFormSchema,
+  passwordResetEmailFormSchema,
+  passwordResetVerifyFormSchema,
   signupEmailFormSchema,
   signupPasswordFormSchema,
   signupProfileFormSchema,
   signupVerifyFormSchema,
   type LoginFormValues,
+  type PasswordResetConfirmFormValues,
+  type PasswordResetEmailFormValues,
+  type PasswordResetVerifyFormValues,
   type SignupEmailFormValues,
   type SignupPasswordFormValues,
   type SignupProfileFormValues,
@@ -15,12 +21,17 @@ import {
 } from '@/hooks/authSchemas';
 import {
   useLogin,
+  usePasswordResetConfirm,
+  usePasswordResetEmailDraft,
+  usePasswordResetStart,
+  usePasswordResetVerify,
   useSignupEmailDraft,
   useSignupPassword,
   useSignupProfile,
   useSignupStart,
   useSignupVerify,
 } from '@/hooks/useAuth';
+import { notify } from '@/lib/notify';
 
 function firstError<T extends object>(
   errors: FormikErrors<T>,
@@ -192,11 +203,111 @@ export function useLoginForm(): AuthFormBind<LoginFormValues> {
     validationSchema: loginFormSchema,
     ...formikValidateOpts,
     onSubmit: async (values) => {
-      await mutation.mutateAsync({
+      const res = await mutation.mutateAsync({
         email: values.email,
         password: values.password,
       });
+      if (res.needsProfile) {
+        notify({
+          type: 'info',
+          title: 'Finish your profile',
+          message: 'Pick a username and country to enter Meetopoly.',
+        });
+        router.replace('/(auth)/profile');
+        return;
+      }
       router.replace('/(app)');
+    },
+  });
+
+  return toBind(formik, mutation.isPending, mutation.error);
+}
+
+/** Password reset — email step. */
+export function usePasswordResetEmailForm(): AuthFormBind<PasswordResetEmailFormValues> {
+  const router = useRouter();
+  const mutation = usePasswordResetStart();
+
+  const formik = useFormik<PasswordResetEmailFormValues>({
+    initialValues: { email: '' },
+    validationSchema: passwordResetEmailFormSchema,
+    ...formikValidateOpts,
+    onSubmit: async (values) => {
+      const res = await mutation.mutateAsync(values.email);
+      if (!res.sent) {
+        notify({
+          type: 'error',
+          title: 'Email not found',
+          message: 'Email not found or has not completed onbaording.',
+        });
+        return;
+      }
+      router.push('/(auth)/forgot-verify');
+    },
+  });
+
+  return toBind(formik, mutation.isPending, mutation.error);
+}
+
+/** Password reset — OTP step. */
+export function usePasswordResetVerifyForm(): AuthFormBind<PasswordResetVerifyFormValues> & {
+  email: string;
+  resend: () => Promise<void>;
+  isResending: boolean;
+} {
+  const router = useRouter();
+  const emailDraft = usePasswordResetEmailDraft();
+  const verify = usePasswordResetVerify();
+  const resendMutation = usePasswordResetStart();
+  const email = emailDraft.data ?? '';
+
+  const formik = useFormik<PasswordResetVerifyFormValues>({
+    initialValues: { code: '' },
+    validationSchema: passwordResetVerifyFormSchema,
+    ...formikValidateOpts,
+    onSubmit: async (values) => {
+      if (!email) {
+        router.replace('/(auth)/forgot');
+        return;
+      }
+      await verify.mutateAsync({ email, code: values.code });
+      router.push('/(auth)/forgot-password');
+    },
+  });
+
+  return {
+    ...toBind(formik, verify.isPending, verify.error),
+    email,
+    isResending: resendMutation.isPending,
+    resend: async () => {
+      if (!email) {
+        return;
+      }
+      const res = await resendMutation.mutateAsync(email);
+      if (res.sent) {
+        notify({ type: 'success', title: 'Code sent', message: 'Check your email for a new code.' });
+      }
+    },
+  };
+}
+
+/** Password reset — new password + confirm. */
+export function usePasswordResetConfirmForm(): AuthFormBind<PasswordResetConfirmFormValues> {
+  const router = useRouter();
+  const mutation = usePasswordResetConfirm();
+
+  const formik = useFormik<PasswordResetConfirmFormValues>({
+    initialValues: { password: '', confirm: '' },
+    validationSchema: passwordResetConfirmFormSchema,
+    ...formikValidateOpts,
+    onSubmit: async (values) => {
+      await mutation.mutateAsync(values.password);
+      notify({
+        type: 'success',
+        title: 'Password updated',
+        message: 'Sign in with your new password.',
+      });
+      router.replace('/(auth)/login');
     },
   });
 

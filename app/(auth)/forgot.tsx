@@ -7,33 +7,29 @@ import {
   AuthPrimaryButton,
   AuthScreen,
 } from '@/components/auth/AuthForm';
-import { useSignupPasswordForm } from '@/hooks/useAuthForms';
+import { usePasswordResetEmailForm } from '@/hooks/useAuthForms';
 
-export default function SignupPasswordScreen() {
+export default function ForgotPasswordEmailScreen() {
   const router = useRouter();
-  const form = useSignupPasswordForm();
+  const form = usePasswordResetEmailForm();
 
   return (
     <AuthScreen
-      title="Create password"
-      subtitle="At least 8 characters, with a letter and a digit."
+      title="Forgot password"
+      subtitle="Enter the email for your Meetopoly account."
       bottom={
         <AuthLink label="Go to login" onPress={() => router.replace('/(auth)/login')} />
       }
     >
       <AuthField
-        placeholder="Password"
-        secureTextEntry
-        onChangeText={(value) => form.setFieldValue('password', value)}
-      />
-      <AuthField
-        placeholder="Confirm password"
-        secureTextEntry
-        onChangeText={(value) => form.setFieldValue('confirm', value)}
+        placeholder="Email"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        onChangeText={(value) => form.setFieldValue('email', value)}
       />
       <AuthError message={form.error} />
       <AuthPrimaryButton
-        label="Continue"
+        label="Send code"
         loading={form.isSubmitting}
         disabled={!form.canSubmit}
         onPress={form.submit}

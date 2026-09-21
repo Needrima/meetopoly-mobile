@@ -1,6 +1,11 @@
 import * as SecureStore from 'expo-secure-store';
 
-export type SecureStoreKey = 'sessionToken' | 'signupToken' | 'signupEmail';
+export type SecureStoreKey =
+  | 'sessionToken'
+  | 'signupToken'
+  | 'signupEmail'
+  | 'resetToken'
+  | 'resetEmail';
 
 const KEY_PREFIX = 'meetopoly.';
 
@@ -23,4 +28,9 @@ export async function removeSecureItem(key: SecureStoreKey): Promise<void> {
 /** Clears in-progress signup fields (token + email draft). */
 export async function clearSignupDraft(): Promise<void> {
   await Promise.all([removeSecureItem('signupToken'), removeSecureItem('signupEmail')]);
+}
+
+/** Clears in-progress password-reset fields. */
+export async function clearResetDraft(): Promise<void> {
+  await Promise.all([removeSecureItem('resetToken'), removeSecureItem('resetEmail')]);
 }

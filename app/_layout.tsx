@@ -11,8 +11,10 @@ import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { SessionProvider } from '@/hooks/useSession';
+import { toastConfig } from '@/lib/notify';
 import { colors } from '@/theme/colors';
 import { fontAssets } from '@/theme/fonts';
+import Toast from 'react-native-toast-message';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -51,6 +53,7 @@ export default function RootLayout() {
               contentStyle: styles.stackContent,
             }}
           />
+          <Toast config={toastConfig} />
         </SessionProvider>
       </QueryClientProvider>
     </SafeAreaProvider>

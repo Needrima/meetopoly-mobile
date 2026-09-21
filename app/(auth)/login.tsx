@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 
 import {
   AuthError,
@@ -18,6 +19,14 @@ export default function LoginScreen() {
       title="Welcome back"
       subtitle="Log in to continue your journey."
       footer={
+        <View style={styles.forgotRow}>
+          <AuthLink
+            label="Forgot password?"
+            onPress={() => router.push('/(auth)/forgot')}
+          />
+        </View>
+      }
+      bottom={
         <AuthLink
           label="New here? Create an account"
           onPress={() => router.push('/(auth)/email')}
@@ -45,3 +54,10 @@ export default function LoginScreen() {
     </AuthScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  forgotRow: {
+    alignSelf: 'flex-end',
+    marginTop: 4,
+  },
+});

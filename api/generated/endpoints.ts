@@ -11,9 +11,16 @@ import type {
   AuthSessionResponse,
   HealthResponse,
   LoginRequest,
+  LoginResponse,
+  PasswordResetConfirmRequest,
+  PasswordResetStartRequest,
+  PasswordResetStartResponse,
+  PasswordResetVerifyRequest,
+  PasswordResetVerifyResponse,
   SignupPasswordRequest,
   SignupProfileRequest,
   SignupStartRequest,
+  SignupStatusResponse,
   SignupVerifyRequest,
   SignupVerifyResponse,
   UserProfile
@@ -156,7 +163,35 @@ export const signupCompleteProfile = async (signupProfileRequest: SignupProfileR
 
 
 /**
- * Requires verified email and completed profile. Returns an opaque Redis-backed session token.
+ * Used to resume onboarding. Only `passwordSet: true` is durable progress;
+OTP-only accounts should discard the draft and stay on login.
+
+ * @summary Signup progress for a signup Bearer token
+ */
+export const getSignupStatusUrl = () => {
+
+
+  
+
+  return `/auth/signup/status`
+}
+
+export const signupStatus = async ( options?: RequestInit): Promise<SignupStatusResponse> => {
+  
+  return apiMutator<SignupStatusResponse>(getSignupStatusUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Requires verified email and a password. When the profile is incomplete,
+returns `needsProfile: true` plus a reissued signup token instead of a session.
 
  * @summary Login with email and password
  */
@@ -168,9 +203,9 @@ export const getLoginUrl = () => {
   return `/auth/login`
 }
 
-export const login = async (loginRequest: LoginRequest, options?: RequestInit): Promise<AuthSessionResponse> => {
+export const login = async (loginRequest: LoginRequest, options?: RequestInit): Promise<LoginResponse> => {
   
-  return apiMutator<AuthSessionResponse>(getLoginUrl(),
+  return apiMutator<LoginResponse>(getLoginUrl(),
   {      
     ...options,
     method: 'POST',
@@ -201,6 +236,87 @@ export const logout = async ( options?: RequestInit): Promise<void> => {
     method: 'POST'
     
     
+  }
+);}
+
+
+
+/**
+ * Sends a 6-digit code only when the email belongs to a fully registered user.
+Response `sent` is false when no mail was sent (unknown or incomplete account).
+
+ * @summary Start password reset by email
+ */
+export const getPasswordResetStartUrl = () => {
+
+
+  
+
+  return `/auth/password-reset/start`
+}
+
+export const passwordResetStart = async (passwordResetStartRequest: PasswordResetStartRequest, options?: RequestInit): Promise<PasswordResetStartResponse> => {
+  
+  return apiMutator<PasswordResetStartResponse>(getPasswordResetStartUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      passwordResetStartRequest,)
+  }
+);}
+
+
+
+/**
+ * On success returns a short-lived reset token for setting a new password.
+ * @summary Verify password-reset code
+ */
+export const getPasswordResetVerifyUrl = () => {
+
+
+  
+
+  return `/auth/password-reset/verify`
+}
+
+export const passwordResetVerify = async (passwordResetVerifyRequest: PasswordResetVerifyRequest, options?: RequestInit): Promise<PasswordResetVerifyResponse> => {
+  
+  return apiMutator<PasswordResetVerifyResponse>(getPasswordResetVerifyUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      passwordResetVerifyRequest,)
+  }
+);}
+
+
+
+/**
+ * Requires Bearer reset token. Updates the password and revokes all existing login sessions.
+
+ * @summary Set a new password after reset verify
+ */
+export const getPasswordResetConfirmUrl = () => {
+
+
+  
+
+  return `/auth/password-reset/confirm`
+}
+
+export const passwordResetConfirm = async (passwordResetConfirmRequest: PasswordResetConfirmRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiMutator<void>(getPasswordResetConfirmUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      passwordResetConfirmRequest,)
   }
 );}
 
