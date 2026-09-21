@@ -5,7 +5,7 @@ Expo (SDK 57) + Expo Router + NativeWind + TanStack Query. City icons live in `c
 ## Prerequisites
 
 - Node 20+
-- Backend running (`meetopoly-be` on `:8080`) with local Mongo + Redis
+- Backend running (`meetopoly-be` on `:8080`) with local Mongo + Redis + SMTP configured
 - Expo Go or a simulator
 
 ## Run
@@ -35,14 +35,18 @@ Examples:
 
 Restart Expo after edits: `npx expo start -c`.
 
-The home screen reads this via `api/client.ts` → `getApiBaseUrl()`.
+### Auth (Phase 2)
 
-Phase 0 home screen calls `GET /health` via TanStack Query (`hooks/useHealth`).
+- Routes: `app/(auth)/` (email → verify → password → profile, login) and `app/(app)/` (home)
+- Session token in **expo-secure-store**; restored on launch via `SessionProvider`
+- Hooks: `hooks/useAuth.ts`, `hooks/useSession.tsx`, `hooks/useAuthForms.ts` (Formik + Yup)
+- Forms: RN inputs + Moti card; Formik/Yup in hooks; Lottie sun + drifting city SVGs on auth hero
+
+OpenAPI codegen: **orval** (`npm run api:generate`) → `api/generated/`.
 
 ## Notes
 
 - No Docker.
 - **Landscape** only (`app.json` → `orientation: landscape`).
-- Theme: `theme/` (see `theme/README.md`) — colors + **Fraunces** (display) / **Figtree** (UI).
-- OpenAPI codegen: **orval** (`npm run api:generate`) → `api/generated/` (see `api/README.md`).
-- Phase 0 health screen uses StyleSheet + theme tokens; NativeWind remains configured for later chrome.
+- Theme: `theme/` — colors + **Fraunces** (display) / **Figtree** (UI).
+- Phase 0 health panel remains on the signed-in home screen.

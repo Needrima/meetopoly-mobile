@@ -5,10 +5,18 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import type {
-  HealthResponse
+  AuthSessionResponse,
+  HealthResponse,
+  LoginRequest,
+  SignupPasswordRequest,
+  SignupProfileRequest,
+  SignupStartRequest,
+  SignupVerifyRequest,
+  SignupVerifyResponse,
+  UserProfile
 } from './models';
 
 import { apiMutator } from '../client';
@@ -33,6 +41,190 @@ export const getHealth = async ( options?: RequestInit): Promise<HealthResponse>
   {      
     ...options,
     method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Accepts an email and sends a 6-digit verification code via SMTP.
+Always returns 204 when the request is well-formed (anti-enumeration).
+
+ * @summary Start signup by email
+ */
+export const getSignupStartUrl = () => {
+
+
+  
+
+  return `/auth/signup/start`
+}
+
+export const signupStart = async (signupStartRequest: SignupStartRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiMutator<void>(getSignupStartUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      signupStartRequest,)
+  }
+);}
+
+
+
+/**
+ * On success returns a short-lived signup token for password + profile steps.
+ * @summary Verify email with 6-digit code
+ */
+export const getSignupVerifyUrl = () => {
+
+
+  
+
+  return `/auth/signup/verify`
+}
+
+export const signupVerify = async (signupVerifyRequest: SignupVerifyRequest, options?: RequestInit): Promise<SignupVerifyResponse> => {
+  
+  return apiMutator<SignupVerifyResponse>(getSignupVerifyUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      signupVerifyRequest,)
+  }
+);}
+
+
+
+/**
+ * Requires Bearer signup token from `/auth/signup/verify`.
+ * @summary Set password during signup
+ */
+export const getSignupSetPasswordUrl = () => {
+
+
+  
+
+  return `/auth/signup/password`
+}
+
+export const signupSetPassword = async (signupPasswordRequest: SignupPasswordRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiMutator<void>(getSignupSetPasswordUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      signupPasswordRequest,)
+  }
+);}
+
+
+
+/**
+ * Requires Bearer signup token. Sets username + country and returns an opaque session token.
+
+ * @summary Finish profile and start session
+ */
+export const getSignupCompleteProfileUrl = () => {
+
+
+  
+
+  return `/auth/signup/profile`
+}
+
+export const signupCompleteProfile = async (signupProfileRequest: SignupProfileRequest, options?: RequestInit): Promise<AuthSessionResponse> => {
+  
+  return apiMutator<AuthSessionResponse>(getSignupCompleteProfileUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      signupProfileRequest,)
+  }
+);}
+
+
+
+/**
+ * Requires verified email and completed profile. Returns an opaque Redis-backed session token.
+
+ * @summary Login with email and password
+ */
+export const getLoginUrl = () => {
+
+
+  
+
+  return `/auth/login`
+}
+
+export const login = async (loginRequest: LoginRequest, options?: RequestInit): Promise<AuthSessionResponse> => {
+  
+  return apiMutator<AuthSessionResponse>(getLoginUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loginRequest,)
+  }
+);}
+
+
+
+/**
+ * @summary Revoke current session
+ */
+export const getLogoutUrl = () => {
+
+
+  
+
+  return `/auth/logout`
+}
+
+export const logout = async ( options?: RequestInit): Promise<void> => {
+  
+  return apiMutator<void>(getLogoutUrl(),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary Current user profile
+ */
+export const getGetMeUrl = () => {
+
+
+  
+
+  return `/me`
+}
+
+export const getMe = async ( options?: RequestInit): Promise<UserProfile> => {
+  
+  return apiMutator<UserProfile>(getGetMeUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
   }
 );}
 

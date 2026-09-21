@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { SessionProvider } from '@/hooks/useSession';
 import { colors } from '@/theme/colors';
 import { fontAssets } from '@/theme/fonts';
 
@@ -42,13 +43,15 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: styles.stackContent,
-          }}
-        />
+        <SessionProvider>
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: styles.stackContent,
+            }}
+          />
+        </SessionProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

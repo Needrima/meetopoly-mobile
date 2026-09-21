@@ -7,10 +7,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.2.0
  */
+import type { UserProfile } from './userProfile';
 
-export interface ErrorResponse {
-  /** Machine-readable error code */
-  error: string;
-  /** Human-readable detail */
-  message?: string;
+export interface AuthSessionResponse {
+  /** Opaque session token (store in expo-secure-store) */
+  token: string;
+  user: UserProfile;
 }

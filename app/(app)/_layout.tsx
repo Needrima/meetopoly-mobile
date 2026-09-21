@@ -1,13 +1,15 @@
-import { Redirect } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { useMe } from '@/hooks/useAuth';
 import { useSession } from '@/hooks/useSession';
 import { colors } from '@/theme/colors';
 
-export default function IndexScreen() {
+export default function AppLayout() {
   const { token, ready } = useSession();
+  const me = useMe(Boolean(token));
 
-  if (!ready) {
+  if (!ready || (token && me.isLoading)) {
     return (
       <View style={styles.boot}>
         <ActivityIndicator color={colors.brand} />
@@ -15,11 +17,18 @@ export default function IndexScreen() {
     );
   }
 
-  if (token) {
-    return <Redirect href="/(app)" />;
+  if (!token) {
+    return <Redirect href="/(auth)/login" />;
   }
 
-  return <Redirect href="/(auth)/login" />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.bg },
+      }}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
