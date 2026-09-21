@@ -46,7 +46,10 @@ export function AuthHeroArt() {
         <MotiView
           key={`${top}-${left}`}
           from={{ opacity: 0.5, translateY: 0 }}
-          animate={{ opacity: 0.95, translateY: -drift }}
+          animate={{
+            opacity: 0.95,
+            translateY: [0, -drift],
+          }}
           transition={{
             type: 'timing',
             duration: 2800 + delay,

@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { MotiView } from 'moti';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import {
@@ -12,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AuthHeroArt } from '@/components/auth/AuthHeroArt';
+import { useAuthScreenMeta } from '@/components/auth/AuthChrome';
 import { Button, type ButtonProps } from '@/components/ui/Button';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
@@ -28,6 +27,9 @@ type AuthScreenProps = {
   showHeroArt?: boolean;
 };
 
+/**
+ * Form half of the shared auth chrome. Registers title/subtitle on the left hero.
+ */
 export function AuthScreen({
   title,
   subtitle,
@@ -37,49 +39,25 @@ export function AuthScreen({
   showHeroArt = true,
 }: AuthScreenProps) {
   const insets = useSafeAreaInsets();
+  useAuthScreenMeta({ title, subtitle, showHeroArt });
 
   return (
-    <View style={styles.root}>
-      <View
-        style={[
-          styles.hero,
-          {
-            paddingTop: Math.max(insets.top, 20),
-            paddingBottom: Math.max(insets.bottom, 20),
-            paddingLeft: Math.max(insets.left, 28),
-          },
-        ]}
-      >
-        <MotiView
-          from={{ opacity: 0, translateX: -12 }}
-          animate={{ opacity: 1, translateX: 0 }}
-          transition={{ type: 'timing', duration: 400 }}
-          style={styles.heroInner}
-        >
-          <Text style={styles.brand}>Meetopoly</Text>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-          {showHeroArt ? <AuthHeroArt /> : null}
-        </MotiView>
+    <View
+      style={[
+        styles.formHalf,
+        {
+          paddingTop: Math.max(insets.top, 24),
+          paddingBottom: Math.max(insets.bottom, 24),
+          paddingRight: Math.max(insets.right, 28),
+          paddingLeft: 28,
+        },
+      ]}
+    >
+      <View style={styles.formInner}>
+        <View style={styles.form}>{children}</View>
+        {footer ? <View style={styles.footerInline}>{footer}</View> : null}
       </View>
-
-      <View
-        style={[
-          styles.formHalf,
-          {
-            paddingTop: Math.max(insets.top, 24),
-            paddingBottom: Math.max(insets.bottom, 24),
-            paddingRight: Math.max(insets.right, 28),
-            paddingLeft: 28,
-          },
-        ]}
-      >
-        <View style={styles.formInner}>
-          <View style={styles.form}>{children}</View>
-          {footer ? <View style={styles.footerInline}>{footer}</View> : null}
-        </View>
-        {bottom ? <View style={styles.bottomDock}>{bottom}</View> : null}
-      </View>
+      {bottom ? <View style={styles.bottomDock}>{bottom}</View> : null}
     </View>
   );
 }
@@ -182,45 +160,9 @@ export function AuthError({ message }: { message: string | null | undefined }) {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: colors.bg,
-  },
-  hero: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    justifyContent: 'center',
-  },
-  heroInner: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingRight: 16,
-  },
-  brand: {
-    marginBottom: 6,
-    fontFamily: fonts.displayBold,
-    fontSize: 34,
-    color: colors.brand,
-  },
-  title: {
-    marginBottom: 8,
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 22,
-    color: colors.ink,
-  },
-  subtitle: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.muted,
-    maxWidth: 280,
-  },
   formHalf: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: colors.border,
   },
   formInner: {
     flex: 1,

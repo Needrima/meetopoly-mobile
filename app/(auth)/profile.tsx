@@ -4,6 +4,7 @@ import {
   AuthPrimaryButton,
   AuthScreen,
 } from '@/components/auth/AuthForm';
+import { CountryField } from '@/components/ui/CountryField';
 import { useSignupProfileForm } from '@/hooks/useAuthForms';
 
 export default function SignupProfileScreen() {
@@ -12,7 +13,7 @@ export default function SignupProfileScreen() {
   return (
     <AuthScreen
       title="Finish profile"
-      subtitle="Pick a username (3–20 chars) and your country code (e.g. NG)."
+      subtitle="Pick a username and your country."
     >
       <AuthField
         placeholder="Username"
@@ -20,11 +21,9 @@ export default function SignupProfileScreen() {
         maxLength={20}
         onChangeText={(value) => form.setFieldValue('username', value)}
       />
-      <AuthField
-        placeholder="Country (ISO, e.g. NG)"
-        autoCapitalize="characters"
-        maxLength={2}
-        onChangeText={(value) => form.setFieldValue('country', value)}
+      <CountryField
+        value={form.values.country}
+        onChange={(code) => form.setFieldValue('country', code)}
       />
       <AuthError message={form.error} />
       <AuthPrimaryButton
