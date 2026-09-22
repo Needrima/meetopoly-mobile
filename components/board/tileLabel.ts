@@ -71,13 +71,13 @@ export function locLongCornerLabel(loc: Location | undefined): boolean {
   return loc?.specialType === "go_to_jail";
 }
 
-/** Same base size on every side; only “Go to Jail” may shrink slightly. */
+/** Fixed size on every side (no auto-shrink). “Go to Jail” may fit slightly smaller. */
 export function labelFontSize(
   loc: Location | undefined,
   isCorner: boolean,
   minEdge: number,
 ): number {
-  const base = minEdge < 36 ? 7 : 8;
+  const base = minEdge < 40 ? 7 : 8;
   if (locLongCornerLabel(loc) && isCorner) {
     return Math.max(6, base - 1);
   }

@@ -21,7 +21,7 @@ type BoardTileProps = {
 };
 
 /**
- * Phase 4.3 — absolute tile frame + boardCode / upright top / plane + GO arrow.
+ * Phase 4.3 — absolute tile frame; same label size on every side.
  */
 export function BoardTile({ tile, location }: BoardTileProps) {
   const visual = tileVisual(location, { isCorner: tile.isCorner });
@@ -35,12 +35,21 @@ export function BoardTile({ tile, location }: BoardTileProps) {
   const minEdge = Math.min(tile.width, tile.height);
   const iconSize = Math.max(
     10,
-    Math.min(22, Math.floor(minEdge * (tile.isCorner ? 0.38 : 0.42))),
+    Math.min(20, Math.floor(minEdge * (tile.isCorner ? 0.36 : 0.38))),
   );
-  const pad = band
-    ? Math.max(band.width === tile.width ? band.height : band.width, 2) + 2
-    : 3;
 
+  // Band only on the center-facing edge — keep other paddings small so codes fit.
+  const bandDepth = band
+    ? Math.max(band.width === tile.width ? band.height : band.width, 2)
+    : 0;
+  const contentPad = {
+    paddingTop: tile.side === "bottom" ? bandDepth + 2 : 2,
+    paddingBottom: tile.side === "top" ? bandDepth + 2 : 2,
+    paddingLeft: tile.side === "right" ? bandDepth + 2 : 2,
+    paddingRight: tile.side === "left" ? bandDepth + 2 : 2,
+  };
+
+  const longCorner = locLongCornerLabel(location);
   const iconPath = location?.assets?.icon;
   const isPlane = Boolean(iconPath?.includes("plane"));
   const isGoArrow = isGoArrowIcon(iconPath);
@@ -81,14 +90,14 @@ export function BoardTile({ tile, location }: BoardTileProps) {
       <View
         style={[
           styles.content,
-          {
-            transform: [{ rotate: contentRotation(tile.side) }],
-            padding: pad,
-          },
+          contentPad,
+          { transform: [{ rotate: contentRotation(tile.side) }] },
         ]}
       >
         {Icon ? (
-          <View style={iconTransforms.length ? { transform: iconTransforms } : undefined}>
+          <View
+            style={iconTransforms.length ? { transform: iconTransforms } : undefined}
+          >
             <Icon width={iconSize} height={iconSize} color={colors.ink} />
           </View>
         ) : null}
@@ -96,13 +105,12 @@ export function BoardTile({ tile, location }: BoardTileProps) {
           <Text
             style={[
               styles.label,
-              {
-                fontSize: labelFontSize(location, tile.isCorner, minEdge),
-              },
+              { fontSize: labelFontSize(location, tile.isCorner, minEdge) },
             ]}
             numberOfLines={1}
-            {...(locLongCornerLabel(location)
-              ? { adjustsFontSizeToFit: true, minimumFontScale: 0.75 }
+            allowFontScaling={false}
+            {...(longCorner
+              ? { adjustsFontSizeToFit: true, minimumFontScale: 0.7 }
               : {})}
           >
             {label}
@@ -133,6 +141,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     color: colors.ink,
     textAlign: "center",
-    lineHeight: 10,
+    lineHeight: 11,
   },
 });
