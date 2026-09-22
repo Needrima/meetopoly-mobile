@@ -18,7 +18,7 @@ import { fonts } from "@/theme/fonts";
 const PANEL_MIN = 168;
 
 /**
- * Phase 4.3 — landscape board with icons + short names.
+ * Phase 4.4 — landscape board with center Chance/Chest decks.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
@@ -83,7 +83,7 @@ export default function BoardScreen() {
 
         <View style={[styles.panelRail, { height: boardSide }]}>
           <Text style={styles.phase}>
-            Phase 4.3 · {locations.length || "…"} slots · {DEFAULT_WORLD_ID}
+            Phase 4.4 · {locations.length || "…"} slots · {DEFAULT_WORLD_ID}
           </Text>
           <BoardPanel />
         </View>

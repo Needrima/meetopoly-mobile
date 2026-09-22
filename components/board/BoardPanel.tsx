@@ -21,7 +21,7 @@ export function BoardPanel() {
 
       <View style={styles.footer}>
         <View style={styles.stub}>
-          <Text style={styles.stubLabel}>Phase 4.3 · icons</Text>
+          <Text style={styles.stubLabel}>Phase 4.4 · center decks</Text>
         </View>
         <View
           style={styles.joystickDock}

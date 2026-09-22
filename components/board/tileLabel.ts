@@ -18,6 +18,10 @@ export function shortTileName(loc: Location | undefined): string {
         return "Layover";
       case "go_to_jail":
         return "Go to Jail";
+      case "chance":
+        return "CHA";
+      case "community_chest":
+        return "CHE";
       default:
         break;
     }

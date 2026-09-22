@@ -13,11 +13,25 @@ export type TileLayout = {
   isCorner: boolean;
 };
 
+/** Hard obstacle for walk (Phase 4.5+). Points are board-local. */
+export type CenterDeckLayout = {
+  id: 'chance' | 'community_chest';
+  label: string;
+  /** Parallelogram corners (clockwise), board-local. */
+  points: Array<{ x: number; y: number }>;
+  /** Axis-aligned bounds — coarse collide reserved for 4.5. */
+  bounds: { x: number; y: number; width: number; height: number };
+  fill: string;
+  stroke: string;
+};
+
 export type BoardLayout = {
   size: number;
   trackDepth: number;
   center: { x: number; y: number; width: number; height: number };
   tiles: TileLayout[];
+  /** Center Chance + Chest decks (hard obstacles when walking). */
+  decks: CenterDeckLayout[];
 };
 
 const CORNER_TYPES = ['go', 'jail', 'free_parking', 'go_to_jail'] as const;
@@ -28,7 +42,11 @@ const CORNER_TYPES = ['go', 'jail', 'free_parking', 'go_to_jail'] as const;
 export function cornerIndices(locations: Location[]): [number, number, number, number] {
   const bySpecial = new Map<string, number>();
   for (const loc of locations) {
-    if (loc.kind === 'special' && loc.specialType && CORNER_TYPES.includes(loc.specialType as (typeof CORNER_TYPES)[number])) {
+    if (
+      loc.kind === 'special' &&
+      loc.specialType &&
+      CORNER_TYPES.includes(loc.specialType as (typeof CORNER_TYPES)[number])
+    ) {
       bySpecial.set(loc.specialType, loc.boardIndex);
     }
   }
@@ -39,7 +57,6 @@ export function cornerIndices(locations: Location[]): [number, number, number, n
   if (go != null && jail != null && free != null && goto != null) {
     return [go, jail, free, goto];
   }
-  // Fallback: even-ish split of sorted indices (should not happen for africa-1).
   const idxs = [...new Set(locations.map((l) => l.boardIndex))].sort((a, b) => a - b);
   const n = idxs.length;
   const step = Math.floor(n / 4);
@@ -70,7 +87,6 @@ export function layoutBoardRing(size: number, locations: Location[]): BoardLayou
     });
   };
 
-  // --- Bottom (GO → Jail): right to left ---
   pushCorner(go, 'bottom', size - trackDepth, size - trackDepth);
   {
     const mids = indicesBetween(go, jail, maxIndex);
@@ -89,8 +105,6 @@ export function layoutBoardRing(size: number, locations: Location[]): BoardLayou
   }
   pushCorner(jail, 'bottom', 0, size - trackDepth);
 
-  // --- Left (Jail → Free Parking): bottom to top ---
-  // jail corner already placed
   {
     const mids = indicesBetween(jail, free, maxIndex);
     const midH = mids.length > 0 ? inner / mids.length : inner;
@@ -108,7 +122,6 @@ export function layoutBoardRing(size: number, locations: Location[]): BoardLayou
   }
   pushCorner(free, 'top', 0, 0);
 
-  // --- Top (Free Parking → Go to Jail): left to right ---
   {
     const mids = indicesBetween(free, gotoJail, maxIndex);
     const midW = mids.length > 0 ? inner / mids.length : inner;
@@ -126,7 +139,6 @@ export function layoutBoardRing(size: number, locations: Location[]): BoardLayou
   }
   pushCorner(gotoJail, 'top', size - trackDepth, 0);
 
-  // --- Right (Go to Jail → GO): top to bottom ---
   {
     const mids = indicesBetween(gotoJail, go, maxIndex);
     const midH = mids.length > 0 ? inner / mids.length : inner;
@@ -143,20 +155,118 @@ export function layoutBoardRing(size: number, locations: Location[]): BoardLayou
     });
   }
 
-  // Deduplicate corners that were pushed twice (jail/free/goto appear once each — go once).
-  // jail was pushed as bottom corner; free as top; gotoJail as top; go as bottom.
-  // Left side didn't re-push jail. Good.
-  // But free was pushCorner after left mids AND we might have issue: jail pushed only once.
+  const center = { x: trackDepth, y: trackDepth, width: inner, height: inner };
 
   return {
     size,
     trackDepth,
-    center: { x: trackDepth, y: trackDepth, width: inner, height: inner },
+    center,
     tiles: dedupeTiles(tiles),
+    decks: layoutCenterDecks(center),
   };
 }
 
-/** Indices strictly after `from` up to but not including `to` (wraps past max). */
+/** Shared with BoardCenter label tilt. */
+export const CENTER_DECK_ROTATION_DEG = -45;
+
+/**
+ * Classic-style Chance + Community Chest decks in the board center.
+ * Geometry reserved as hard obstacles for avatar walk (4.5).
+ */
+export function layoutCenterDecks(center: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): CenterDeckLayout[] {
+  const { x, y, width: w, height: h } = center;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const m = Math.min(w, h);
+  const deckW = m * 0.3;
+  const deckH = m * 0.17;
+  const offset = m * 0.2;
+  const rotation = CENTER_DECK_ROTATION_DEG;
+
+  return [
+    makeDeck({
+      id: 'community_chest',
+      label: 'Community Chest',
+      cx: cx - offset,
+      cy: cy - offset,
+      deckW,
+      deckH,
+      rotationDeg: rotation,
+      fill: '#D6E6FF',
+      stroke: '#2F6FED',
+    }),
+    makeDeck({
+      id: 'chance',
+      label: 'Chance',
+      cx: cx + offset,
+      cy: cy + offset,
+      deckW,
+      deckH,
+      rotationDeg: rotation,
+      fill: '#FFE8C2',
+      stroke: '#C47A0A',
+    }),
+  ];
+}
+
+function makeDeck(opts: {
+  id: 'chance' | 'community_chest';
+  label: string;
+  cx: number;
+  cy: number;
+  deckW: number;
+  deckH: number;
+  rotationDeg: number;
+  fill: string;
+  stroke: string;
+}): CenterDeckLayout {
+  const hw = opts.deckW / 2;
+  const hh = opts.deckH / 2;
+  const local = [
+    { x: opts.cx - hw, y: opts.cy - hh },
+    { x: opts.cx + hw, y: opts.cy - hh },
+    { x: opts.cx + hw, y: opts.cy + hh },
+    { x: opts.cx - hw, y: opts.cy + hh },
+  ];
+  const points = local.map((p) =>
+    rotatePoint(p.x, p.y, opts.cx, opts.cy, opts.rotationDeg),
+  );
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  return {
+    id: opts.id,
+    label: opts.label,
+    points,
+    bounds: { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+    fill: opts.fill,
+    stroke: opts.stroke,
+  };
+}
+
+function rotatePoint(
+  px: number,
+  py: number,
+  cx: number,
+  cy: number,
+  deg: number,
+): { x: number; y: number } {
+  const r = (deg * Math.PI) / 180;
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  const dx = px - cx;
+  const dy = py - cy;
+  return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+}
+
 function indicesBetween(from: number, to: number, maxIndex: number): number[] {
   const out: number[] = [];
   let i = from + 1;
@@ -167,7 +277,6 @@ function indicesBetween(from: number, to: number, maxIndex: number): number[] {
     }
     return out;
   }
-  // wrap: e.g. 34 → 0 with max 40 → 35..40
   while (i <= maxIndex) {
     out.push(i);
     i += 1;
