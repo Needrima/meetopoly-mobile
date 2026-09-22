@@ -13,7 +13,7 @@ type BoardProps = {
 };
 
 /**
- * Phase 4.2 — ring with color bands / kind styling.
+ * Phase 4.3 — ring with colors, icons, and short names.
  */
 export function Board({ size, locations }: BoardProps) {
   const layout = useMemo(() => layoutBoardRing(size, locations), [size, locations]);
@@ -39,7 +39,7 @@ export function Board({ size, locations }: BoardProps) {
         ]}
       >
         <Text style={styles.centerLabel}>Meetopoly</Text>
-        <Text style={styles.centerHint}>Phase 4.2 · {layout.tiles.length} slots</Text>
+        <Text style={styles.centerHint}>Phase 4.3 · {layout.tiles.length} slots</Text>
       </View>
       {layout.tiles.map((tile) => (
         <BoardTile

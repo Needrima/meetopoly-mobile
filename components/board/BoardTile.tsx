@@ -2,6 +2,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import type { Location } from '@/api/types';
 import type { TileLayout } from '@/components/board/boardLayout';
+import { resolveBoardIcon } from '@/components/board/iconRegistry';
+import { contentRotation, shortTileName } from '@/components/board/tileLabel';
 import { bandStyle, tileVisual } from '@/components/board/tileStyle';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
@@ -12,7 +14,7 @@ type BoardTileProps = {
 };
 
 /**
- * Phase 4.2 — geometry + color band / kind fill (no icons yet).
+ * Phase 4.3 — color band + icon + short name (no walk yet).
  */
 export function BoardTile({ tile, location }: BoardTileProps) {
   const visual = tileVisual(location, { isCorner: tile.isCorner });
@@ -20,6 +22,14 @@ export function BoardTile({ tile, location }: BoardTileProps) {
     visual.bandColor != null
       ? bandStyle(tile.side, tile.width, tile.height, visual.bandFraction)
       : null;
+
+  const Icon = resolveBoardIcon(location?.assets?.icon);
+  const label = shortTileName(location);
+  const minEdge = Math.min(tile.width, tile.height);
+  const iconSize = Math.max(10, Math.min(22, Math.floor(minEdge * (tile.isCorner ? 0.38 : 0.42))));
+  const pad = band
+    ? Math.max(band.width === tile.width ? band.height : band.width, 2) + 2
+    : 3;
 
   return (
     <View
@@ -48,9 +58,25 @@ export function BoardTile({ tile, location }: BoardTileProps) {
           ]}
         />
       ) : null}
-      <Text style={styles.index} numberOfLines={1}>
-        {tile.boardIndex}
-      </Text>
+
+      <View
+        style={[
+          styles.content,
+          {
+            transform: [{ rotate: contentRotation(tile.side) }],
+            padding: pad,
+          },
+        ]}
+      >
+        {Icon ? (
+          <Icon width={iconSize} height={iconSize} color={colors.ink} />
+        ) : null}
+        {label ? (
+          <Text style={[styles.label, { fontSize: minEdge < 36 ? 7 : 8 }]} numberOfLines={2}>
+            {label}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -60,17 +86,21 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
     overflow: 'hidden',
   },
   band: {
     position: 'absolute',
   },
-  index: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 8,
-    color: colors.muted,
-    zIndex: 1,
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
+  label: {
+    fontFamily: fonts.bodySemiBold,
+    color: colors.ink,
+    textAlign: 'center',
+    lineHeight: 9,
   },
 });
