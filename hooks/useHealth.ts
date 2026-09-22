@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from "@tanstack/react-query";
 
-import { queryKeys } from '@/api/queryKeys';
-import { getHealth } from '@/api/services';
-import type { HealthResponse } from '@/api/types';
+import { queryKeys } from "@/api/queryKeys";
+import { getHealth } from "@/api/services";
+import type { HealthResponse } from "@/api/types";
 
 export function useHealth() {
   return useQuery<HealthResponse, Error>({

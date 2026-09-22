@@ -4,29 +4,33 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { getApiBaseUrl } from '@/api/client';
-import { useLogout } from '@/hooks/useAuth';
-import { useHealth } from '@/hooks/useHealth';
-import { useSession } from '@/hooks/useSession';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+import { getApiBaseUrl } from "@/api/client";
+import { useLogout } from "@/hooks/useAuth";
+import { useHealth } from "@/hooks/useHealth";
+import { useSession } from "@/hooks/useSession";
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 export default function HomeScreen() {
   const { user } = useSession();
   const { data, error, isFetching, isLoading, refetch, isError } = useHealth();
   const logout = useLogout();
-  const statusOk = data?.status === 'ok';
+  const statusOk = data?.status === "ok";
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
+    <SafeAreaView
+      style={styles.safe}
+      edges={["top", "right", "bottom", "left"]}
+    >
       <View style={styles.row}>
         <View style={styles.left}>
           <Text style={styles.title}>Meetopoly</Text>
           <Text style={styles.subtitle}>
-            Signed in as {user?.username ?? user?.email ?? '…'}
+            Signed in as {user?.username ?? user?.email ?? "…"}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -40,8 +44,32 @@ export default function HomeScreen() {
             ]}
           >
             <Text style={styles.buttonLabel}>
-              {isFetching ? 'Refreshing…' : 'Refresh health'}
+              {isFetching ? "Refreshing…" : "Refresh health"}
             </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              router.push("/(app)/locations");
+            }}
+            style={({ pressed }) => [
+              styles.button,
+              pressed ? styles.buttonPressed : null,
+            ]}
+          >
+            <Text style={styles.buttonLabel}>View locations</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              router.push("/(app)/board");
+            }}
+            style={({ pressed }) => [
+              styles.button,
+              pressed ? styles.buttonPressed : null,
+            ]}
+          >
+            <Text style={styles.buttonLabel}>Open board</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -55,7 +83,7 @@ export default function HomeScreen() {
             ]}
           >
             <Text style={styles.secondaryLabel}>
-              {logout.isPending ? 'Signing out…' : 'Log out'}
+              {logout.isPending ? "Signing out…" : "Log out"}
             </Text>
           </Pressable>
         </View>
@@ -73,13 +101,18 @@ export default function HomeScreen() {
 
           {isError ? (
             <Text style={styles.error}>
-              {error instanceof Error ? error.message : 'Request failed'}
+              {error instanceof Error ? error.message : "Request failed"}
             </Text>
           ) : null}
 
           {data ? (
             <View style={styles.metrics}>
-              <Text style={[styles.metricStrong, statusOk ? styles.ok : styles.warn]}>
+              <Text
+                style={[
+                  styles.metricStrong,
+                  statusOk ? styles.ok : styles.warn,
+                ]}
+              >
                 status: {data.status}
               </Text>
               <Text style={styles.metric}>mongo: {data.mongo}</Text>
@@ -102,9 +135,9 @@ const styles = StyleSheet.create({
   },
   row: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 40,
     paddingHorizontal: 40,
     paddingVertical: 24,
@@ -127,7 +160,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   button: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     borderRadius: 12,
     backgroundColor: colors.brand,
     paddingHorizontal: 24,
@@ -135,7 +168,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   secondaryButton: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
@@ -170,7 +203,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     fontSize: 12,
     letterSpacing: 1,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     color: colors.muted,
   },
   mono: {
@@ -180,7 +213,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   loading: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 16,
     gap: 8,
   },

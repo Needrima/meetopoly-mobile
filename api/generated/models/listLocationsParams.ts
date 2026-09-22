@@ -8,7 +8,9 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.3.0
  */
 
-export interface SignupVerifyResponse {
-  /** Short-lived Bearer token for password + profile steps */
-  signupToken: string;
-}
+export type ListLocationsParams = {
+/**
+ * World pack id (e.g. africa-1)
+ */
+worldId: string;
+};

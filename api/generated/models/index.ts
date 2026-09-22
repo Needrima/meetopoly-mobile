@@ -5,15 +5,22 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 
 export * from './authSessionResponse';
 export * from './errorResponse';
+export * from './getLocationBySlugParams';
 export * from './healthResponse';
 export * from './healthResponseMongo';
 export * from './healthResponseRedis';
 export * from './healthResponseStatus';
+export * from './listLocationsParams';
+export * from './location';
+export * from './locationAssets';
+export * from './locationKind';
+export * from './locationMap';
+export * from './locationsResponse';
 export * from './loginRequest';
 export * from './loginResponse';
 export * from './passwordResetConfirmRequest';
@@ -28,3 +35,5 @@ export * from './signupStatusResponse';
 export * from './signupVerifyRequest';
 export * from './signupVerifyResponse';
 export * from './userProfile';
+export * from './worldSummary';
+export * from './worldsResponse';

@@ -4,7 +4,7 @@ Locked visual tokens for mobile v1 (and later web/desktop ports).
 
 | Area | Choice |
 |------|--------|
-| Orientation | **Landscape** (Guns of Glory–style overworld) |
+| Orientation | **Landscape** (2D board + right panel) |
 | Shell | Warm paper (`bg`) |
 | Brand | Forest green + gold accent |
 | Display font | **Fraunces** Soft (`assets/fonts/Fraunces`) |

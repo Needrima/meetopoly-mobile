@@ -1,20 +1,20 @@
-import '@/global.css';
-import '@/theme/nativewind';
+import "@/global.css";
+import "@/theme/nativewind";
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useFonts } from "expo-font";
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import { StyleSheet } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { SessionProvider } from '@/hooks/useSession';
-import { toastConfig } from '@/lib/notify';
-import { colors } from '@/theme/colors';
-import { fontAssets } from '@/theme/fonts';
-import Toast from 'react-native-toast-message';
+import { SessionProvider } from "@/hooks/useSession";
+import { toastConfig } from "@/lib/notify";
+import { colors } from "@/theme/colors";
+import { fontAssets } from "@/theme/fonts";
+import Toast from "react-native-toast-message";
 
 void SplashScreen.preventAutoHideAsync();
 

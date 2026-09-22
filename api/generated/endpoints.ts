@@ -5,11 +5,15 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 import type {
   AuthSessionResponse,
+  GetLocationBySlugParams,
   HealthResponse,
+  ListLocationsParams,
+  Location,
+  LocationsResponse,
   LoginRequest,
   LoginResponse,
   PasswordResetConfirmRequest,
@@ -23,7 +27,8 @@ import type {
   SignupStatusResponse,
   SignupVerifyRequest,
   SignupVerifyResponse,
-  UserProfile
+  UserProfile,
+  WorldsResponse
 } from './models';
 
 import { apiMutator } from '../client';
@@ -336,6 +341,118 @@ export const getGetMeUrl = () => {
 export const getMe = async ( options?: RequestInit): Promise<UserProfile> => {
   
   return apiMutator<UserProfile>(getGetMeUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Distinct `worldId` values with location counts from the `locations` collection.
+ * @summary List world packs
+ */
+export const getListWorldsUrl = () => {
+
+
+  
+
+  return `/worlds`
+}
+
+export const listWorlds = async ( options?: RequestInit): Promise<WorldsResponse> => {
+  
+  return apiMutator<WorldsResponse>(getListWorldsUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Returns board spaces for `worldId`, sorted by `boardIndex`.
+ * @summary List locations for a world
+ */
+export const getListLocationsUrl = (params: ListLocationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/locations?${stringifiedParams}` : `/locations`
+}
+
+export const listLocations = async (params: ListLocationsParams, options?: RequestInit): Promise<LocationsResponse> => {
+  
+  return apiMutator<LocationsResponse>(getListLocationsUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary Get location by world and slug
+ */
+export const getGetLocationBySlugUrl = (params: GetLocationBySlugParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/locations/by-slug?${stringifiedParams}` : `/locations/by-slug`
+}
+
+export const getLocationBySlug = async (params: GetLocationBySlugParams, options?: RequestInit): Promise<Location> => {
+  
+  return apiMutator<Location>(getGetLocationBySlugUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary Get location by Mongo id
+ */
+export const getGetLocationByIdUrl = (locationId: string,) => {
+
+
+  
+
+  return `/locations/${locationId}`
+}
+
+export const getLocationById = async (locationId: string, options?: RequestInit): Promise<Location> => {
+  
+  return apiMutator<Location>(getGetLocationByIdUrl(locationId),
   {      
     ...options,
     method: 'GET'

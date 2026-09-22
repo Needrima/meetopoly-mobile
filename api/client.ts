@@ -3,7 +3,7 @@
  * Used as the orval mutator — endpoint functions live in generated services.
  */
 
-const DEFAULT_BASE_URL = 'http://localhost:8080';
+const DEFAULT_BASE_URL = "http://localhost:8080";
 
 /**
  * API base URL from Expo public env (`.env` → `EXPO_PUBLIC_API_URL`).
@@ -11,7 +11,9 @@ const DEFAULT_BASE_URL = 'http://localhost:8080';
  */
 export function getApiBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
-  return fromEnv && fromEnv.length > 0 ? fromEnv.replace(/\/$/, '') : DEFAULT_BASE_URL;
+  return fromEnv && fromEnv.length > 0
+    ? fromEnv.replace(/\/$/, "")
+    : DEFAULT_BASE_URL;
 }
 
 export class ApiError extends Error {
@@ -21,7 +23,7 @@ export class ApiError extends Error {
 
   constructor(status: number, body: string, code: string | null = null) {
     super(messageFromBody(body, status));
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.status = status;
     this.body = body;
     this.code = code;
@@ -74,12 +76,14 @@ function hasAuthorizationHeader(headers: HeadersInit | undefined): boolean {
     return false;
   }
   if (headers instanceof Headers) {
-    return headers.has('Authorization');
+    return headers.has("Authorization");
   }
   if (Array.isArray(headers)) {
-    return headers.some(([key]) => key.toLowerCase() === 'authorization');
+    return headers.some(([key]) => key.toLowerCase() === "authorization");
   }
-  return Object.keys(headers).some((key) => key.toLowerCase() === 'authorization');
+  return Object.keys(headers).some(
+    (key) => key.toLowerCase() === "authorization",
+  );
 }
 
 /**
@@ -90,12 +94,15 @@ function hasAuthorizationHeader(headers: HeadersInit | undefined): boolean {
  *
  * `/health` returns JSON on both 200 and 503 — both are accepted when a body is present.
  */
-export async function apiMutator<T>(url: string, options?: ApiMutatorOptions): Promise<T> {
+export async function apiMutator<T>(
+  url: string,
+  options?: ApiMutatorOptions,
+): Promise<T> {
   const { params: _params, ...init } = options ?? {};
-  const path = url.startsWith('http') ? url : `${getApiBaseUrl()}${url}`;
+  const path = url.startsWith("http") ? url : `${getApiBaseUrl()}${url}`;
 
   const headers: Record<string, string> = {
-    Accept: 'application/json',
+    Accept: "application/json",
   };
 
   const token = accessTokenGetter?.() ?? null;
