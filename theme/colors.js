@@ -32,6 +32,7 @@ const colorGroups = {
   yellow: '#FEF200',
   green: '#1FB25A',
   darkBlue: '#0072BB',
+  violet: '#6B3FA0',
 };
 
 module.exports = { colors, colorGroups };

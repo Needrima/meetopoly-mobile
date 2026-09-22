@@ -34,6 +34,7 @@ const { colors: rawColors, colorGroups: rawGroups } = require('./colors.js') as 
     yellow: string;
     green: string;
     darkBlue: string;
+    violet: string;
   };
 };
 

@@ -21,7 +21,7 @@ export function BoardPanel() {
 
       <View style={styles.footer}>
         <View style={styles.stub}>
-          <Text style={styles.stubLabel}>Phase 4.1 · 40-slot ring</Text>
+          <Text style={styles.stubLabel}>Phase 4.2 · colors</Text>
         </View>
         <View style={styles.joystickDock} accessibilityLabel="Joystick placeholder">
           <View style={styles.joystickKnob} />

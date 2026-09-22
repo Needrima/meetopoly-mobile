@@ -13,10 +13,17 @@ type BoardProps = {
 };
 
 /**
- * Phase 4.1 — empty boardIndex ring geometry.
+ * Phase 4.2 — ring with color bands / kind styling.
  */
 export function Board({ size, locations }: BoardProps) {
   const layout = useMemo(() => layoutBoardRing(size, locations), [size, locations]);
+  const byIndex = useMemo(() => {
+    const map = new Map<number, Location>();
+    for (const loc of locations) {
+      map.set(loc.boardIndex, loc);
+    }
+    return map;
+  }, [locations]);
 
   return (
     <View style={[styles.root, { width: size, height: size }]}>
@@ -32,10 +39,14 @@ export function Board({ size, locations }: BoardProps) {
         ]}
       >
         <Text style={styles.centerLabel}>Meetopoly</Text>
-        <Text style={styles.centerHint}>Phase 4.1 · {layout.tiles.length} slots</Text>
+        <Text style={styles.centerHint}>Phase 4.2 · {layout.tiles.length} slots</Text>
       </View>
       {layout.tiles.map((tile) => (
-        <BoardTile key={tile.boardIndex} tile={tile} />
+        <BoardTile
+          key={tile.boardIndex}
+          tile={tile}
+          location={byIndex.get(tile.boardIndex)}
+        />
       ))}
     </View>
   );
