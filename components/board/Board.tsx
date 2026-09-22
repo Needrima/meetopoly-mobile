@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useMemo } from "react";
+import { StyleSheet, Text, View } from "react-native";
 
-import type { Location } from '@/api/types';
-import { BoardTile } from '@/components/board/BoardTile';
-import { layoutBoardRing } from '@/components/board/boardLayout';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+import type { Location } from "@/api/types";
+import { BoardTile } from "@/components/board/BoardTile";
+import { layoutBoardRing } from "@/components/board/boardLayout";
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 type BoardProps = {
   size: number;
@@ -16,7 +16,10 @@ type BoardProps = {
  * Phase 4.3 — ring with colors, icons, and short names.
  */
 export function Board({ size, locations }: BoardProps) {
-  const layout = useMemo(() => layoutBoardRing(size, locations), [size, locations]);
+  const layout = useMemo(
+    () => layoutBoardRing(size, locations),
+    [size, locations],
+  );
   const byIndex = useMemo(() => {
     const map = new Map<number, Location>();
     for (const loc of locations) {
@@ -39,7 +42,9 @@ export function Board({ size, locations }: BoardProps) {
         ]}
       >
         <Text style={styles.centerLabel}>Meetopoly</Text>
-        <Text style={styles.centerHint}>Phase 4.3 · {layout.tiles.length} slots</Text>
+        <Text style={styles.centerHint}>
+          Phase 4.3 · {layout.tiles.length} slots
+        </Text>
       </View>
       {layout.tiles.map((tile) => (
         <BoardTile
@@ -55,13 +60,13 @@ export function Board({ size, locations }: BoardProps) {
 const styles = StyleSheet.create({
   root: {
     backgroundColor: colors.brandMuted,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   center: {
-    position: 'absolute',
-    backgroundColor: '#c5d9ce',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: "absolute",
+    backgroundColor: "#c5d9ce",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 4,
   },
   centerLabel: {

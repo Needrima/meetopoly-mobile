@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.3.1
  */
 import type { Location } from './location';
 

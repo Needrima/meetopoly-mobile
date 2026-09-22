@@ -1,7 +1,7 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from "react-native";
 
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 /**
  * Phase 4.0 — right-rail panel placeholder.
@@ -23,7 +23,10 @@ export function BoardPanel() {
         <View style={styles.stub}>
           <Text style={styles.stubLabel}>Phase 4.3 · icons</Text>
         </View>
-        <View style={styles.joystickDock} accessibilityLabel="Joystick placeholder">
+        <View
+          style={styles.joystickDock}
+          accessibilityLabel="Joystick placeholder"
+        >
           <View style={styles.joystickKnob} />
           <Text style={styles.dockHint}>Stick</Text>
         </View>
@@ -43,7 +46,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     fontSize: 11,
     letterSpacing: 1,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     color: colors.muted,
   },
   title: {
@@ -63,9 +66,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
     gap: 12,
   },
   stub: {
@@ -86,11 +89,11 @@ const styles = StyleSheet.create({
     height: 96,
     borderRadius: 48,
     borderWidth: 2,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     borderColor: colors.border,
     backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   joystickKnob: {
     width: 36,

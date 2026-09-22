@@ -1,12 +1,19 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Board } from '@/components/board/Board';
-import { BoardPanel } from '@/components/board/BoardPanel';
-import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+import { Board } from "@/components/board/Board";
+import { BoardPanel } from "@/components/board/BoardPanel";
+import { DEFAULT_WORLD_ID, useLocations } from "@/hooks/useLocations";
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 const PANEL_MIN = 168;
 
@@ -24,24 +31,37 @@ export default function BoardScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.main, { paddingLeft: insets.left, paddingRight: insets.right }]}>
-        <View style={[styles.boardRail, { width: boardSide, height: boardSide }]}>
+      <View
+        style={[
+          styles.main,
+          { paddingLeft: insets.left, paddingRight: insets.right },
+        ]}
+      >
+        <View
+          style={[styles.boardRail, { width: boardSide, height: boardSide }]}
+        >
           {isLoading ? (
             <View style={styles.boardState}>
               <ActivityIndicator color={colors.onBrand} />
-              <Text style={styles.boardStateText}>Loading {DEFAULT_WORLD_ID}…</Text>
+              <Text style={styles.boardStateText}>
+                Loading {DEFAULT_WORLD_ID}…
+              </Text>
             </View>
           ) : null}
 
           {isError ? (
             <View style={styles.boardState}>
               <Text style={styles.boardStateError}>
-                {error instanceof Error ? error.message : 'Failed to load locations'}
+                {error instanceof Error
+                  ? error.message
+                  : "Failed to load locations"}
               </Text>
             </View>
           ) : null}
 
-          {!isLoading && !isError ? <Board size={boardSide} locations={locations} /> : null}
+          {!isLoading && !isError ? (
+            <Board size={boardSide} locations={locations} />
+          ) : null}
 
           <Pressable
             accessibilityRole="button"
@@ -49,10 +69,13 @@ export default function BoardScreen() {
               if (router.canGoBack()) {
                 router.back();
               } else {
-                router.replace('/(app)');
+                router.replace("/(app)");
               }
             }}
-            style={({ pressed }) => [styles.back, pressed ? styles.pressed : null]}
+            style={({ pressed }) => [
+              styles.back,
+              pressed ? styles.pressed : null,
+            ]}
           >
             <Text style={styles.backLabel}>Back</Text>
           </Pressable>
@@ -60,7 +83,7 @@ export default function BoardScreen() {
 
         <View style={[styles.panelRail, { height: boardSide }]}>
           <Text style={styles.phase}>
-            Phase 4.3 · {locations.length || '…'} slots · {DEFAULT_WORLD_ID}
+            Phase 4.3 · {locations.length || "…"} slots · {DEFAULT_WORLD_ID}
           </Text>
           <BoardPanel />
         </View>
@@ -76,20 +99,20 @@ const styles = StyleSheet.create({
   },
   main: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.bg,
   },
   boardRail: {
-    position: 'relative',
+    position: "relative",
     flexShrink: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
     backgroundColor: colors.brandMuted,
   },
   boardState: {
     ...(StyleSheet.absoluteFill as object),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
     padding: 24,
   },
@@ -102,10 +125,10 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.danger,
-    textAlign: 'center',
+    textAlign: "center",
   },
   back: {
-    position: 'absolute',
+    position: "absolute",
     top: 12,
     left: 12,
     zIndex: 2,
@@ -133,7 +156,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.muted,
-    textAlign: 'right',
+    textAlign: "right",
     paddingHorizontal: 16,
     paddingTop: 10,
   },

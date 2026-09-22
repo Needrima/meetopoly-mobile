@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.3.1
  */
 import type { LocationKind } from './locationKind';
 import type { LocationMap } from './locationMap';
@@ -21,6 +21,12 @@ export interface Location {
   region?: string;
   kind: LocationKind;
   boardIndex: number;
+  /**
+   * Short tile label unique within worldId (e.g. NYC, CAI, CH, CST)
+   * @minLength 1
+   * @maxLength 6
+   */
+  boardCode: string;
   price: number;
   rents?: number[];
   /** @nullable */
