@@ -10,8 +10,10 @@ import Icon_droplet from '@/city-icons/generic/droplet.svg';
 import Icon_handcuffs from '@/city-icons/generic/handcuffs.svg';
 import Icon_parking from '@/city-icons/generic/parking.svg';
 import Icon_plane_tilt from '@/city-icons/generic/plane-tilt.svg';
+import Icon_prison from '@/city-icons/generic/prison.svg';
 import Icon_question_mark from '@/city-icons/generic/question-mark.svg';
 import Icon_receipt_tax from '@/city-icons/generic/receipt-tax.svg';
+import Icon_tax from '@/city-icons/generic/tax.svg';
 import Icon_treasure_chest from '@/city-icons/generic/treasure-chest.svg';
 import Icon_bf_ouagadougou from '@/city-icons/icons/bf-ouagadougou.svg';
 import Icon_ci_yamoussoukro from '@/city-icons/icons/ci-yamoussoukro.svg';
@@ -48,8 +50,10 @@ const registry: Record<string, Icon> = {
   'city-icons/generic/handcuffs.svg': Icon_handcuffs,
   'city-icons/generic/parking.svg': Icon_parking,
   'city-icons/generic/plane-tilt.svg': Icon_plane_tilt,
+  'city-icons/generic/prison.svg': Icon_prison,
   'city-icons/generic/question-mark.svg': Icon_question_mark,
   'city-icons/generic/receipt-tax.svg': Icon_receipt_tax,
+  'city-icons/generic/tax.svg': Icon_tax,
   'city-icons/generic/treasure-chest.svg': Icon_treasure_chest,
   'city-icons/icons/bf-ouagadougou.svg': Icon_bf_ouagadougou,
   'city-icons/icons/ci-yamoussoukro.svg': Icon_ci_yamoussoukro,

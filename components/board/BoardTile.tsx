@@ -3,7 +3,14 @@ import { StyleSheet, Text, View } from "react-native";
 import type { Location } from "@/api/types";
 import type { TileLayout } from "@/components/board/boardLayout";
 import { resolveBoardIcon } from "@/components/board/iconRegistry";
-import { contentRotation, shortTileName } from "@/components/board/tileLabel";
+import {
+  contentRotation,
+  isGoArrowIcon,
+  labelFontSize,
+  locLongCornerLabel,
+  planeIconRotation,
+  shortTileName,
+} from "@/components/board/tileLabel";
 import { bandStyle, tileVisual } from "@/components/board/tileStyle";
 import { colors } from "@/theme/colors";
 import { fonts } from "@/theme/fonts";
@@ -14,7 +21,7 @@ type BoardTileProps = {
 };
 
 /**
- * Phase 4.3 — color band + icon + short name (no walk yet).
+ * Phase 4.3 — absolute tile frame + boardCode / upright top / plane + GO arrow.
  */
 export function BoardTile({ tile, location }: BoardTileProps) {
   const visual = tileVisual(location, { isCorner: tile.isCorner });
@@ -33,6 +40,15 @@ export function BoardTile({ tile, location }: BoardTileProps) {
   const pad = band
     ? Math.max(band.width === tile.width ? band.height : band.width, 2) + 2
     : 3;
+
+  const iconPath = location?.assets?.icon;
+  const isPlane = Boolean(iconPath?.includes("plane"));
+  const isGoArrow = isGoArrowIcon(iconPath);
+
+  const iconTransforms = [
+    ...(isPlane ? [{ rotate: planeIconRotation(tile.side) }] : []),
+    ...(isGoArrow ? [{ scaleX: -1 as const }] : []),
+  ];
 
   return (
     <View
@@ -72,12 +88,22 @@ export function BoardTile({ tile, location }: BoardTileProps) {
         ]}
       >
         {Icon ? (
-          <Icon width={iconSize} height={iconSize} color={colors.ink} />
+          <View style={iconTransforms.length ? { transform: iconTransforms } : undefined}>
+            <Icon width={iconSize} height={iconSize} color={colors.ink} />
+          </View>
         ) : null}
         {label ? (
           <Text
-            style={[styles.label, { fontSize: minEdge < 36 ? 7 : 8 }]}
-            numberOfLines={2}
+            style={[
+              styles.label,
+              {
+                fontSize: labelFontSize(location, tile.isCorner, minEdge),
+              },
+            ]}
+            numberOfLines={1}
+            {...(locLongCornerLabel(location)
+              ? { adjustsFontSizeToFit: true, minimumFontScale: 0.75 }
+              : {})}
           >
             {label}
           </Text>
@@ -107,6 +133,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     color: colors.ink,
     textAlign: "center",
-    lineHeight: 9,
+    lineHeight: 10,
   },
 });

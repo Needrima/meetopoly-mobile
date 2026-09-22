@@ -1,7 +1,9 @@
 import type { Location } from "@/api/types";
 import type { BoardSide } from "@/components/board/boardLayout";
 
-/** Short label for cramped board tiles. */
+/**
+ * Tile label: prefer API boardCode; keep a few corner phrases readable.
+ */
 export function shortTileName(loc: Location | undefined): string {
   if (!loc) {
     return "";
@@ -15,38 +17,69 @@ export function shortTileName(loc: Location | undefined): string {
       case "free_parking":
         return "Layover";
       case "go_to_jail":
-        return "Jail";
-      case "chance":
-        return "Chance";
-      case "community_chest":
-        return "Chest";
-      case "tax":
-        return loc.slug.includes("luxury") ? "Lux tax" : "Tax";
+        return "Go to Jail";
       default:
         break;
     }
   }
-  if (loc.kind === "railroad") {
-    return "Air";
+  if (loc.boardCode) {
+    return loc.boardCode;
   }
-  if (loc.kind === "utility") {
-    return loc.slug.includes("water") ? "Water" : "Power";
-  }
-  // First word, trim long names
-  const first = loc.name.split(/[\s—–-]/)[0]?.trim() || loc.name;
-  return first.length > 9 ? `${first.slice(0, 8)}…` : first;
+  return loc.name.slice(0, 3).toUpperCase();
 }
 
-/** Rotate content so labels face the center of the board. */
+/**
+ * Bottom + top: upright (icon above label).
+ * Left / right: face board center.
+ */
 export function contentRotation(side: BoardSide): string {
   switch (side) {
     case "bottom":
+    case "top":
       return "0deg";
     case "left":
       return "90deg";
-    case "top":
-      return "180deg";
     case "right":
       return "-90deg";
   }
+}
+
+/**
+ * Plane icon extra rotation (after contentRotation).
+ * Default plane-tilt points upper-right (NE).
+ * Top → upper-left; left → upper-right on screen.
+ */
+export function planeIconRotation(side: BoardSide): string {
+  switch (side) {
+    case "left":
+      return "-90deg";
+    case "top":
+      return "-90deg";
+    case "bottom":
+    case "right":
+      return "0deg";
+  }
+}
+
+/** GO arrow faces play direction (counter-clockwise → left from GO). */
+export function isGoArrowIcon(iconPath: string | undefined | null): boolean {
+  return Boolean(iconPath?.includes("arrow-narrow-right"));
+}
+
+/** Corner labels long enough to need a slightly smaller font. */
+export function locLongCornerLabel(loc: Location | undefined): boolean {
+  return loc?.specialType === "go_to_jail";
+}
+
+/** Same base size on every side; only “Go to Jail” may shrink slightly. */
+export function labelFontSize(
+  loc: Location | undefined,
+  isCorner: boolean,
+  minEdge: number,
+): number {
+  const base = minEdge < 36 ? 7 : 8;
+  if (locLongCornerLabel(loc) && isCorner) {
+    return Math.max(6, base - 1);
+  }
+  return base;
 }
