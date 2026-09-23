@@ -134,7 +134,7 @@ export default function BoardScreen() {
   );
 
   const leaveBoard = useCallback(() => {
-    router.replace('/(app)');
+    router.replace('/(app)/worlds');
   }, []);
 
   const nearby = walk.nearby;
