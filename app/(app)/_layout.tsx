@@ -2,6 +2,7 @@ import { Redirect, Stack } from "expo-router";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { useMe } from "@/hooks/useAuth";
+import { BoardSessionProvider } from "@/hooks/useBoardSession";
 import { useSession } from "@/hooks/useSession";
 import { colors } from "@/theme/colors";
 
@@ -22,12 +23,14 @@ export default function AppLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: colors.bg },
-      }}
-    />
+    <BoardSessionProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.bg },
+        }}
+      />
+    </BoardSessionProvider>
   );
 }
 

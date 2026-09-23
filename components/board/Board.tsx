@@ -14,6 +14,8 @@ type BoardProps = {
   locations: Location[];
   /** When provided, skips recomputing layout (share with walk hook). */
   layout?: BoardLayout;
+  /** boardIndex of nearest enterable (soft glow). */
+  highlightedBoardIndex?: number | null;
   avatar?: {
     x: number;
     y: number;
@@ -30,9 +32,16 @@ type BoardProps = {
 };
 
 /**
- * Phase 4.5 — ring tiles + center decks + local avatar + GO pin.
+ * Phase 4.6 — ring + decks + avatar + pin + nearest-tile glow.
  */
-export function Board({ size, locations, layout: layoutProp, avatar, pin }: BoardProps) {
+export function Board({
+  size,
+  locations,
+  layout: layoutProp,
+  highlightedBoardIndex = null,
+  avatar,
+  pin,
+}: BoardProps) {
   const layout = useMemo(
     () => layoutProp ?? layoutBoardRing(size, locations),
     [layoutProp, size, locations],
@@ -59,6 +68,7 @@ export function Board({ size, locations, layout: layoutProp, avatar, pin }: Boar
           key={tile.boardIndex}
           tile={tile}
           location={byIndex.get(tile.boardIndex)}
+          highlighted={highlightedBoardIndex === tile.boardIndex}
         />
       ))}
       {pin ? (

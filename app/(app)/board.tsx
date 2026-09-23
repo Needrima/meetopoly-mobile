@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -10,11 +10,18 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { Location } from '@/api/types';
 import { Board } from '@/components/board/Board';
 import { BoardPanel } from '@/components/board/BoardPanel';
 import { layoutBoardRing } from '@/components/board/boardLayout';
+import { shortTileName } from '@/components/board/tileLabel';
+import { InfoModal } from '@/components/ui/InfoModal';
 import { useMe } from '@/hooks/useAuth';
-import { useBoardWalk } from '@/hooks/useBoardWalk';
+import { useBoardSession } from '@/hooks/useBoardSession';
+import {
+  useBoardWalk,
+  type AvatarColorKey,
+} from '@/hooks/useBoardWalk';
 import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
 import { colors } from '@/theme/colors';
@@ -23,30 +30,107 @@ import { fonts } from '@/theme/fonts';
 const PANEL_MIN = 168;
 
 /**
- * Phase 4.5 — landscape board with local avatar walk + joystick.
+ * Phase 4.6 — walk near enterable → Details / Enter hub; Leave restores pose.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { token, user } = useSession();
   const me = useMe(Boolean(token));
+  const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(DEFAULT_WORLD_ID);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const availableW = winW - insets.left - insets.right;
   const boardSide = Math.max(0, Math.min(winH, availableW - PANEL_MIN));
   const locations = data?.locations ?? [];
 
   const layout = useMemo(
-    () => (boardSide > 0 && locations.length ? layoutBoardRing(boardSide, locations) : null),
+    () =>
+      boardSide > 0 && locations.length
+        ? layoutBoardRing(boardSide, locations)
+        : null,
     [boardSide, locations],
   );
 
   const username = me.data?.username ?? user?.username ?? null;
+  const restorePoseNorm =
+    snapshot?.worldId === DEFAULT_WORLD_ID && snapshot.hasPose
+      ? snapshot.poseNorm
+      : null;
+  const restoreAccent =
+    snapshot?.worldId === DEFAULT_WORLD_ID && snapshot.accent
+      ? { key: snapshot.accentKey, hex: snapshot.accent }
+      : null;
+
+  const onAccentReady = useCallback(
+    (accent: { key: AvatarColorKey; hex: string }) => {
+      if (snapshot?.accent) {
+        return;
+      }
+      saveSnapshot({
+        worldId: DEFAULT_WORLD_ID,
+        poseNorm: { x: 0.5, y: 0.5 },
+        hasPose: false,
+        accent: accent.hex,
+        accentKey: accent.key,
+        initials: usernameInitialSafe(username),
+      });
+    },
+    [saveSnapshot, snapshot?.accent, username],
+  );
+
   const walk = useBoardWalk({
     layout,
+    locations,
     username,
     enabled: Boolean(layout) && !isLoading && !isError,
+    restorePoseNorm,
+    restoreAccent,
+    onAccentReady,
   });
+
+  useEffect(() => {
+    if (!walk.nearby) {
+      setDetailsOpen(false);
+    }
+  }, [walk.nearby]);
+
+  const persistAndEnter = useCallback(
+    (loc: Location) => {
+      if (!layout) {
+        return;
+      }
+      setDetailsOpen(false);
+      saveSnapshot({
+        worldId: DEFAULT_WORLD_ID,
+        poseNorm: {
+          x: walk.pose.x / layout.size,
+          y: walk.pose.y / layout.size,
+        },
+        hasPose: true,
+        accent: walk.accent,
+        accentKey: walk.accentKey,
+        initials: walk.initials,
+      });
+      router.push({
+        pathname: '/(app)/hub/[slug]',
+        params: { slug: loc.slug, worldId: DEFAULT_WORLD_ID },
+      });
+    },
+    [
+      layout,
+      saveSnapshot,
+      walk.accent,
+      walk.accentKey,
+      walk.initials,
+      walk.pose.x,
+      walk.pose.y,
+    ],
+  );
+
+  const nearby = walk.nearby;
+  const nearbyCode = nearby ? shortTileName(nearby) : '';
 
   return (
     <View style={styles.root}>
@@ -83,6 +167,7 @@ export default function BoardScreen() {
               size={boardSide}
               locations={locations}
               layout={layout}
+              highlightedBoardIndex={walk.nearby?.boardIndex ?? null}
               avatar={{
                 x: walk.pose.x,
                 y: walk.pose.y,
@@ -119,17 +204,47 @@ export default function BoardScreen() {
 
         <View style={[styles.panelRail, { height: boardSide }]}>
           <Text style={styles.phase}>
-            Phase 4.5 · {locations.length || '…'} slots · {DEFAULT_WORLD_ID}
+            Phase 4.6 · {locations.length || '…'} slots · {DEFAULT_WORLD_ID}
           </Text>
           <BoardPanel
             onStick={walk.setStick}
             accent={walk.accent}
             initials={walk.initials}
+            nearby={walk.nearby}
+            onEnter={persistAndEnter}
+            onDetails={() => setDetailsOpen(true)}
           />
         </View>
       </View>
+
+      <InfoModal
+        visible={detailsOpen && Boolean(nearby)}
+        onClose={() => setDetailsOpen(false)}
+        variant="location"
+        title={nearby?.name ?? ''}
+        subtitle={nearbyCode ? `Board · ${nearbyCode}` : undefined}
+        body={
+          nearby?.about?.trim() ||
+          nearby?.aboutShort?.trim() ||
+          nearby?.description?.trim() ||
+          undefined
+        }
+        primaryLabel="Enter"
+        onPrimary={
+          nearby
+            ? () => {
+                persistAndEnter(nearby);
+              }
+            : undefined
+        }
+      />
     </View>
   );
+}
+
+function usernameInitialSafe(username: string | null): string {
+  const raw = (username ?? '').trim();
+  return raw.length >= 1 ? raw.slice(0, 1).toUpperCase() : '?';
 }
 
 const styles = StyleSheet.create({

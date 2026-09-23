@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import type { Location } from '@/api/types';
+import { BOARD_WALK } from '@/components/board/boardConstants';
+import { findNearestEnterable } from '@/components/board/boardNearby';
 import type { BoardLayout, TileLayout } from '@/components/board/boardLayout';
 import {
   randomCenterSpawn,
   resolveWalkCollisions,
   type Vec2,
 } from '@/components/board/boardCollision';
+import type { NormPose } from '@/hooks/useBoardSession';
 import { colorGroups } from '@/theme/colors';
+
+export type { NormPose } from '@/hooks/useBoardSession';
 
 /** Eight classic Monopoly track colors (no violet). */
 export const AVATAR_COLOR_KEYS = [
@@ -32,54 +38,81 @@ export type BoardWalkState = {
   initials: string;
   avatarRadius: number;
   pinRadius: number;
+  nearby: Location | null;
   setStick: (stick: StickInput) => void;
 };
 
-const SPEED_FRAC = 0.42;
-
 export function usernameInitials(username: string | null | undefined): string {
   const raw = (username ?? '').trim();
-  if (raw.length >= 2) {
-    return raw.slice(0, 2).toUpperCase();
+  if (raw.length >= 1) {
+    return raw.slice(0, 1).toUpperCase();
   }
-  if (raw.length === 1) {
-    return (raw + raw).toUpperCase();
-  }
-  return '??';
+  return '?';
 }
 
 export function pickRandomAvatarColor(): { key: AvatarColorKey; hex: string } {
-  const key = AVATAR_COLOR_KEYS[Math.floor(Math.random() * AVATAR_COLOR_KEYS.length)]!;
+  const key =
+    AVATAR_COLOR_KEYS[Math.floor(Math.random() * AVATAR_COLOR_KEYS.length)]!;
   return { key, hex: colorGroups[key] };
 }
 
 function goTileFromLayout(layout: BoardLayout): TileLayout | undefined {
-  return layout.tiles.find((t) => t.boardIndex === 0) ?? layout.tiles.find((t) => t.isCorner);
+  return (
+    layout.tiles.find((t) => t.boardIndex === 0) ??
+    layout.tiles.find((t) => t.isCorner)
+  );
 }
 
 type UseBoardWalkOpts = {
   layout: BoardLayout | null;
+  locations: Location[];
   username?: string | null;
   enabled?: boolean;
+  /** Normalized pose from BoardSession (Leave restore). */
+  restorePoseNorm?: NormPose | null;
+  restoreAccent?: { key: AvatarColorKey; hex: string } | null;
+  onAccentReady?: (accent: { key: AvatarColorKey; hex: string }) => void;
 };
 
 /**
- * Local board walk: spawn in green center, stick-driven move, hard edge+decks, soft pin.
+ * Local board walk: spawn / restore, stick move, collisions, nearest Enter target.
  */
 export function useBoardWalk({
   layout,
+  locations,
   username,
   enabled = true,
+  restorePoseNorm = null,
+  restoreAccent = null,
+  onAccentReady,
 }: UseBoardWalkOpts): BoardWalkState {
   const initials = useMemo(() => usernameInitials(username), [username]);
-  const accentRef = useRef(pickRandomAvatarColor());
+  const accentRef = useRef(
+    restoreAccent ?? pickRandomAvatarColor(),
+  );
+  const accentAnnounced = useRef(false);
   const stickRef = useRef<StickInput>({ x: 0, y: 0 });
   const poseRef = useRef<Vec2>({ x: 0, y: 0 });
+  const nearbyRef = useRef<Location | null>(null);
   const [pose, setPose] = useState<Vec2>({ x: 0, y: 0 });
+  const [nearby, setNearby] = useState<Location | null>(null);
+  const [accentTick, setAccentTick] = useState(0);
   const spawnedForSize = useRef<number | null>(null);
 
-  const avatarRadius = layout ? Math.max(10, Math.round(layout.size * 0.022)) : 12;
-  const pinRadius = layout ? Math.max(7, Math.round(layout.size * 0.016)) : 8;
+  const byIndex = useMemo(() => {
+    const map = new Map<number, Location>();
+    for (const loc of locations) {
+      map.set(loc.boardIndex, loc);
+    }
+    return map;
+  }, [locations]);
+
+  const avatarRadius = layout
+    ? Math.max(8, Math.round(layout.size * BOARD_WALK.avatarRadiusFrac))
+    : 10;
+  const pinRadius = layout
+    ? Math.max(6, Math.round(layout.size * BOARD_WALK.pinRadiusFrac))
+    : 7;
 
   const pin = useMemo(() => {
     if (!layout) {
@@ -87,10 +120,27 @@ export function useBoardWalk({
     }
     const go = goTileFromLayout(layout);
     if (!go) {
-      return { x: layout.size - layout.trackDepth / 2, y: layout.size - layout.trackDepth / 2 };
+      return {
+        x: layout.size - layout.trackDepth / 2,
+        y: layout.size - layout.trackDepth / 2,
+      };
     }
     return { x: go.x + go.width / 2, y: go.y + go.height / 2 };
   }, [layout]);
+
+  useEffect(() => {
+    if (restoreAccent) {
+      accentRef.current = restoreAccent;
+      setAccentTick((t) => t + 1);
+    }
+  }, [restoreAccent?.hex, restoreAccent?.key]);
+
+  useEffect(() => {
+    if (!accentAnnounced.current && onAccentReady) {
+      accentAnnounced.current = true;
+      onAccentReady(accentRef.current);
+    }
+  }, [onAccentReady, accentTick]);
 
   useEffect(() => {
     if (!layout || !enabled) {
@@ -99,11 +149,39 @@ export function useBoardWalk({
     if (spawnedForSize.current === layout.size) {
       return;
     }
-    const spawn = randomCenterSpawn(layout.center, layout.decks, avatarRadius);
+    let spawn: Vec2;
+    if (
+      restorePoseNorm &&
+      Number.isFinite(restorePoseNorm.x) &&
+      Number.isFinite(restorePoseNorm.y)
+    ) {
+      spawn = {
+        x: restorePoseNorm.x * layout.size,
+        y: restorePoseNorm.y * layout.size,
+      };
+      spawn = resolveWalkCollisions(
+        spawn,
+        avatarRadius,
+        layout.size,
+        layout.decks,
+        [{ x: pin.x, y: pin.y, radius: pinRadius, soft: true }],
+      );
+    } else {
+      spawn = randomCenterSpawn(layout.center, layout.decks, avatarRadius);
+    }
     poseRef.current = spawn;
     setPose(spawn);
     spawnedForSize.current = layout.size;
-  }, [layout, enabled, avatarRadius]);
+  }, [
+    layout,
+    enabled,
+    avatarRadius,
+    pin.x,
+    pin.y,
+    pinRadius,
+    restorePoseNorm?.x,
+    restorePoseNorm?.y,
+  ]);
 
   useEffect(() => {
     if (!layout || !enabled) {
@@ -112,7 +190,17 @@ export function useBoardWalk({
 
     let raf = 0;
     let last = performance.now();
-    const speed = layout.size * SPEED_FRAC;
+    const speed = layout.size * BOARD_WALK.speedFrac;
+
+    const publishNearby = (p: Vec2) => {
+      const next = findNearestEnterable(p, layout, byIndex);
+      const prevSlug = nearbyRef.current?.slug ?? null;
+      const nextSlug = next?.slug ?? null;
+      if (prevSlug !== nextSlug) {
+        nearbyRef.current = next;
+        setNearby(next);
+      }
+    };
 
     const tick = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -136,8 +224,8 @@ export function useBoardWalk({
         );
         poseRef.current = next;
         setPose(next);
+        publishNearby(next);
       } else {
-        // Still soft-resolve if overlapping pin while idle
         const next = resolveWalkCollisions(
           poseRef.current,
           avatarRadius,
@@ -149,13 +237,14 @@ export function useBoardWalk({
           poseRef.current = next;
           setPose(next);
         }
+        publishNearby(poseRef.current);
       }
       raf = requestAnimationFrame(tick);
     };
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [layout, enabled, avatarRadius, pin.x, pin.y, pinRadius]);
+  }, [layout, enabled, avatarRadius, pin.x, pin.y, pinRadius, byIndex]);
 
   const setStick = (stick: StickInput) => {
     const mag = Math.hypot(stick.x, stick.y);
@@ -174,6 +263,7 @@ export function useBoardWalk({
     initials,
     avatarRadius,
     pinRadius,
+    nearby,
     setStick,
   };
 }

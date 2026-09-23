@@ -18,12 +18,14 @@ import { fonts } from "@/theme/fonts";
 type BoardTileProps = {
   tile: TileLayout;
   location?: Location;
+  /** Soft outline when this tile is the nearest Enter target. */
+  highlighted?: boolean;
 };
 
 /**
  * Phase 4.3 — absolute tile frame; same label size on every side.
  */
-export function BoardTile({ tile, location }: BoardTileProps) {
+export function BoardTile({ tile, location, highlighted = false }: BoardTileProps) {
   const visual = tileVisual(location, { isCorner: tile.isCorner });
   const band =
     visual.bandColor != null
@@ -62,6 +64,7 @@ export function BoardTile({ tile, location }: BoardTileProps) {
           height: tile.height,
           backgroundColor: visual.fill,
         },
+        highlighted ? styles.tileGlow : null,
       ]}
     >
       {band && visual.bandColor ? (
@@ -121,6 +124,16 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     overflow: "hidden",
+  },
+  tileGlow: {
+    borderWidth: 2,
+    borderColor: colors.accent,
+    zIndex: 4,
+    shadowColor: colors.accent,
+    shadowOpacity: 0.55,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
   },
   band: {
     position: "absolute",
