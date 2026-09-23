@@ -144,3 +144,19 @@ export function useEndTurn(gameId: string | null | undefined) {
     onSuccess,
   });
 }
+
+/** POST /games/{id}/resign — Phase 6.2c leave mid-game. */
+export function useResignGame(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error('Missing game id'));
+      }
+      return apiMutator<Game>(`/games/${encodeURIComponent(id)}/resign`, {
+        method: 'POST',
+      });
+    },
+    onSuccess,
+  });
+}

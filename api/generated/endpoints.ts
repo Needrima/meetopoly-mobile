@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.7.0
+ * OpenAPI spec version: 0.8.0
  */
 import type {
   AuthSessionResponse,
@@ -488,6 +488,8 @@ export const leaveTable = async (tableId: string, options?: RequestInit): Promis
 /**
  * Authoritative game state (players, MeetCoin balances, pin boardIndex, whose turn).
 Created when a lobby reaches all-Ready (Phase 6.0).
+Live updates: connect to `GET /ws/games/{gameId}?token=` (same auth as table lobby WS);
+server pushes `{ "type": "state", "game": Game }` after roll / end-turn.
 
  * @summary Get M1 game snapshot
  */
@@ -557,6 +559,35 @@ export const getEndTurnUrl = (gameId: string,) => {
 export const endTurn = async (gameId: string, options?: RequestInit): Promise<Game> => {
   
   return apiMutator<Game>(getEndTurnUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Phase 6.2c — voluntary leave mid-game counts as resigning.
+Marks the caller `resigned`, skips them for turns, broadcasts state.
+If only one active player remains, that player wins and `status` becomes `finished`.
+Asset transfer / bankruptcy cleanup stays Phase 14.
+
+ * @summary Resign and leave the game
+ */
+export const getResignGameUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/resign`
+}
+
+export const resignGame = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getResignGameUrl(gameId),
   {      
     ...options,
     method: 'POST'

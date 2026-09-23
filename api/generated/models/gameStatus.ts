@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.7.0
+ * OpenAPI spec version: 0.8.0
  */
 
 export type GameStatus = typeof GameStatus[keyof typeof GameStatus];
@@ -14,4 +14,5 @@ export type GameStatus = typeof GameStatus[keyof typeof GameStatus];
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GameStatus = {
   active: 'active',
+  finished: 'finished',
 } as const;

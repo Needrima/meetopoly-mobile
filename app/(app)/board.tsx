@@ -25,7 +25,12 @@ import {
   type AvatarColorKey,
 } from '@/hooks/useBoardWalk';
 import { useDiceRollMotion } from '@/hooks/useDiceRollMotion';
-import { useGame, useEndTurn, useRollDice } from '@/hooks/useGame';
+import {
+  useGame,
+  useEndTurn,
+  useResignGame,
+  useRollDice,
+} from '@/hooks/useGame';
 import { useGamePinMotion } from '@/hooks/useGamePinMotion';
 import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
@@ -38,6 +43,7 @@ const PANEL_MIN = 168;
 /**
  * Board play surface; leave via panel ⋯; avatar pose via Reanimated.
  * Phase 6.2b: synced dice tumble, then tile-by-tile pin motion.
+ * Phase 6.2c: Leave = resign (confirm); last active player wins.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
@@ -59,12 +65,21 @@ export default function BoardScreen() {
   const gameQuery = useGame(gameId);
   const rollDice = useRollDice(gameId);
   const endTurnMut = useEndTurn(gameId);
+  const resignMut = useResignGame(gameId);
   const game = gameQuery.data ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [winnerOpen, setWinnerOpen] = useState(false);
   const startedToastRef = useRef(false);
   const passGoToastRef = useRef<string | null>(null);
   const passGoReadyRef = useRef(false);
+  const finishedHandledRef = useRef(false);
+  const resignToastRef = useRef<string>('');
+  const localLeavingRef = useRef(false);
+
+  const username = me.data?.username ?? user?.username ?? null;
+  const localUserId = me.data?.id ?? user?.id ?? null;
 
   useBlockHardwareBack(true);
 
@@ -78,6 +93,11 @@ export default function BoardScreen() {
       passGoToastRef.current = `${game.lastRoll.userId}:${game.lastRoll.fromIndex}:${game.lastRoll.toIndex}:${game.lastRoll.total}`;
     }
     passGoReadyRef.current = true;
+    if (game.status === 'finished') {
+      finishedHandledRef.current = true;
+      setWinnerOpen(true);
+      return;
+    }
     notify({
       type: 'success',
       title: 'Game started',
@@ -105,6 +125,50 @@ export default function BoardScreen() {
     });
   }, [game?.lastRoll]);
 
+  // Phase 6.2c — resign + finished via game WS.
+  useEffect(() => {
+    if (!game || !localUserId) {
+      return;
+    }
+    const resignedSig = game.players
+      .filter((p) => p.resigned)
+      .map((p) => p.userId)
+      .sort()
+      .join(',');
+    if (resignedSig && resignedSig !== resignToastRef.current) {
+      const prev = new Set(
+        resignToastRef.current ? resignToastRef.current.split(',') : [],
+      );
+      const newlyOut = game.players.filter(
+        (p) => p.resigned && !prev.has(p.userId),
+      );
+      resignToastRef.current = resignedSig;
+      for (const p of newlyOut) {
+        if (p.userId === localUserId || localLeavingRef.current) {
+          continue;
+        }
+        notify({
+          type: 'info',
+          title: 'Player left',
+          message: `${p.username} resigned`,
+        });
+      }
+    }
+    if (game.status === 'finished' && !finishedHandledRef.current) {
+      finishedHandledRef.current = true;
+      setLeaveConfirmOpen(false);
+      setWinnerOpen(true);
+      const iWon = game.winnerUserId === localUserId;
+      notify({
+        type: 'success',
+        title: iWon ? 'You win' : 'Game over',
+        message: iWon
+          ? 'Last player standing'
+          : `${game.winnerUsername ?? 'Someone'} wins`,
+      });
+    }
+  }, [game, localUserId]);
+
   const availableW = winW - insets.left - insets.right;
   const boardSide = Math.max(0, Math.min(winH, availableW - PANEL_MIN));
   const locations = data?.locations ?? [];
@@ -117,8 +181,6 @@ export default function BoardScreen() {
     [boardSide, locations],
   );
 
-  const username = me.data?.username ?? user?.username ?? null;
-  const localUserId = me.data?.id ?? user?.id ?? null;
   const restorePoseNorm =
     snapshot?.worldId === worldId && snapshot.hasPose
       ? snapshot.poseNorm
@@ -209,6 +271,56 @@ export default function BoardScreen() {
   const leaveBoard = useCallback(() => {
     router.replace('/(app)/worlds');
   }, []);
+
+  const requestLeave = useCallback(() => {
+    setMenuOpen(false);
+    if (gameId && game && game.status === 'active') {
+      setLeaveConfirmOpen(true);
+      return;
+    }
+    leaveBoard();
+  }, [game, gameId, leaveBoard]);
+
+  const confirmResign = useCallback(() => {
+    if (!gameId || resignMut.isPending) {
+      return;
+    }
+    localLeavingRef.current = true;
+    resignMut.mutate(undefined, {
+      onSuccess: (next) => {
+        setLeaveConfirmOpen(false);
+        if (next.status === 'finished') {
+          finishedHandledRef.current = true;
+          setWinnerOpen(true);
+          notify({
+            type: 'info',
+            title: 'Game over',
+            message: `${next.winnerUsername ?? 'Someone'} wins`,
+          });
+          return;
+        }
+        notify({
+          type: 'info',
+          title: 'You resigned',
+          message: 'Left the game',
+        });
+        leaveBoard();
+      },
+      onError: (err: Error) => {
+        localLeavingRef.current = false;
+        notify({
+          type: 'error',
+          title: 'Could not leave',
+          message: err.message || 'Resign failed',
+        });
+      },
+    });
+  }, [gameId, resignMut, leaveBoard]);
+
+  const dismissWinner = useCallback(() => {
+    setWinnerOpen(false);
+    leaveBoard();
+  }, [leaveBoard]);
 
   const onRoll = useCallback(() => {
     if (!gameId || rollDice.isPending || turnBusy) {
@@ -355,10 +467,47 @@ export default function BoardScreen() {
         }
       />
 
+      <InfoModal
+        visible={leaveConfirmOpen}
+        onClose={() => {
+          if (!resignMut.isPending) {
+            setLeaveConfirmOpen(false);
+          }
+        }}
+        eyebrow="Leave"
+        title="Resign from this game?"
+        body="Leaving mid-game counts as resigning. You will be skipped for turns; assets stay frozen until bankruptcy rules land."
+        actionsLayout="row"
+        primaryLabel="Stay"
+        onPrimary={() => setLeaveConfirmOpen(false)}
+        secondaryLabel="Resign & leave"
+        onSecondary={confirmResign}
+        secondaryLoading={resignMut.isPending}
+      />
+
+      <InfoModal
+        visible={winnerOpen}
+        onClose={dismissWinner}
+        eyebrow="Game over"
+        title={
+          game?.winnerUserId === localUserId
+            ? 'You win'
+            : `${game?.winnerUsername ?? 'Someone'} wins`
+        }
+        body={
+          game?.winnerUserId === localUserId
+            ? 'You are the last player standing.'
+            : 'The game has finished. Back to worlds when you are ready.'
+        }
+        primaryLabel="Back to worlds"
+        onPrimary={dismissWinner}
+        secondaryLabel="Close"
+      />
+
       <BoardOverflowMenu
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
-        onLeave={leaveBoard}
+        onLeave={requestLeave}
         onLogout={() => {
           void logout.mutateAsync();
         }}

@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.7.0
+ * OpenAPI spec version: 0.8.0
  */
 
 export interface GamePlayer {
@@ -19,4 +19,6 @@ export interface GamePlayer {
   boardIndex: number;
   /** Hex accent for the pin */
   pinColor: string;
+  /** Left mid-game (Phase 6.2c); skipped for turns */
+  resigned: boolean;
 }

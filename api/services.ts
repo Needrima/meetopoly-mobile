@@ -13,5 +13,6 @@ export {
   getGame,
   getGetGameUrl,
   getRollDiceUrl,
+  resignGame,
   rollDice,
 } from './generated/endpoints';

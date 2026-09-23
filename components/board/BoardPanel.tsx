@@ -88,7 +88,13 @@ export function BoardPanel({
       {game ? (
         <View style={styles.gameHud}>
           <Text style={styles.turnLine} numberOfLines={1}>
-            {isMyTurn ? 'Your turn' : `${turnName}'s turn`}
+            {game.status === 'finished'
+              ? game.winnerUsername
+                ? `${game.winnerUsername} wins`
+                : 'Game over'
+              : isMyTurn
+                ? 'Your turn'
+                : `${turnName}'s turn`}
           </Text>
           {localPlayer ? (
             <View style={styles.cashRow}>
@@ -100,23 +106,32 @@ export function BoardPanel({
             {game.players.map((p) => (
               <View key={p.userId} style={styles.balanceRow}>
                 <View
-                  style={[styles.pinDot, { backgroundColor: p.pinColor }]}
+                  style={[
+                    styles.pinDot,
+                    { backgroundColor: p.pinColor },
+                    p.resigned ? styles.pinDotOut : null,
+                  ]}
                 />
                 <Text
                   style={[
                     styles.balanceName,
                     p.userId === localUserId ? styles.balanceNameYou : null,
+                    p.resigned ? styles.balanceNameOut : null,
                   ]}
                   numberOfLines={1}
                 >
                   {p.username}
-                  {p.userId === game.currentUserId ? ' · turn' : ''}
+                  {p.resigned
+                    ? ' · out'
+                    : p.userId === game.currentUserId
+                      ? ' · turn'
+                      : ''}
                 </Text>
                 <MeetCoinAmount amount={p.cash} size={13} color={colors.muted} />
               </View>
             ))}
           </View>
-          {onRoll || onEndTurn ? (
+          {game.status !== 'finished' && (onRoll || onEndTurn) ? (
             <View style={styles.actionRow}>
               {onRoll ? (
                 <View style={styles.actionBtn}>
@@ -305,6 +320,9 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+  pinDotOut: {
+    opacity: 0.35,
+  },
   balanceName: {
     flex: 1,
     fontFamily: fonts.body,
@@ -314,6 +332,10 @@ const styles = StyleSheet.create({
   balanceNameYou: {
     fontFamily: fonts.bodySemiBold,
     color: colors.ink,
+  },
+  balanceNameOut: {
+    textDecorationLine: 'line-through',
+    opacity: 0.65,
   },
   rollBtn: {
     height: 40,

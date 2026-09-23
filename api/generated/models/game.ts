@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.7.0
+ * OpenAPI spec version: 0.8.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
@@ -31,4 +31,8 @@ export interface Game {
   canEndTurn: boolean;
   /** @nullable */
   lastRoll?: GameLastRollProperty;
+  /** Set when status is finished (last active player) */
+  winnerUserId?: string;
+  /** Display name of the winner */
+  winnerUsername?: string;
 }

@@ -10,6 +10,8 @@ import {
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
+export type ButtonVariant = 'primary' | 'outline';
+
 export type ButtonProps = {
   /** Visible label when not loading. */
   label: string;
@@ -18,6 +20,8 @@ export type ButtonProps = {
   disabled?: boolean;
   /** Shows ActivityIndicator and disables press. */
   loading?: boolean;
+  /** `primary` = filled brand; `outline` = brand border + brand text. */
+  variant?: ButtonVariant;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -30,9 +34,11 @@ export function Button({
   onPress,
   disabled = false,
   loading = false,
+  variant = 'primary',
   style,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
+  const isOutline = variant === 'outline';
 
   return (
     <TouchableOpacity
@@ -41,12 +47,23 @@ export function Button({
       activeOpacity={0.85}
       disabled={isDisabled}
       onPress={onPress}
-      style={[styles.button, isDisabled ? styles.buttonDisabled : null, style]}
+      style={[
+        styles.button,
+        isOutline ? styles.buttonOutline : styles.buttonPrimary,
+        isDisabled ? styles.buttonDisabled : null,
+        style,
+      ]}
     >
       {loading ? (
-        <ActivityIndicator color={colors.onBrand} />
+        <ActivityIndicator
+          color={isOutline ? colors.brand : colors.onBrand}
+        />
       ) : (
-        <Text style={styles.label}>{label}</Text>
+        <Text
+          style={[styles.label, isOutline ? styles.labelOutline : null]}
+        >
+          {label}
+        </Text>
       )}
     </TouchableOpacity>
   );
@@ -59,8 +76,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: colors.brand,
     paddingHorizontal: 20,
+  },
+  buttonPrimary: {
+    backgroundColor: colors.brand,
+    borderWidth: 1,
+    borderColor: colors.brand,
+  },
+  buttonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.brand,
   },
   buttonDisabled: {
     opacity: 0.45,
@@ -69,5 +95,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     fontSize: 16,
     color: colors.onBrand,
+  },
+  labelOutline: {
+    color: colors.brand,
   },
 });

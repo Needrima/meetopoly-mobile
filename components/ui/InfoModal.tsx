@@ -12,6 +12,8 @@ export type InfoModalProps = {
   onClose: () => void;
   /** Extensible content kind — location now; chance/chest cards later. */
   variant?: InfoModalVariant;
+  /** Override default Location / Card eyebrow. */
+  eyebrow?: string;
   title: string;
   subtitle?: string;
   body?: string;
@@ -20,6 +22,18 @@ export type InfoModalProps = {
   /** Optional primary action under the body (e.g. Enter hub). */
   primaryLabel?: string;
   onPrimary?: () => void;
+  primaryLoading?: boolean;
+  /** When true, primary does not auto-close (caller closes after async work). */
+  primaryKeepOpen?: boolean;
+  secondaryLabel?: string;
+  /** Optional secondary action (defaults to onClose). */
+  onSecondary?: () => void;
+  secondaryLoading?: boolean;
+  /**
+   * `stack` (default) — primary above secondary.
+   * `row` — outline secondary left, filled primary right (confirm pattern).
+   */
+  actionsLayout?: 'stack' | 'row';
 };
 
 /**
@@ -30,22 +44,47 @@ export function InfoModal({
   visible,
   onClose,
   variant = 'location',
+  eyebrow,
   title,
   subtitle,
   body,
   attribution,
   primaryLabel,
   onPrimary,
+  primaryLoading = false,
+  primaryKeepOpen = false,
+  secondaryLabel = 'Close',
+  onSecondary,
+  secondaryLoading = false,
+  actionsLayout = 'stack',
 }: InfoModalProps) {
   if (!visible) {
     return null;
   }
 
+  const busy = primaryLoading || secondaryLoading;
+  const isRow = actionsLayout === 'row';
+
+  const handlePrimary = () => {
+    if (!primaryKeepOpen) {
+      onClose();
+    }
+    onPrimary?.();
+  };
+
+  const handleSecondary = () => {
+    if (onSecondary) {
+      onSecondary();
+      return;
+    }
+    onClose();
+  };
+
   return (
     <View style={styles.host} pointerEvents="box-none">
       <Pressable
         style={styles.backdrop}
-        onPress={onClose}
+        onPress={busy ? undefined : onClose}
         accessibilityLabel="Dismiss"
       />
       <View style={styles.center} pointerEvents="box-none">
@@ -57,7 +96,7 @@ export function InfoModal({
         >
           <View style={styles.sheet}>
             <Text style={styles.eyebrow}>
-              {variant === 'card' ? 'Card' : 'Location'}
+              {eyebrow ?? (variant === 'card' ? 'Card' : 'Location')}
             </Text>
             <Text style={styles.title}>{title}</Text>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -66,26 +105,51 @@ export function InfoModal({
               <Text style={styles.attribution}>{attribution}</Text>
             ) : null}
 
-            <View style={styles.actions}>
-              {primaryLabel && onPrimary ? (
-                <Button
-                  label={primaryLabel}
-                  onPress={() => {
-                    onClose();
-                    onPrimary();
-                  }}
-                />
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                onPress={onClose}
-                style={({ pressed }) => [
-                  styles.secondary,
-                  pressed ? styles.pressed : null,
-                ]}
-              >
-                <Text style={styles.secondaryLabel}>Close</Text>
-              </Pressable>
+            <View style={[styles.actions, isRow ? styles.actionsRow : null]}>
+              {isRow ? (
+                <>
+                  <Button
+                    label={secondaryLabel}
+                    variant="outline"
+                    loading={secondaryLoading}
+                    disabled={busy}
+                    onPress={handleSecondary}
+                    style={styles.actionHalf}
+                  />
+                  {primaryLabel && onPrimary ? (
+                    <Button
+                      label={primaryLabel}
+                      loading={primaryLoading}
+                      disabled={busy}
+                      onPress={handlePrimary}
+                      style={styles.actionHalf}
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {primaryLabel && onPrimary ? (
+                    <Button
+                      label={primaryLabel}
+                      loading={primaryLoading}
+                      disabled={busy}
+                      onPress={handlePrimary}
+                    />
+                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={busy}
+                    onPress={handleSecondary}
+                    style={({ pressed }) => [
+                      styles.secondary,
+                      pressed && !busy ? styles.pressed : null,
+                      busy ? styles.secondaryDisabled : null,
+                    ]}
+                  >
+                    <Text style={styles.secondaryLabel}>{secondaryLabel}</Text>
+                  </Pressable>
+                </>
+              )}
             </View>
           </View>
         </MotiView>
@@ -158,6 +222,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     gap: 10,
   },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionHalf: {
+    flex: 1,
+    width: undefined,
+  },
   secondary: {
     height: 44,
     alignItems: 'center',
@@ -174,5 +246,8 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.75,
+  },
+  secondaryDisabled: {
+    opacity: 0.45,
   },
 });
