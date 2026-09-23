@@ -6,7 +6,7 @@ import { gameRollKey } from '@/hooks/gameRollKey';
 /** Tumble duration before faces settle. */
 export const DICE_TUMBLE_MS = 1100;
 /** Pause after settle so players can read the faces. */
-export const DICE_HOLD_MS = 1200;
+export const DICE_HOLD_MS = 2000;
 /** Fade/remove overlay after hold (pin walk starts when holdPinWalk clears). */
 export const DICE_FADE_MS = 200;
 
