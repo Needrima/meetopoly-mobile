@@ -18,7 +18,7 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * Phase 5.4 — Ready toggle; bots auto-Ready; all Ready → board.
+ * Phase 5.5 — disconnect-hold stub + lobby chrome polish.
  */
 export default function LobbyScreen() {
   const params = useLocalSearchParams<{ worldId?: string | string[] }>();
@@ -52,6 +52,13 @@ export default function LobbyScreen() {
     });
   }, [lobby.allReady, worldId]);
 
+  useEffect(() => {
+    if (!lobby.holdExpired) {
+      return;
+    }
+    router.replace('/(app)/worlds');
+  }, [lobby.holdExpired]);
+
   const leave = () => {
     lobby.leave();
     if (router.canGoBack()) {
@@ -72,13 +79,17 @@ export default function LobbyScreen() {
     );
   }
 
-  const statusLine = lobby.allReady
-    ? 'Everyone ready — starting…'
-    : lobby.waitingForPlayers
-      ? `Waiting for players… ${lobby.seatedCount}/${lobby.minSeats} needed`
-      : lobby.isFull
-        ? `Table full · ${lobby.readyCount}/${lobby.seatedCount} ready`
-        : `${lobby.seatedCount}/${lobby.maxSeats} seated · ${lobby.readyCount} ready`;
+  const statusLine = lobby.localHolding
+    ? `Reconnecting… seat held ${lobby.holdRemainingSec}s`
+    : lobby.holdingCount > 0
+      ? `${lobby.holdingCount} reconnecting · ${lobby.readyCount}/${lobby.seatedCount} ready`
+      : lobby.allReady
+        ? 'Everyone ready — starting…'
+        : lobby.waitingForPlayers
+          ? `Waiting for players… ${lobby.seatedCount}/${lobby.minSeats} needed`
+          : lobby.isFull
+            ? `Table full · ${lobby.readyCount}/${lobby.seatedCount} ready`
+            : `${lobby.seatedCount}/${lobby.maxSeats} seated · ${lobby.readyCount} ready`;
 
   const readyLabel = lobby.localReady ? 'Unready' : 'Ready';
 
@@ -126,6 +137,15 @@ export default function LobbyScreen() {
         </Pressable>
       </View>
 
+      {lobby.holdingCount > 0 ? (
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>
+            Seat held ~{Math.round(lobby.holdMs / 1000)}s on disconnect · Leave
+            frees immediately
+          </Text>
+        </View>
+      ) : null}
+
       <ScrollView
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
@@ -141,6 +161,8 @@ export default function LobbyScreen() {
               displayName={seat.displayName}
               isYou={seat.isLocal}
               ready={seat.ready}
+              holding={seat.holding}
+              holdRemainingSec={lobby.holdRemainingFor(seat.holdEndsAt)}
             />
           ))}
         </View>
@@ -216,6 +238,21 @@ const styles = StyleSheet.create({
   },
   readyDisabled: {
     opacity: 0.45,
+  },
+  banner: {
+    marginHorizontal: 16,
+    marginBottom: 4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(196, 122, 10, 0.12)',
+    borderWidth: 1,
+    borderColor: colors.warn,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bannerText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.warn,
   },
   body: {
     flex: 1,
