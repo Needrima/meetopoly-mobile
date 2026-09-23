@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "api:generate": "orval --config orval.config.ts"
+    "api:generate": "orval --config orval.config.ts",
+    "icons:generate": "node scripts/generate-icon-registry.mjs"
   },
   "dependencies": {
     "@expo/ui": "~57.0.19",
