@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -17,8 +18,7 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * Phase 5.2 — local player seats; 5.3 — slow fake joiners toward 6.
- * Ready / board start land in 5.4.
+ * Phase 5.4 — Ready toggle; bots auto-Ready; all Ready → board.
  */
 export default function LobbyScreen() {
   const params = useLocalSearchParams<{ worldId?: string | string[] }>();
@@ -38,6 +38,19 @@ export default function LobbyScreen() {
     localPlayerId,
     localDisplayName,
   });
+
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (!worldId || !lobby.allReady || startedRef.current) {
+      return;
+    }
+    startedRef.current = true;
+    router.replace({
+      pathname: '/(app)/board',
+      params: { worldId },
+    });
+  }, [lobby.allReady, worldId]);
 
   const leave = () => {
     lobby.leave();
@@ -59,15 +72,15 @@ export default function LobbyScreen() {
     );
   }
 
-  const statusLine = lobby.waitingForPlayers
-    ? `Waiting for players… ${lobby.seatedCount}/${lobby.minSeats} needed`
-    : lobby.isFull
-      ? `Table full · ${lobby.seatedCount}/${lobby.maxSeats}`
-      : `${lobby.seatedCount}/${lobby.maxSeats} seated · others may still join`;
+  const statusLine = lobby.allReady
+    ? 'Everyone ready — starting…'
+    : lobby.waitingForPlayers
+      ? `Waiting for players… ${lobby.seatedCount}/${lobby.minSeats} needed`
+      : lobby.isFull
+        ? `Table full · ${lobby.readyCount}/${lobby.seatedCount} ready`
+        : `${lobby.seatedCount}/${lobby.maxSeats} seated · ${lobby.readyCount} ready`;
 
-  const footerHint = lobby.waitingForPlayers
-    ? 'Need at least one more player before Ready unlocks'
-    : 'Enough players · Ready toggle comes next';
+  const readyLabel = lobby.localReady ? 'Unready' : 'Ready';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
@@ -87,7 +100,30 @@ export default function LobbyScreen() {
               : worldId}
           </Text>
         </View>
-        <View style={styles.headerSpacer} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{
+            disabled: !lobby.canToggleReady,
+            selected: lobby.localReady,
+          }}
+          disabled={!lobby.canToggleReady}
+          onPress={lobby.toggleReady}
+          style={({ pressed }) => [
+            styles.readyHeaderBtn,
+            lobby.localReady ? styles.readyHeaderBtnOn : null,
+            !lobby.canToggleReady ? styles.readyDisabled : null,
+            pressed && lobby.canToggleReady ? styles.pressed : null,
+          ]}
+        >
+          <Text
+            style={[
+              styles.readyHeaderLabel,
+              lobby.localReady ? styles.readyHeaderLabelOn : null,
+            ]}
+          >
+            {readyLabel}
+          </Text>
+        </Pressable>
       </View>
 
       <ScrollView
@@ -111,19 +147,11 @@ export default function LobbyScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Text style={styles.footerHint} numberOfLines={2}>
-          {footerHint}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={leave}
-          style={({ pressed }) => [
-            styles.leaveBtn,
-            pressed ? styles.pressed : null,
-          ]}
-        >
-          <Text style={styles.leaveBtnLabel}>Leave lobby</Text>
-        </Pressable>
+        <Button
+          label={readyLabel}
+          disabled={!lobby.canToggleReady}
+          onPress={lobby.toggleReady}
+        />
       </View>
     </SafeAreaView>
   );
@@ -156,9 +184,7 @@ const styles = StyleSheet.create({
   },
   headerText: {
     flex: 1,
-  },
-  headerSpacer: {
-    width: 72,
+    minWidth: 0,
   },
   title: {
     fontFamily: fonts.displayBold,
@@ -170,6 +196,26 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.muted,
+  },
+  readyHeaderBtn: {
+    borderRadius: 10,
+    backgroundColor: colors.brand,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  readyHeaderBtnOn: {
+    backgroundColor: colors.accent,
+  },
+  readyHeaderLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
+    color: colors.onBrand,
+  },
+  readyHeaderLabelOn: {
+    color: colors.onAccent,
+  },
+  readyDisabled: {
+    opacity: 0.45,
   },
   body: {
     flex: 1,
@@ -192,31 +238,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 10,
     backgroundColor: colors.surface,
-  },
-  footerHint: {
-    flex: 1,
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
-  },
-  leaveBtn: {
-    borderRadius: 10,
-    backgroundColor: colors.brand,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  leaveBtnLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
-    color: colors.onBrand,
   },
   center: {
     flex: 1,
