@@ -7,6 +7,7 @@ import { shortTileName } from '@/components/board/tileLabel';
 import { Button } from '@/components/ui/Button';
 import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
 import type { StickInput } from '@/hooks/useBoardWalk';
+import { usePlayerTimeBanks } from '@/hooks/useTurnCountdown';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -65,6 +66,7 @@ export function BoardPanel({
   );
   const canRoll = Boolean(isMyTurn && game?.canRoll);
   const canEnd = Boolean(isMyTurn && game?.canEndTurn);
+  const bankLabels = usePlayerTimeBanks(game);
 
   return (
     <View style={styles.root}>
@@ -103,33 +105,52 @@ export function BoardPanel({
             </View>
           ) : null}
           <View style={styles.balances}>
-            {game.players.map((p) => (
-              <View key={p.userId} style={styles.balanceRow}>
-                <View
-                  style={[
-                    styles.pinDot,
-                    { backgroundColor: p.pinColor },
-                    p.resigned ? styles.pinDotOut : null,
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.balanceName,
-                    p.userId === localUserId ? styles.balanceNameYou : null,
-                    p.resigned ? styles.balanceNameOut : null,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {p.username}
-                  {p.resigned
-                    ? ' · out'
-                    : p.userId === game.currentUserId
-                      ? ' · turn'
-                      : ''}
-                </Text>
-                <MeetCoinAmount amount={p.cash} size={13} color={colors.muted} />
-              </View>
-            ))}
+            {game.players.map((p) => {
+              const bank = bankLabels[p.userId] ?? '';
+              const isCurrent = p.userId === game.currentUserId && !p.resigned;
+              return (
+                <View key={p.userId} style={styles.balanceRow}>
+                  <View
+                    style={[
+                      styles.pinDot,
+                      { backgroundColor: p.pinColor },
+                      p.resigned ? styles.pinDotOut : null,
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.balanceName,
+                      p.userId === localUserId ? styles.balanceNameYou : null,
+                      p.resigned ? styles.balanceNameOut : null,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {p.username}
+                    {p.resigned
+                      ? ' · out'
+                      : isCurrent
+                        ? ' · turn'
+                        : ''}
+                  </Text>
+                  {bank ? (
+                    <Text
+                      style={[
+                        styles.bankLabel,
+                        isCurrent ? styles.bankLabelActive : styles.bankLabelPaused,
+                        bank === '0:00' ? styles.bankLabelExpired : null,
+                      ]}
+                    >
+                      {bank}
+                    </Text>
+                  ) : null}
+                  <MeetCoinAmount
+                    amount={p.cash}
+                    size={13}
+                    color={colors.muted}
+                  />
+                </View>
+              );
+            })}
           </View>
           {game.status !== 'finished' && (onRoll || onEndTurn) ? (
             <View style={styles.actionRow}>
@@ -308,12 +329,28 @@ const styles = StyleSheet.create({
   },
   balances: {
     gap: 4,
-    maxHeight: 72,
+    maxHeight: 96,
   },
   balanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  bankLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  bankLabelActive: {
+    color: colors.brand,
+  },
+  bankLabelPaused: {
+    color: colors.muted,
+  },
+  bankLabelExpired: {
+    color: colors.danger,
   },
   pinDot: {
     width: 8,

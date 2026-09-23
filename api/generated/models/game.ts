@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.8.0
+ * OpenAPI spec version: 0.10.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
@@ -35,4 +35,8 @@ export interface Game {
   winnerUserId?: string;
   /** Display name of the winner */
   winnerUsername?: string;
+  /** UTC instant when the current player's time bank started draining (Phase 6.3b).
+Omitted when finished or clock paused. Clients may tick locally from this + timeRemainingMs.
+ */
+  turnStartedAt?: string;
 }

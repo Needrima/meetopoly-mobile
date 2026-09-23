@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.8.0
+ * OpenAPI spec version: 0.10.0
  */
 
 export interface GamePlayer {
@@ -19,6 +19,11 @@ export interface GamePlayer {
   boardIndex: number;
   /** Hex accent for the pin */
   pinColor: string;
-  /** Left mid-game (Phase 6.2c); skipped for turns */
+  /** Left mid-game or time-bank eliminated; skipped for turns */
   resigned: boolean;
+  /** Personal time bank remaining in milliseconds (Phase 6.3b).
+For the current player this is live (bank minus elapsed on this turn).
+For others it is the paused remainder. Starts at 45 minutes.
+ */
+  timeRemainingMs: number;
 }
