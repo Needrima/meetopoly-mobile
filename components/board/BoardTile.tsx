@@ -1,8 +1,8 @@
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Location } from '@/api/types';
-import type { TileLayout } from '@/components/board/boardLayout';
+import type { BoardSide, TileLayout } from '@/components/board/boardLayout';
 import { resolveBoardIcon } from '@/components/board/iconRegistry';
 import {
   contentRotation,
@@ -21,7 +21,28 @@ type BoardTileProps = {
   location?: Location;
   /** Soft outline when this tile is the nearest Enter target. */
   highlighted?: boolean;
+  /** Owner pin color chip when this space has a deed. */
+  ownerColor?: string | null;
+  /** Tap opens tile info; omit / undefined while buyer has buy modal open. */
+  onPress?: () => void;
 };
+
+/** Outer-corner inset for ownership chip (away from board-center color band). */
+function ownerChipStyle(
+  side: BoardSide,
+): { left?: number; right?: number; top?: number; bottom?: number } {
+  const inset = 2;
+  switch (side) {
+    case 'bottom':
+      return { right: inset, bottom: inset };
+    case 'top':
+      return { left: inset, top: inset };
+    case 'left':
+      return { left: inset, bottom: inset };
+    case 'right':
+      return { right: inset, top: inset };
+  }
+}
 
 /**
  * Absolute tile frame; memoized so nearby glow does not redraw the whole ring.
@@ -30,6 +51,8 @@ function BoardTileInner({
   tile,
   location,
   highlighted = false,
+  ownerColor = null,
+  onPress,
 }: BoardTileProps) {
   const visual = tileVisual(location, { isCorner: tile.isCorner });
   const band =
@@ -49,6 +72,7 @@ function BoardTileInner({
   );
 
   const contentPad = minEdge < 36 ? 2 : 3;
+  const chipSize = Math.max(5, Math.min(8, Math.floor(minEdge * 0.14)));
 
   const longCorner = locLongCornerLabel(location);
   const iconPath = location?.assets?.icon;
@@ -62,20 +86,20 @@ function BoardTileInner({
 
   const fontSize = labelFontSize(location, tile.isCorner, minEdge);
 
-  return (
-    <View
-      style={[
-        styles.tile,
-        {
-          left: tile.x,
-          top: tile.y,
-          width: tile.width,
-          height: tile.height,
-          backgroundColor: visual.fill,
-        },
-        highlighted ? styles.tileGlow : null,
-      ]}
-    >
+  const frameStyle = [
+    styles.tile,
+    {
+      left: tile.x,
+      top: tile.y,
+      width: tile.width,
+      height: tile.height,
+      backgroundColor: visual.fill,
+    },
+    highlighted ? styles.tileGlow : null,
+  ];
+
+  const body = (
+    <>
       {band && visual.bandColor ? (
         <View
           style={[
@@ -128,8 +152,39 @@ function BoardTileInner({
           </Text>
         ) : null}
       </View>
-    </View>
+
+      {ownerColor ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.ownerChip,
+            ownerChipStyle(tile.side),
+            {
+              width: chipSize,
+              height: chipSize,
+              borderRadius: chipSize / 2,
+              backgroundColor: ownerColor,
+            },
+          ]}
+        />
+      ) : null}
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        style={frameStyle}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={location?.name ?? `Space ${tile.boardIndex}`}
+      >
+        {body}
+      </Pressable>
+    );
+  }
+
+  return <View style={frameStyle}>{body}</View>;
 }
 
 export const BoardTile = memo(BoardTileInner);
@@ -164,5 +219,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     color: colors.ink,
     textAlign: 'center',
+  },
+  ownerChip: {
+    position: 'absolute',
+    zIndex: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(20,32,27,0.35)',
   },
 });

@@ -2,25 +2,17 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MotiView } from 'moti';
 
 import type { GameBuyOffer, Location } from '@/api/types';
+import {
+  isLightHex,
+  kindFallbackLabel,
+  rentRowsFor,
+  stripColorFor,
+} from '@/components/board/deedVisual';
 import { resolveBoardIcon } from '@/components/board/iconRegistry';
 import { Button } from '@/components/ui/Button';
 import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
-import { colorGroups, colors } from '@/theme/colors';
+import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
-
-const GROUP_HEX: Record<string, string> = {
-  brown: colorGroups.brown,
-  lightBlue: colorGroups.lightBlue,
-  lightblue: colorGroups.lightBlue,
-  pink: colorGroups.pink,
-  orange: colorGroups.orange,
-  red: colorGroups.red,
-  yellow: colorGroups.yellow,
-  green: colorGroups.green,
-  darkBlue: colorGroups.darkBlue,
-  darkblue: colorGroups.darkBlue,
-  violet: colorGroups.violet,
-};
 
 type BuyPropertyOverlayProps = {
   visible: boolean;
@@ -31,53 +23,6 @@ type BuyPropertyOverlayProps = {
   onBuy: () => void;
   onDismiss?: () => void;
 };
-
-function stripColorFor(loc: Location | null | undefined, kind: string): string {
-  if (loc?.kind === 'property' && loc.colorGroup) {
-    return GROUP_HEX[loc.colorGroup] ?? colorGroups.brown;
-  }
-  if (kind === 'railroad') {
-    return colors.info;
-  }
-  if (kind === 'utility') {
-    return colors.accent;
-  }
-  return colors.brandMuted;
-}
-
-/** Relative luminance 0–1; light strips need dark text. */
-function isLightHex(hex: string): boolean {
-  const h = hex.replace('#', '');
-  if (h.length < 6) {
-    return false;
-  }
-  const r = parseInt(h.slice(0, 2), 16) / 255;
-  const g = parseInt(h.slice(2, 4), 16) / 255;
-  const b = parseInt(h.slice(4, 6), 16) / 255;
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.65;
-}
-
-type RentRow = { label: string; value: number };
-
-function rentRows(rents: number[]): RentRow[] {
-  if (rents.length === 0) {
-    return [];
-  }
-  const rows: RentRow[] = [{ label: 'Rent', value: rents[0] }];
-  if (rents[1] != null) {
-    rows.push({ label: '1 house', value: rents[1] });
-  }
-  if (rents[2] != null) {
-    rows.push({ label: '2 houses', value: rents[2] });
-  }
-  if (rents[3] != null) {
-    rows.push({ label: '3 houses', value: rents[3] });
-  }
-  if (rents[4] != null) {
-    rows.push({ label: 'Hotel', value: rents[4] });
-  }
-  return rows;
-}
 
 /**
  * Center-board buy modal (Phase 6.4 polish).
@@ -99,15 +44,7 @@ export function BuyPropertyOverlay({
   const strip = stripColorFor(location, offer.kind);
   const onStrip = isLightHex(strip) ? colors.ink : colors.onBrand;
   const Icon = resolveBoardIcon(location?.assets?.icon);
-  const rents =
-    location?.rents?.filter((n): n is number => typeof n === 'number') ?? [];
-  const rows = rentRows(rents);
-  const kindLabel =
-    offer.kind === 'railroad'
-      ? 'Air hub'
-      : offer.kind === 'utility'
-        ? 'Utility'
-        : 'Property';
+  const rows = rentRowsFor(offer.kind, location);
 
   return (
     <View style={styles.host} pointerEvents="box-none">
@@ -129,7 +66,9 @@ export function BuyPropertyOverlay({
             <View style={styles.deed}>
               <View style={[styles.deedHeader, { backgroundColor: strip }]}>
                 {Icon ? (
-                  <Icon width={28} height={28} color={onStrip} />
+                  <View style={styles.deedIconWrap}>
+                    <Icon width={26} height={26} color={onStrip} />
+                  </View>
                 ) : null}
                 <Text
                   style={[styles.deedName, { color: onStrip }]}
@@ -152,7 +91,9 @@ export function BuyPropertyOverlay({
                     ))}
                   </View>
                 ) : (
-                  <Text style={styles.kindFallback}>{kindLabel}</Text>
+                  <Text style={styles.kindFallback}>
+                    {kindFallbackLabel(offer.kind)}
+                  </Text>
                 )}
               </View>
             </View>
@@ -230,10 +171,20 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    minHeight: 48,
+  },
+  deedIconWrap: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   deedName: {
     fontFamily: fonts.displayBold,
     fontSize: 18,
+    lineHeight: 26,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
     flexShrink: 1,
   },
   deedBody: {

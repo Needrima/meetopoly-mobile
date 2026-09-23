@@ -16,6 +16,10 @@ type BoardProps = {
   locations: Location[];
   layout?: BoardLayout;
   highlightedBoardIndex?: number | null;
+  /** boardIndex → owner pinColor for owned buyable spaces. */
+  ownerColorByIndex?: ReadonlyMap<number, string>;
+  /** When set, tiles are tappable (omit while local buy modal is open). */
+  onTilePress?: (boardIndex: number) => void;
   avatar?: {
     poseX: SharedValue<number>;
     poseY: SharedValue<number>;
@@ -34,6 +38,8 @@ export function Board({
   locations,
   layout: layoutProp,
   highlightedBoardIndex = null,
+  ownerColorByIndex,
+  onTilePress,
   avatar,
   pins = [],
 }: BoardProps) {
@@ -64,6 +70,14 @@ export function Board({
           tile={tile}
           location={byIndex.get(tile.boardIndex)}
           highlighted={highlightedBoardIndex === tile.boardIndex}
+          ownerColor={ownerColorByIndex?.get(tile.boardIndex) ?? null}
+          onPress={
+            onTilePress
+              ? () => {
+                  onTilePress(tile.boardIndex);
+                }
+              : undefined
+          }
         />
       ))}
       {pins.map((p) => (
@@ -94,4 +108,3 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
-

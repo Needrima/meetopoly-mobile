@@ -14,6 +14,7 @@ import { Board } from '@/components/board/Board';
 import { BoardOverflowMenu } from '@/components/board/BoardOverflowMenu';
 import { BoardPanel } from '@/components/board/BoardPanel';
 import { BuyPropertyOverlay } from '@/components/board/BuyPropertyOverlay';
+import { TileInfoOverlay } from '@/components/board/TileInfoOverlay';
 import { layoutBoardRing } from '@/components/board/boardLayout';
 import { shortTileName } from '@/components/board/tileLabel';
 import { DiceRollOverlay } from '@/components/board/DiceRollOverlay';
@@ -75,6 +76,7 @@ export default function BoardScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [winnerOpen, setWinnerOpen] = useState(false);
+  const [inspectIndex, setInspectIndex] = useState<number | null>(null);
   const startedToastRef = useRef(false);
   const passGoToastRef = useRef<string | null>(null);
   const passGoReadyRef = useRef(false);
@@ -430,6 +432,60 @@ export default function BoardScreen() {
       game.canBuy &&
       !turnBusy,
   );
+
+  // Buyer must not open inspect while buy modal is up; clear if it appears.
+  useEffect(() => {
+    if (showBuyModal && inspectIndex != null) {
+      setInspectIndex(null);
+    }
+  }, [showBuyModal, inspectIndex]);
+
+  const ownerColorByIndex = useMemo(() => {
+    const map = new Map<number, string>();
+    if (!game) {
+      return map;
+    }
+    const pinByUser = new Map(
+      game.players.map((p) => [p.userId, p.pinColor] as const),
+    );
+    for (const d of game.deeds ?? []) {
+      const color = pinByUser.get(d.ownerUserId);
+      if (color) {
+        map.set(d.boardIndex, color);
+      }
+    }
+    return map;
+  }, [game]);
+
+  const inspectLoc =
+    inspectIndex != null
+      ? locations.find((l) => l.boardIndex === inspectIndex) ?? null
+      : null;
+  const inspectOwner = useMemo(() => {
+    if (!game || inspectIndex == null) {
+      return null;
+    }
+    const deed = (game.deeds ?? []).find((d) => d.boardIndex === inspectIndex);
+    if (!deed) {
+      return null;
+    }
+    const player = game.players.find((p) => p.userId === deed.ownerUserId);
+    return {
+      username: deed.ownerUsername || player?.username || 'Player',
+      pinColor: player?.pinColor ?? colors.muted,
+    };
+  }, [game, inspectIndex]);
+
+  const onTilePress = useCallback(
+    (boardIndex: number) => {
+      if (showBuyModal) {
+        return;
+      }
+      setInspectIndex(boardIndex);
+    },
+    [showBuyModal],
+  );
+
   const buyLoc = buyOffer
     ? locations.find((l) => l.boardIndex === buyOffer.boardIndex) ?? null
     : null;
@@ -481,6 +537,8 @@ export default function BoardScreen() {
               locations={locations}
               layout={layout}
               highlightedBoardIndex={walk.nearby?.boardIndex ?? null}
+              ownerColorByIndex={ownerColorByIndex}
+              onTilePress={showBuyModal ? undefined : onTilePress}
               avatar={{
                 poseX: walk.poseX,
                 poseY: walk.poseY,
@@ -511,6 +569,12 @@ export default function BoardScreen() {
               onBuy={onBuy}
             />
           ) : null}
+          <TileInfoOverlay
+            visible={inspectIndex != null && !showBuyModal}
+            location={inspectLoc}
+            owner={inspectOwner}
+            onClose={() => setInspectIndex(null)}
+          />
         </View>
 
         <View style={[styles.panelRail, { height: boardSide }]}>
