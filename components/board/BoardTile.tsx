@@ -142,14 +142,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   tileGlow: {
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.accent,
     zIndex: 4,
     shadowColor: colors.accent,
-    shadowOpacity: 0.55,
-    shadowRadius: 6,
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
     shadowOffset: { width: 0, height: 0 },
-    elevation: 4,
+    elevation: 2,
   },
   band: {
     position: 'absolute',

@@ -32,6 +32,7 @@ export default function AppLayout() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="worlds" />
+        <Stack.Screen name="lobby/[worldId]" />
         <Stack.Screen name="board" options={{ gestureEnabled: false }} />
         <Stack.Screen name="hub/[slug]" />
         <Stack.Screen name="locations" />

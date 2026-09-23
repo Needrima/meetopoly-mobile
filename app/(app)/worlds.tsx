@@ -17,8 +17,7 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * Phase 5.0 — pick a World before lobby (5.1+).
- * Continue temporarily opens the board with that worldId until lobby exists.
+ * Phase 5.0 — pick a World; Continue → lobby (5.1+).
  */
 export default function WorldsScreen() {
   const { data, error, isLoading, isError, isFetching, refetch } = useWorlds();
@@ -112,11 +111,7 @@ export default function WorldsScreen() {
             if (!selected) {
               return;
             }
-            // 5.0 temp: board preview. 5.1+ → lobby/[worldId]
-            router.push({
-              pathname: '/(app)/board',
-              params: { worldId: selected.worldId },
-            });
+            router.push(`/(app)/lobby/${selected.worldId}`);
           }}
         />
       </View>
