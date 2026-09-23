@@ -38,16 +38,8 @@ export function BoardTile({ tile, location }: BoardTileProps) {
     Math.min(20, Math.floor(minEdge * (tile.isCorner ? 0.36 : 0.38))),
   );
 
-  // Band only on the center-facing edge — keep other paddings small so codes fit.
-  const bandDepth = band
-    ? Math.max(band.width === tile.width ? band.height : band.width, 2)
-    : 0;
-  const contentPad = {
-    paddingTop: tile.side === "bottom" ? bandDepth + 2 : 2,
-    paddingBottom: tile.side === "top" ? bandDepth + 2 : 2,
-    paddingLeft: tile.side === "right" ? bandDepth + 2 : 2,
-    paddingRight: tile.side === "left" ? bandDepth + 2 : 2,
-  };
+  // Equal padding so icon+label stay optically centered (band is overlay only).
+  const contentPad = 3;
 
   const longCorner = locLongCornerLabel(location);
   const iconPath = location?.assets?.icon;
@@ -90,8 +82,10 @@ export function BoardTile({ tile, location }: BoardTileProps) {
       <View
         style={[
           styles.content,
-          contentPad,
-          { transform: [{ rotate: contentRotation(tile.side) }] },
+          {
+            padding: contentPad,
+            transform: [{ rotate: contentRotation(tile.side) }],
+          },
         ]}
       >
         {Icon ? (
