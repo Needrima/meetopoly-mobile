@@ -7,10 +7,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.12.0
  */
+import type { GamePendingPayment } from './gamePendingPayment';
 
-export type ListLocationsParams = {
 /**
- * World pack id (e.g. africa-1)
+ * Unpaid remainder; canRoll/canEndTurn false until resign or Phase 14
+ * @nullable
  */
-worldId: string;
-};
+export type GamePendingPaymentProperty = GamePendingPayment | null;

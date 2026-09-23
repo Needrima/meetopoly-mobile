@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.11.0
+ * OpenAPI spec version: 0.12.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
@@ -13,6 +13,8 @@ import type { GameTurnPhase } from './gameTurnPhase';
 import type { GameBuyOfferProperty } from './gameBuyOfferProperty';
 import type { GameDeed } from './gameDeed';
 import type { GameLastRollProperty } from './gameLastRollProperty';
+import type { GameLastPaymentProperty } from './gameLastPaymentProperty';
+import type { GamePendingPaymentProperty } from './gamePendingPaymentProperty';
 
 export interface Game {
   id: string;
@@ -38,6 +40,16 @@ export interface Game {
   deeds: GameDeed[];
   /** @nullable */
   lastRoll?: GameLastRollProperty;
+  /**
+   * Most recent rent/tax auto-collect (Phase 6.5)
+   * @nullable
+   */
+  lastPayment?: GameLastPaymentProperty;
+  /**
+   * Unpaid remainder; canRoll/canEndTurn false until resign or Phase 14
+   * @nullable
+   */
+  pendingPayment?: GamePendingPaymentProperty;
   /** Set when status is finished (last active player) */
   winnerUserId?: string;
   /** Display name of the winner */

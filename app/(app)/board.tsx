@@ -84,6 +84,7 @@ export default function BoardScreen() {
   const resignToastRef = useRef<string>('');
   const localLeavingRef = useRef(false);
   const deedsSigRef = useRef<string | null>(null);
+  const paymentSigRef = useRef<string | null>(null);
 
   const username = me.data?.username ?? user?.username ?? null;
   const localUserId = me.data?.id ?? user?.id ?? null;
@@ -100,6 +101,10 @@ export default function BoardScreen() {
       .map((d) => `${d.boardIndex}:${d.ownerUserId}`)
       .sort()
       .join('|');
+    if (game.lastPayment) {
+      const p = game.lastPayment;
+      paymentSigRef.current = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ''}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
+    }
     // Ignore historical lastRoll pass-GO from a prior session fetch.
     if (game.lastRoll?.passedGo) {
       passGoToastRef.current = `${game.lastRoll.userId}:${game.lastRoll.fromIndex}:${game.lastRoll.toIndex}:${game.lastRoll.total}`;
@@ -223,6 +228,60 @@ export default function BoardScreen() {
       });
     }
   }, [game, localUserId, locations]);
+
+  // Phase 6.5 — toast everyone when rent/tax is auto-collected.
+  useEffect(() => {
+    if (!game || !startedToastRef.current) {
+      return;
+    }
+    const p = game.lastPayment;
+    if (!p) {
+      return;
+    }
+    const sig = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ''}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
+    if (paymentSigRef.current === null) {
+      paymentSigRef.current = sig;
+      return;
+    }
+    if (sig === paymentSigRef.current) {
+      return;
+    }
+    paymentSigRef.current = sig;
+    const place = p.spaceName || `space ${p.boardIndex}`;
+    const iPaid = Boolean(localUserId && p.fromUserId === localUserId);
+    const received = Boolean(localUserId && p.toUserId === localUserId);
+    if (p.kind === 'tax') {
+      notify({
+        type: iPaid && !p.paidInFull ? 'error' : 'info',
+        title: iPaid ? 'Tax paid' : 'Tax collected',
+        message: iPaid
+          ? `−${p.amount} MeetCoin · ${place}`
+          : `${p.fromUsername} paid ${p.amount} tax at ${place}`,
+      });
+    } else {
+      notify({
+        type: iPaid && !p.paidInFull ? 'error' : 'success',
+        title: iPaid
+          ? 'Rent paid'
+          : received
+            ? 'Rent collected'
+            : 'Rent paid',
+        message: iPaid
+          ? `−${p.amount} to ${p.toUsername || 'owner'} · ${place}`
+          : received
+            ? `+${p.amount} from ${p.fromUsername} · ${place}`
+            : `${p.fromUsername} → ${p.toUsername || 'owner'} · ${p.amount} · ${place}`,
+      });
+    }
+    if (iPaid && !p.paidInFull) {
+      notify({
+        type: 'error',
+        title: 'Cannot afford full amount',
+        message:
+          'End and Roll are blocked. Resign to leave (bankruptcy rules come later).',
+      });
+    }
+  }, [game, localUserId]);
 
   const layout = useMemo(
     () =>

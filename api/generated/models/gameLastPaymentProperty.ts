@@ -7,8 +7,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.12.0
  */
+import type { GameLastPayment } from './gameLastPayment';
 
-export interface PasswordResetStartResponse {
-  /** True when a reset code email was sent */
-  sent: boolean;
-}
+/**
+ * Most recent rent/tax auto-collect (Phase 6.5)
+ * @nullable
+ */
+export type GameLastPaymentProperty = GameLastPayment | null;
