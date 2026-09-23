@@ -8,27 +8,39 @@ export type SeatSlotProps = {
   seatNumber: number;
   /** Display name when occupied; omitted = empty. */
   displayName?: string | null;
+  /** Highlight the local player's seat. */
+  isYou?: boolean;
   /** Ready badge (unused until 5.4). */
   ready?: boolean;
 };
 
 /** One of six lobby seats — presentational only. */
-export function SeatSlot({ seatNumber, displayName, ready = false }: SeatSlotProps) {
+export function SeatSlot({
+  seatNumber,
+  displayName,
+  isYou = false,
+  ready = false,
+}: SeatSlotProps) {
   const occupied = Boolean(displayName);
 
   return (
     <View
       accessibilityLabel={
         occupied
-          ? `Seat ${seatNumber}, ${displayName}${ready ? ', ready' : ''}`
+          ? `Seat ${seatNumber}, ${displayName}${isYou ? ', you' : ''}${ready ? ', ready' : ''}`
           : `Seat ${seatNumber}, empty`
       }
-      style={[styles.slot, occupied ? styles.slotFilled : styles.slotEmpty]}
+      style={[
+        styles.slot,
+        occupied ? styles.slotFilled : styles.slotEmpty,
+        isYou ? styles.slotYou : null,
+      ]}
     >
       <Text style={styles.seatNum}>Seat {seatNumber}</Text>
       <Text style={styles.name} numberOfLines={1}>
         {occupied ? displayName : 'Open'}
       </Text>
+      {isYou ? <Text style={styles.you}>You</Text> : null}
       {occupied && ready ? <Text style={styles.ready}>Ready</Text> : null}
     </View>
   );
@@ -56,6 +68,10 @@ const styles = StyleSheet.create({
     borderColor: colors.brand,
     backgroundColor: colors.brandMuted,
   },
+  slotYou: {
+    borderWidth: 2,
+    borderColor: colors.accent,
+  },
   seatNum: {
     fontFamily: fonts.body,
     fontSize: 11,
@@ -67,6 +83,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     fontSize: 15,
     color: colors.ink,
+  },
+  you: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.accent,
   },
   ready: {
     marginTop: 2,

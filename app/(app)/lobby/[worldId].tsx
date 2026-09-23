@@ -4,15 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SeatSlot } from '@/components/lobby/SeatSlot';
 import { Button } from '@/components/ui/Button';
+import { useLobbyStub } from '@/hooks/useLobbyStub';
 import { useWorlds } from '@/hooks/useLocations';
+import { useSession } from '@/hooks/useSession';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
-const SEAT_COUNT = 6;
-
 /**
- * Phase 5.1 — lobby shell: 6 seats + Leave → World picker.
- * Matchmaking / bots / Ready land in 5.2–5.4.
+ * Phase 5.2 — local player seats in the pool; waiting copy until ≥2.
+ * Bots / Ready / board start land in 5.3–5.4.
  */
 export default function LobbyScreen() {
   const params = useLocalSearchParams<{ worldId?: string | string[] }>();
@@ -20,10 +20,21 @@ export default function LobbyScreen() {
     ? params.worldId[0]
     : params.worldId;
 
+  const { user } = useSession();
   const { data } = useWorlds();
   const world = data?.worlds.find((w) => w.worldId === worldId) ?? null;
 
+  const localPlayerId = user?.id ?? 'local';
+  const localDisplayName = user?.username?.trim() || user?.email || 'You';
+
+  const lobby = useLobbyStub({
+    worldId: worldId ?? '',
+    localPlayerId,
+    localDisplayName,
+  });
+
   const leave = () => {
+    lobby.leave();
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -41,6 +52,10 @@ export default function LobbyScreen() {
       </SafeAreaView>
     );
   }
+
+  const statusLine = lobby.waitingForPlayers
+    ? `Waiting for players… ${lobby.seatedCount}/${lobby.minSeats} needed to continue`
+    : `${lobby.seatedCount} seated · Ready comes next`;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
@@ -64,19 +79,25 @@ export default function LobbyScreen() {
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.hint}>
-          Table seats (2–6). Matchmaking fills these next.
-        </Text>
+        <Text style={styles.hint}>{statusLine}</Text>
         <View style={styles.grid}>
-          {Array.from({ length: SEAT_COUNT }, (_, i) => (
-            <SeatSlot key={i} seatNumber={i + 1} />
+          {lobby.seats.map((seat) => (
+            <SeatSlot
+              key={seat.seatIndex}
+              seatNumber={seat.seatIndex + 1}
+              displayName={seat.displayName}
+              isYou={seat.isLocal}
+              ready={seat.ready}
+            />
           ))}
         </View>
       </View>
 
       <View style={styles.footer}>
         <Text style={styles.footerHint}>
-          Waiting for players · Ready unlocks in a later step
+          {lobby.waitingForPlayers
+            ? 'Need at least one more player before Ready unlocks'
+            : 'Table can Ready when everyone is set'}
         </Text>
         <Button label="Leave lobby" onPress={leave} />
       </View>
