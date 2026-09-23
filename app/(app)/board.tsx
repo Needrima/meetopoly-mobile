@@ -15,6 +15,7 @@ import { BoardOverflowMenu } from '@/components/board/BoardOverflowMenu';
 import { BoardPanel } from '@/components/board/BoardPanel';
 import { layoutBoardRing } from '@/components/board/boardLayout';
 import { shortTileName } from '@/components/board/tileLabel';
+import { DiceRollOverlay } from '@/components/board/DiceRollOverlay';
 import { InfoModal } from '@/components/ui/InfoModal';
 import { useLogout, useMe } from '@/hooks/useAuth';
 import { useBlockHardwareBack } from '@/hooks/useBlockHardwareBack';
@@ -23,6 +24,7 @@ import {
   useBoardWalk,
   type AvatarColorKey,
 } from '@/hooks/useBoardWalk';
+import { useDiceRollMotion } from '@/hooks/useDiceRollMotion';
 import { useGame, useEndTurn, useRollDice } from '@/hooks/useGame';
 import { useGamePinMotion } from '@/hooks/useGamePinMotion';
 import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
@@ -35,7 +37,7 @@ const PANEL_MIN = 168;
 
 /**
  * Board play surface; leave via panel ⋯; avatar pose via Reanimated.
- * Phase 6.1: Roll dice, tile-by-tile pin motion, pass-GO MeetCoin.
+ * Phase 6.2b: synced dice tumble, then tile-by-tile pin motion.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
@@ -156,12 +158,16 @@ export default function BoardScreen() {
   const pinRadius = layout
     ? Math.max(6, Math.round(layout.size * 0.018))
     : 8;
+  const { animating: diceAnimating, overlay: diceOverlay } =
+    useDiceRollMotion(game);
   const { pins: motionPins, animating: pinAnimating } = useGamePinMotion({
     layout,
     game,
     localUserId,
     pinRadius,
+    holdWalk: diceAnimating,
   });
+  const turnBusy = diceAnimating || pinAnimating;
 
   useEffect(() => {
     if (!walk.nearby) {
@@ -205,7 +211,7 @@ export default function BoardScreen() {
   }, []);
 
   const onRoll = useCallback(() => {
-    if (!gameId || rollDice.isPending || pinAnimating) {
+    if (!gameId || rollDice.isPending || turnBusy) {
       return;
     }
     rollDice.mutate(undefined, {
@@ -217,10 +223,10 @@ export default function BoardScreen() {
         });
       },
     });
-  }, [gameId, rollDice, pinAnimating]);
+  }, [gameId, rollDice, turnBusy]);
 
   const onEndTurn = useCallback(() => {
-    if (!gameId || endTurnMut.isPending || pinAnimating) {
+    if (!gameId || endTurnMut.isPending || turnBusy) {
       return;
     }
     endTurnMut.mutate(undefined, {
@@ -232,7 +238,7 @@ export default function BoardScreen() {
         });
       },
     });
-  }, [gameId, endTurnMut, pinAnimating]);
+  }, [gameId, endTurnMut, turnBusy]);
 
   const nearby = walk.nearby;
   const nearbyCode = nearby ? shortTileName(nearby) : '';
@@ -293,6 +299,16 @@ export default function BoardScreen() {
               pins={boardPins}
             />
           ) : null}
+          {diceOverlay ? (
+            <DiceRollOverlay
+              visible
+              rolling={diceAnimating}
+              die1={diceOverlay.die1}
+              die2={diceOverlay.die2}
+              username={diceOverlay.username}
+              isDoubles={diceOverlay.isDoubles}
+            />
+          ) : null}
         </View>
 
         <View style={[styles.panelRail, { height: boardSide }]}>
@@ -307,10 +323,10 @@ export default function BoardScreen() {
             game={game}
             localUserId={localUserId}
             onRoll={game ? onRoll : undefined}
-            rollDisabled={!isMyTurn || !game?.canRoll || pinAnimating}
+            rollDisabled={!isMyTurn || !game?.canRoll || turnBusy}
             rollPending={rollDice.isPending}
             onEndTurn={game ? onEndTurn : undefined}
-            endDisabled={!isMyTurn || !game?.canEndTurn || pinAnimating}
+            endDisabled={!isMyTurn || !game?.canEndTurn || turnBusy}
             endPending={endTurnMut.isPending}
           />
         </View>
