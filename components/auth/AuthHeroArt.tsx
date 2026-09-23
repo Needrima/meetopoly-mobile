@@ -62,7 +62,8 @@ export function AuthHeroArt() {
           <View style={[styles.cityShadow, { width: size * 0.7, marginLeft: size * 0.15 }]} />
           <Icon width={size} height={size} color={color} />
         </MotiView>
-      ))}    </View>
+      ))}
+    </View>
   );
 }
 

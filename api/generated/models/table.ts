@@ -7,11 +7,16 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.4.0
  */
+import type { TableStatus } from './tableStatus';
+import type { TableSeat } from './tableSeat';
 
-export interface PasswordResetConfirmRequest {
+export interface Table {
+  id: string;
+  worldId: string;
+  status: TableStatus;
   /**
-   * @minLength 8
-   * @maxLength 128
+   * @minItems 6
+   * @maxItems 6
    */
-  password: string;
+  seats: TableSeat[];
 }

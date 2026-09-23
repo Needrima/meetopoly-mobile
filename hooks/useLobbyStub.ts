@@ -159,7 +159,7 @@ function everyoneReady(seats: LobbySeat[]): boolean {
 }
 
 /**
- * Phase 5.2–5.5 local lobby stub (replaced by real table WS in 5.6).
+ * Phase 5.2–5.5 local lobby stub (bots). Prefer `useTableLobby` (5.6+) for real matchmaking.
  */
 export function useLobbyStub({
   worldId,

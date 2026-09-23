@@ -3,7 +3,23 @@
  * Used as the orval mutator — endpoint functions live in generated services.
  */
 
-const DEFAULT_BASE_URL = "http://localhost:8080";
+import { Platform } from 'react-native';
+
+const DEFAULT_BASE_URL = 'http://127.0.0.1:8080';
+
+/**
+ * Android emulator loopback is not the host machine — map localhost → 10.0.2.2.
+ * Leave LAN IPs (e.g. 192.168.x.x) unchanged for physical devices.
+ */
+function resolveHostForPlatform(url: string): string {
+  const trimmed = url.replace(/\/$/, '');
+  if (Platform.OS !== 'android') {
+    return trimmed;
+  }
+  return trimmed
+    .replace('://127.0.0.1', '://10.0.2.2')
+    .replace('://localhost', '://10.0.2.2');
+}
 
 /**
  * API base URL from Expo public env (`.env` → `EXPO_PUBLIC_API_URL`).
@@ -11,9 +27,21 @@ const DEFAULT_BASE_URL = "http://localhost:8080";
  */
 export function getApiBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
-  return fromEnv && fromEnv.length > 0
-    ? fromEnv.replace(/\/$/, "")
-    : DEFAULT_BASE_URL;
+  const raw =
+    fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_BASE_URL;
+  return resolveHostForPlatform(raw);
+}
+
+/** WebSocket origin matching `getApiBaseUrl()` (`http`→`ws`, `https`→`wss`). */
+export function getWsBaseUrl(): string {
+  const http = getApiBaseUrl();
+  if (http.startsWith("https://")) {
+    return `wss://${http.slice("https://".length)}`;
+  }
+  if (http.startsWith("http://")) {
+    return `ws://${http.slice("http://".length)}`;
+  }
+  return http;
 }
 
 export class ApiError extends Error {

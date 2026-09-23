@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,14 +12,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SeatSlot } from '@/components/lobby/SeatSlot';
 import { Button } from '@/components/ui/Button';
-import { useLobbyStub } from '@/hooks/useLobbyStub';
 import { useWorlds } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
+import { useTableLobby } from '@/hooks/useTableLobby';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * Phase 5.5 — disconnect-hold stub + lobby chrome polish.
+ * Phase 5.6 — real table matchmaking over HTTP + WebSocket.
  */
 export default function LobbyScreen() {
   const params = useLocalSearchParams<{ worldId?: string | string[] }>();
@@ -30,13 +31,11 @@ export default function LobbyScreen() {
   const { data } = useWorlds();
   const world = data?.worlds.find((w) => w.worldId === worldId) ?? null;
 
-  const localPlayerId = user?.id ?? 'local';
-  const localDisplayName = user?.username?.trim() || user?.email || 'You';
+  const localPlayerId = user?.id ?? '';
 
-  const lobby = useLobbyStub({
+  const lobby = useTableLobby({
     worldId: worldId ?? '',
     localPlayerId,
-    localDisplayName,
   });
 
   const startedRef = useRef(false);
@@ -51,13 +50,6 @@ export default function LobbyScreen() {
       params: { worldId },
     });
   }, [lobby.allReady, worldId]);
-
-  useEffect(() => {
-    if (!lobby.holdExpired) {
-      return;
-    }
-    router.replace('/(app)/worlds');
-  }, [lobby.holdExpired]);
 
   const leave = () => {
     lobby.leave();
@@ -79,17 +71,19 @@ export default function LobbyScreen() {
     );
   }
 
-  const statusLine = lobby.localHolding
-    ? `Reconnecting… seat held ${lobby.holdRemainingSec}s`
-    : lobby.holdingCount > 0
-      ? `${lobby.holdingCount} reconnecting · ${lobby.readyCount}/${lobby.seatedCount} ready`
-      : lobby.allReady
-        ? 'Everyone ready — starting…'
-        : lobby.waitingForPlayers
-          ? `Waiting for players… ${lobby.seatedCount}/${lobby.minSeats} needed`
-          : lobby.isFull
-            ? `Table full · ${lobby.readyCount}/${lobby.seatedCount} ready`
-            : `${lobby.seatedCount}/${lobby.maxSeats} seated · ${lobby.readyCount} ready`;
+  const statusLine = lobby.joining
+    ? 'Joining matchmaking…'
+    : lobby.localHolding
+      ? `Reconnecting… seat held ${lobby.holdRemainingSec}s`
+      : lobby.holdingCount > 0
+        ? `${lobby.holdingCount} reconnecting · ${lobby.readyCount}/${lobby.seatedCount} ready`
+        : lobby.allReady
+          ? 'Everyone ready — starting…'
+          : lobby.waitingForPlayers
+            ? `Waiting for players… ${lobby.seatedCount}/${lobby.minSeats} needed`
+            : lobby.isFull
+              ? `Table full · ${lobby.readyCount}/${lobby.seatedCount} ready`
+              : `${lobby.seatedCount}/${lobby.maxSeats} seated · ${lobby.readyCount} ready`;
 
   const readyLabel = lobby.localReady ? 'Unready' : 'Ready';
 
@@ -109,6 +103,7 @@ export default function LobbyScreen() {
             {world
               ? `${world.worldId} · ${world.count} spaces`
               : worldId}
+            {lobby.tableId ? ` · ${lobby.tableId.slice(0, 6)}` : ''}
           </Text>
         </View>
         <Pressable
@@ -137,6 +132,12 @@ export default function LobbyScreen() {
         </Pressable>
       </View>
 
+      {lobby.error ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>{lobby.error}</Text>
+        </View>
+      ) : null}
+
       {lobby.holdingCount > 0 ? (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
@@ -152,7 +153,14 @@ export default function LobbyScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.hint}>{statusLine}</Text>
+        {lobby.joining ? (
+          <View style={styles.joiningRow}>
+            <ActivityIndicator color={colors.brand} />
+            <Text style={styles.hint}>{statusLine}</Text>
+          </View>
+        ) : (
+          <Text style={styles.hint}>{statusLine}</Text>
+        )}
         <View style={styles.grid}>
           {lobby.seats.map((seat) => (
             <SeatSlot
@@ -166,6 +174,11 @@ export default function LobbyScreen() {
             />
           ))}
         </View>
+        {!lobby.joining && lobby.waitingForPlayers ? (
+          <Text style={styles.waitNote}>
+            Real matchmaking — another player must join this World to Ready.
+          </Text>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -254,6 +267,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.warn,
   },
+  errorBanner: {
+    marginHorizontal: 16,
+    marginBottom: 4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(194, 59, 42, 0.1)',
+    borderWidth: 1,
+    borderColor: colors.danger,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  errorBannerText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.danger,
+  },
   body: {
     flex: 1,
   },
@@ -263,10 +291,22 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: 10,
   },
+  joiningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   hint: {
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.muted,
+  },
+  waitNote: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: 'center',
+    marginTop: 8,
   },
   grid: {
     flexDirection: 'row',

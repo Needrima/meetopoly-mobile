@@ -8,7 +8,6 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.4.0
  */
 
-export type GetLocationBySlugParams = {
-worldId: string;
-slug: string;
-};
+export interface SetTableReadyRequest {
+  ready: boolean;
+}

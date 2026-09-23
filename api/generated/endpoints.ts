@@ -5,12 +5,13 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.3.1
+ * OpenAPI spec version: 0.4.0
  */
 import type {
   AuthSessionResponse,
   GetLocationBySlugParams,
   HealthResponse,
+  JoinTableRequest,
   ListLocationsParams,
   Location,
   LocationsResponse,
@@ -21,12 +22,14 @@ import type {
   PasswordResetStartResponse,
   PasswordResetVerifyRequest,
   PasswordResetVerifyResponse,
+  SetTableReadyRequest,
   SignupPasswordRequest,
   SignupProfileRequest,
   SignupStartRequest,
   SignupStatusResponse,
   SignupVerifyRequest,
   SignupVerifyResponse,
+  Table,
   UserProfile,
   WorldsResponse
 } from './models';
@@ -369,6 +372,111 @@ export const listWorlds = async ( options?: RequestInit): Promise<WorldsResponse
   {      
     ...options,
     method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Finds an open lobby for `worldId` (or creates one), seats the caller,
+and returns the table snapshot. Connect to `GET /ws/tables/{tableId}?token=`
+for live seat/ready updates. Messages: client `{type:ready|leave|ping}`,
+server `{type:state|started|pong|error}`.
+
+ * @summary Join a World matchmaking lobby
+ */
+export const getJoinTableUrl = () => {
+
+
+  
+
+  return `/tables/join`
+}
+
+export const joinTable = async (joinTableRequest: JoinTableRequest, options?: RequestInit): Promise<Table> => {
+  
+  return apiMutator<Table>(getJoinTableUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      joinTableRequest,)
+  }
+);}
+
+
+
+/**
+ * @summary Get table snapshot
+ */
+export const getGetTableUrl = (tableId: string,) => {
+
+
+  
+
+  return `/tables/${tableId}`
+}
+
+export const getTable = async (tableId: string, options?: RequestInit): Promise<Table> => {
+  
+  return apiMutator<Table>(getGetTableUrl(tableId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Requires ≥2 seated. When every seated player is Ready, status becomes `starting` and WS emits `started`.
+ * @summary Toggle Ready for the local seat
+ */
+export const getSetTableReadyUrl = (tableId: string,) => {
+
+
+  
+
+  return `/tables/${tableId}/ready`
+}
+
+export const setTableReady = async (tableId: string,
+    setTableReadyRequest: SetTableReadyRequest, options?: RequestInit): Promise<Table> => {
+  
+  return apiMutator<Table>(getSetTableReadyUrl(tableId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setTableReadyRequest,)
+  }
+);}
+
+
+
+/**
+ * @summary Leave lobby (frees seat immediately)
+ */
+export const getLeaveTableUrl = (tableId: string,) => {
+
+
+  
+
+  return `/tables/${tableId}/leave`
+}
+
+export const leaveTable = async (tableId: string, options?: RequestInit): Promise<Table> => {
+  
+  return apiMutator<Table>(getLeaveTableUrl(tableId),
+  {      
+    ...options,
+    method: 'POST'
     
     
   }
