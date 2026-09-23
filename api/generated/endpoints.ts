@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.6.0
+ * OpenAPI spec version: 0.7.0
  */
 import type {
   AuthSessionResponse,
@@ -513,8 +513,9 @@ export const getGame = async (gameId: string, options?: RequestInit): Promise<Ga
 
 
 /**
- * Server rolls 2d6, moves the caller's pin, awards pass-GO MeetCoin when applicable,
-then advances turn (Phase 6.1 — doubles do not re-roll; explicit End is 6.4).
+ * Server rolls 2d6 and moves the caller's pin (unless third consecutive doubles).
+Awards pass-GO MeetCoin when applicable. Does **not** advance turn (Phase 6.2).
+Doubles → may roll again; non-doubles or third doubles → must `end-turn`.
 
  * @summary Roll dice on your turn
  */
@@ -529,6 +530,33 @@ export const getRollDiceUrl = (gameId: string,) => {
 export const rollDice = async (gameId: string, options?: RequestInit): Promise<Game> => {
   
   return apiMutator<Game>(getRollDiceUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Advances to the next seat (Phase 6.2). Allowed only when `turnPhase` is `awaiting_end`
+(after a non-doubles roll, or after third consecutive doubles).
+
+ * @summary End your turn
+ */
+export const getEndTurnUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/end-turn`
+}
+
+export const endTurn = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getEndTurnUrl(gameId),
   {      
     ...options,
     method: 'POST'

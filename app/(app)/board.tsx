@@ -23,7 +23,7 @@ import {
   useBoardWalk,
   type AvatarColorKey,
 } from '@/hooks/useBoardWalk';
-import { useGame, useRollDice } from '@/hooks/useGame';
+import { useGame, useEndTurn, useRollDice } from '@/hooks/useGame';
 import { useGamePinMotion } from '@/hooks/useGamePinMotion';
 import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
@@ -56,6 +56,7 @@ export default function BoardScreen() {
   const { data, error, isLoading, isError } = useLocations(worldId);
   const gameQuery = useGame(gameId);
   const rollDice = useRollDice(gameId);
+  const endTurnMut = useEndTurn(gameId);
   const game = gameQuery.data ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -207,14 +208,31 @@ export default function BoardScreen() {
     if (!gameId || rollDice.isPending || pinAnimating) {
       return;
     }
-    void rollDice.mutateAsync().catch((err: unknown) => {
-      notify({
-        type: 'error',
-        title: 'Roll failed',
-        message: err instanceof Error ? err.message : 'Could not roll',
-      });
+    rollDice.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: 'error',
+          title: 'Roll failed',
+          message: err.message || 'Could not roll',
+        });
+      },
     });
   }, [gameId, rollDice, pinAnimating]);
+
+  const onEndTurn = useCallback(() => {
+    if (!gameId || endTurnMut.isPending || pinAnimating) {
+      return;
+    }
+    endTurnMut.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: 'error',
+          title: 'End turn failed',
+          message: err.message || 'Could not end turn',
+        });
+      },
+    });
+  }, [gameId, endTurnMut, pinAnimating]);
 
   const nearby = walk.nearby;
   const nearbyCode = nearby ? shortTileName(nearby) : '';
@@ -289,8 +307,11 @@ export default function BoardScreen() {
             game={game}
             localUserId={localUserId}
             onRoll={game ? onRoll : undefined}
-            rollDisabled={!isMyTurn || pinAnimating}
+            rollDisabled={!isMyTurn || !game?.canRoll || pinAnimating}
             rollPending={rollDice.isPending}
+            onEndTurn={game ? onEndTurn : undefined}
+            endDisabled={!isMyTurn || !game?.canEndTurn || pinAnimating}
+            endPending={endTurnMut.isPending}
           />
         </View>
       </View>

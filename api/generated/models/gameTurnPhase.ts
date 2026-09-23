@@ -8,14 +8,11 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.7.0
  */
 
-/**
- * MongoDB ping result
- */
-export type HealthResponseMongo = typeof HealthResponseMongo[keyof typeof HealthResponseMongo];
+export type GameTurnPhase = typeof GameTurnPhase[keyof typeof GameTurnPhase];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const HealthResponseMongo = {
-  ok: 'ok',
-  error: 'error',
+export const GameTurnPhase = {
+  awaiting_roll: 'awaiting_roll',
+  awaiting_end: 'awaiting_end',
 } as const;

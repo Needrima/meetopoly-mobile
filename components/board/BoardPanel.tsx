@@ -26,6 +26,10 @@ type BoardPanelProps = {
   onRoll?: () => void;
   rollDisabled?: boolean;
   rollPending?: boolean;
+  /** Phase 6.2 — end turn after non-doubles (or third doubles). */
+  onEndTurn?: () => void;
+  endDisabled?: boolean;
+  endPending?: boolean;
 };
 
 /**
@@ -44,6 +48,9 @@ export function BoardPanel({
   onRoll,
   rollDisabled = false,
   rollPending = false,
+  onEndTurn,
+  endDisabled = false,
+  endPending = false,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : '';
   const blurb =
@@ -57,11 +64,23 @@ export function BoardPanel({
     game && localUserId && game.currentUserId === localUserId,
   );
   const last = game?.lastRoll ?? null;
-  const diceLine = last
-    ? `${last.die1} + ${last.die2} = ${last.total}${
-        last.passedGo ? ` · +${last.passGoAmount} GO` : ''
-      }`
-    : null;
+  const diceBits: string[] = [];
+  if (last) {
+    diceBits.push(`${last.die1} + ${last.die2} = ${last.total}`);
+    if (last.isDoubles) {
+      diceBits.push(
+        last.thirdDoubles
+          ? '3rd doubles · End turn'
+          : `doubles · roll again (${last.doublesStreak})`,
+      );
+    }
+    if (last.passedGo) {
+      diceBits.push(`+${last.passGoAmount} GO`);
+    }
+  }
+  const diceLine = diceBits.length ? diceBits.join(' · ') : null;
+  const canRoll = Boolean(isMyTurn && game?.canRoll);
+  const canEnd = Boolean(isMyTurn && game?.canEndTurn);
 
   return (
     <View style={styles.root}>
@@ -118,14 +137,31 @@ export function BoardPanel({
               </View>
             ))}
           </View>
-          {onRoll ? (
-            <Button
-              label={isMyTurn ? 'Roll' : 'Wait'}
-              onPress={onRoll}
-              disabled={rollDisabled || !isMyTurn}
-              loading={rollPending}
-              style={styles.rollBtn}
-            />
+          {onRoll || onEndTurn ? (
+            <View style={styles.actionRow}>
+              {onRoll ? (
+                <View style={styles.actionBtn}>
+                  <Button
+                    label={canRoll ? 'Roll' : 'Roll'}
+                    onPress={onRoll}
+                    disabled={rollDisabled || !canRoll}
+                    loading={rollPending}
+                    style={styles.rollBtn}
+                  />
+                </View>
+              ) : null}
+              {onEndTurn ? (
+                <View style={styles.actionBtn}>
+                  <Button
+                    label="End"
+                    onPress={onEndTurn}
+                    disabled={endDisabled || !canEnd}
+                    loading={endPending}
+                    style={styles.rollBtn}
+                  />
+                </View>
+              ) : null}
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -306,8 +342,15 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   rollBtn: {
-    marginTop: 4,
     height: 40,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  actionBtn: {
+    flex: 1,
   },
   title: {
     fontFamily: fonts.displayBold,
