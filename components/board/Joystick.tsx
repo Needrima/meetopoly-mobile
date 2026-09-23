@@ -13,13 +13,19 @@ import { colors } from '@/theme/colors';
 type JoystickProps = {
   onStick: (stick: StickInput) => void;
   size?: number;
+  /** Knob fill — typically the local avatar accent. */
+  accent?: string;
 };
 
 /**
  * Phase 4.5 — PanResponder virtual stick for the panel bottom-right dock.
  * Emits normalized {-1..1} board-local directions (y+ = down / south).
  */
-export function Joystick({ onStick, size = 96 }: JoystickProps) {
+export function Joystick({
+  onStick,
+  size = 96,
+  accent = colors.accent,
+}: JoystickProps) {
   const travel = size * 0.32;
   const knobSize = size * 0.38;
   const onStickRef = useRef(onStick);
@@ -78,6 +84,7 @@ export function Joystick({ onStick, size = 96 }: JoystickProps) {
             width: knobSize,
             height: knobSize,
             borderRadius: knobSize / 2,
+            backgroundColor: accent,
             transform: [{ translateX: offset.x }, { translateY: offset.y }],
           },
         ]}
@@ -95,7 +102,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   knob: {
-    backgroundColor: colors.accent,
     opacity: 0.95,
   },
 });

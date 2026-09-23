@@ -216,7 +216,7 @@ export function BoardPanel({
             </View>
           ) : null}
         </View>
-        <Joystick onStick={onStick} size={96} />
+        <Joystick onStick={onStick} size={96} accent={accent} />
       </View>
     </View>
   );
