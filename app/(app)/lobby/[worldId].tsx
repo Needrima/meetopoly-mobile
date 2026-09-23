@@ -1,4 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,8 +17,8 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * Phase 5.2 — local player seats in the pool; waiting copy until ≥2.
- * Bots / Ready / board start land in 5.3–5.4.
+ * Phase 5.2 — local player seats; 5.3 — slow fake joiners toward 6.
+ * Ready / board start land in 5.4.
  */
 export default function LobbyScreen() {
   const params = useLocalSearchParams<{ worldId?: string | string[] }>();
@@ -54,8 +60,14 @@ export default function LobbyScreen() {
   }
 
   const statusLine = lobby.waitingForPlayers
-    ? `Waiting for players… ${lobby.seatedCount}/${lobby.minSeats} needed to continue`
-    : `${lobby.seatedCount} seated · Ready comes next`;
+    ? `Waiting for players… ${lobby.seatedCount}/${lobby.minSeats} needed`
+    : lobby.isFull
+      ? `Table full · ${lobby.seatedCount}/${lobby.maxSeats}`
+      : `${lobby.seatedCount}/${lobby.maxSeats} seated · others may still join`;
+
+  const footerHint = lobby.waitingForPlayers
+    ? 'Need at least one more player before Ready unlocks'
+    : 'Enough players · Ready toggle comes next';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
@@ -78,7 +90,12 @@ export default function LobbyScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      <View style={styles.body}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.hint}>{statusLine}</Text>
         <View style={styles.grid}>
           {lobby.seats.map((seat) => (
@@ -91,15 +108,22 @@ export default function LobbyScreen() {
             />
           ))}
         </View>
-      </View>
+      </ScrollView>
 
       <View style={styles.footer}>
-        <Text style={styles.footerHint}>
-          {lobby.waitingForPlayers
-            ? 'Need at least one more player before Ready unlocks'
-            : 'Table can Ready when everyone is set'}
+        <Text style={styles.footerHint} numberOfLines={2}>
+          {footerHint}
         </Text>
-        <Button label="Leave lobby" onPress={leave} />
+        <Pressable
+          accessibilityRole="button"
+          onPress={leave}
+          style={({ pressed }) => [
+            styles.leaveBtn,
+            pressed ? styles.pressed : null,
+          ]}
+        >
+          <Text style={styles.leaveBtnLabel}>Leave lobby</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -115,7 +139,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   back: {
     borderRadius: 10,
@@ -138,7 +162,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.displayBold,
-    fontSize: 26,
+    fontSize: 24,
     color: colors.brand,
   },
   subtitle: {
@@ -149,33 +173,50 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+  },
+  bodyContent: {
     paddingHorizontal: 20,
-    paddingTop: 8,
-    gap: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
+    gap: 10,
   },
   hint: {
     fontFamily: fonts.body,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.muted,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
     justifyContent: 'center',
   },
   footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: colors.surface,
   },
   footerHint: {
+    flex: 1,
     fontFamily: fonts.body,
-    fontSize: 13,
+    fontSize: 12,
     color: colors.muted,
+  },
+  leaveBtn: {
+    borderRadius: 10,
+    backgroundColor: colors.brand,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  leaveBtnLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: colors.onBrand,
   },
   center: {
     flex: 1,

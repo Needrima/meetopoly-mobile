@@ -48,16 +48,17 @@ export function SeatSlot({
 
 const styles = StyleSheet.create({
   slot: {
-    flex: 1,
-    minWidth: '30%',
+    flexGrow: 1,
+    flexBasis: '30%',
     maxWidth: '32%',
-    borderRadius: 14,
+    minHeight: 72,
+    borderRadius: 12,
     borderWidth: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 2,
   },
   slotEmpty: {
     borderColor: colors.border,
