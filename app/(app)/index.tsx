@@ -9,8 +9,8 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * Phase 4.8 — signed-in menu home (not the board).
- * Play → board; Settings / About stubs; Log out.
+ * Signed-in menu home (not the board).
+ * Play → World picker (Phase 5); Settings / About stubs; Log out.
  */
 export default function HomeMenuScreen() {
   const { user } = useSession();
@@ -29,7 +29,7 @@ export default function HomeMenuScreen() {
           <Button
             label="Play"
             onPress={() => {
-              router.push('/(app)/board');
+              router.push('/(app)/worlds');
             }}
             style={styles.playBtn}
           />

@@ -6,7 +6,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Location } from '@/api/types';
@@ -36,11 +36,16 @@ const PANEL_MIN = 168;
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ worldId?: string }>();
+  const worldId =
+    typeof params.worldId === 'string' && params.worldId.trim().length > 0
+      ? params.worldId.trim()
+      : DEFAULT_WORLD_ID;
   const { token, user } = useSession();
   const me = useMe(Boolean(token));
   const logout = useLogout();
   const { snapshot, saveSnapshot } = useBoardSession();
-  const { data, error, isLoading, isError } = useLocations(DEFAULT_WORLD_ID);
+  const { data, error, isLoading, isError } = useLocations(worldId);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -60,21 +65,21 @@ export default function BoardScreen() {
 
   const username = me.data?.username ?? user?.username ?? null;
   const restorePoseNorm =
-    snapshot?.worldId === DEFAULT_WORLD_ID && snapshot.hasPose
+    snapshot?.worldId === worldId && snapshot.hasPose
       ? snapshot.poseNorm
       : null;
   const restoreAccent =
-    snapshot?.worldId === DEFAULT_WORLD_ID && snapshot.accent
+    snapshot?.worldId === worldId && snapshot.accent
       ? { key: snapshot.accentKey, hex: snapshot.accent }
       : null;
 
   const onAccentReady = useCallback(
     (accent: { key: AvatarColorKey; hex: string }) => {
-      if (snapshot?.accent) {
+      if (snapshot?.accent && snapshot.worldId === worldId) {
         return;
       }
       saveSnapshot({
-        worldId: DEFAULT_WORLD_ID,
+        worldId,
         poseNorm: { x: 0.5, y: 0.5 },
         hasPose: false,
         accent: accent.hex,
@@ -82,7 +87,7 @@ export default function BoardScreen() {
         initials: usernameInitialSafe(username),
       });
     },
-    [saveSnapshot, snapshot?.accent, username],
+    [saveSnapshot, snapshot?.accent, snapshot?.worldId, username, worldId],
   );
 
   const walk = useBoardWalk({
@@ -110,7 +115,7 @@ export default function BoardScreen() {
       setMenuOpen(false);
       const pose = walk.getPose();
       saveSnapshot({
-        worldId: DEFAULT_WORLD_ID,
+        worldId,
         poseNorm: {
           x: pose.x / layout.size,
           y: pose.y / layout.size,
@@ -122,10 +127,10 @@ export default function BoardScreen() {
       });
       router.push({
         pathname: '/(app)/hub/[slug]',
-        params: { slug: loc.slug, worldId: DEFAULT_WORLD_ID },
+        params: { slug: loc.slug, worldId },
       });
     },
-    [layout, saveSnapshot, walk],
+    [layout, saveSnapshot, walk, worldId],
   );
 
   const leaveBoard = useCallback(() => {
@@ -150,7 +155,7 @@ export default function BoardScreen() {
             <View style={styles.boardState}>
               <ActivityIndicator color={colors.onBrand} />
               <Text style={styles.boardStateText}>
-                Loading {DEFAULT_WORLD_ID}…
+                Loading {worldId}…
               </Text>
             </View>
           ) : null}
