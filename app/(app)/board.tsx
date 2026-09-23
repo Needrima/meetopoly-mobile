@@ -158,16 +158,16 @@ export default function BoardScreen() {
   const pinRadius = layout
     ? Math.max(6, Math.round(layout.size * 0.018))
     : 8;
-  const { animating: diceAnimating, overlay: diceOverlay } =
+  const { rolling: diceRolling, holdPinWalk, overlay: diceOverlay } =
     useDiceRollMotion(game);
   const { pins: motionPins, animating: pinAnimating } = useGamePinMotion({
     layout,
     game,
     localUserId,
     pinRadius,
-    holdWalk: diceAnimating,
+    holdWalk: holdPinWalk,
   });
-  const turnBusy = diceAnimating || pinAnimating;
+  const turnBusy = holdPinWalk || pinAnimating;
 
   useEffect(() => {
     if (!walk.nearby) {
@@ -302,7 +302,7 @@ export default function BoardScreen() {
           {diceOverlay ? (
             <DiceRollOverlay
               visible
-              rolling={diceAnimating}
+              rolling={diceRolling}
               die1={diceOverlay.die1}
               die2={diceOverlay.die2}
               username={diceOverlay.username}

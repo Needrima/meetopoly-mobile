@@ -3,8 +3,12 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { Game, GameLastRoll } from '@/api/types';
 import { gameRollKey } from '@/hooks/gameRollKey';
 
-/** How long the tumble runs before faces settle (~1.1s). */
-export const DICE_ROLL_MS = 1100;
+/** Tumble duration before faces settle. */
+export const DICE_TUMBLE_MS = 1100;
+/** Pause after settle so players can read the faces. */
+export const DICE_HOLD_MS = 1200;
+/** Fade/remove overlay after hold (pin walk starts when holdPinWalk clears). */
+export const DICE_FADE_MS = 200;
 
 export type DiceOverlayState = {
   die1: number;
@@ -17,20 +21,24 @@ export type DiceOverlayState = {
 type DiceTimers = {
   key: string;
   settle: ReturnType<typeof setTimeout>;
+  release: ReturnType<typeof setTimeout>;
   hide: ReturnType<typeof setTimeout>;
 };
 
 /**
  * Plays a local dice tumble whenever `lastRoll` changes (all devices via game WS).
- * Skips a historical roll only when the first snapshot already includes lastRoll.
- * Mutation + WS double updates must not cancel an in-flight tumble.
+ * Sequence: tumble → show faces (hold) → close modal → release pin walk.
  */
 export function useDiceRollMotion(game: Game | null): {
-  animating: boolean;
+  /** True while dice are spinning (not during the read-hold). */
+  rolling: boolean;
+  /** True until overlay sequence finishes — gate pin walk on this. */
+  holdPinWalk: boolean;
   overlay: DiceOverlayState | null;
 } {
   const [overlay, setOverlay] = useState<DiceOverlayState | null>(null);
-  const [animating, setAnimating] = useState(false);
+  const [rolling, setRolling] = useState(false);
+  const [holdPinWalk, setHoldPinWalk] = useState(false);
   const seenRef = useRef<string | null>(null);
   const firstSyncRef = useRef(true);
   const timersRef = useRef<DiceTimers | null>(null);
@@ -40,6 +48,7 @@ export function useDiceRollMotion(game: Game | null): {
       return;
     }
     clearTimeout(timersRef.current.settle);
+    clearTimeout(timersRef.current.release);
     clearTimeout(timersRef.current.hide);
     timersRef.current = null;
   };
@@ -57,13 +66,13 @@ export function useDiceRollMotion(game: Game | null): {
       seenRef.current = null;
       clearTimers();
       setOverlay(null);
-      setAnimating(false);
+      setRolling(false);
+      setHoldPinWalk(false);
       return;
     }
 
     const roll: GameLastRoll | null = game.lastRoll ?? null;
 
-    // Fresh game with no roll yet — next roll must animate (do not stay in firstSync).
     if (!roll) {
       if (firstSyncRef.current) {
         firstSyncRef.current = false;
@@ -80,7 +89,6 @@ export function useDiceRollMotion(game: Game | null): {
       return;
     }
 
-    // Same roll identity (WS echo / setQueryData) — keep tumble timers running.
     if (key === seenRef.current) {
       return;
     }
@@ -94,21 +102,30 @@ export function useDiceRollMotion(game: Game | null): {
       username: roll.username,
       isDoubles: roll.isDoubles,
     });
-    setAnimating(true);
+    setRolling(true);
+    setHoldPinWalk(true);
 
     const settle = setTimeout(() => {
-      setAnimating(false);
-    }, DICE_ROLL_MS);
+      setRolling(false);
+    }, DICE_TUMBLE_MS);
+
+    // Keep final faces visible, then close overlay, then release pin walk.
     const hide = setTimeout(() => {
       setOverlay((prev) => (prev?.key === key ? null : prev));
+    }, DICE_TUMBLE_MS + DICE_HOLD_MS);
+
+    const release = setTimeout(() => {
+      setHoldPinWalk(false);
       if (timersRef.current?.key === key) {
         timersRef.current = null;
       }
-    }, DICE_ROLL_MS + 280);
+    }, DICE_TUMBLE_MS + DICE_HOLD_MS + DICE_FADE_MS);
 
-    timersRef.current = { key, settle, hide };
-    // No cleanup here — clearing on every `game` identity change was cancelling the tumble.
+    timersRef.current = { key, settle, release, hide };
   }, [game]);
 
-  return { animating, overlay };
+  return { rolling, holdPinWalk, overlay };
 }
+
+/** @deprecated use DICE_TUMBLE_MS */
+export const DICE_ROLL_MS = DICE_TUMBLE_MS;
