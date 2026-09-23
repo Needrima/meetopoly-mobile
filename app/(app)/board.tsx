@@ -1,49 +1,52 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
-} from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { Location } from "@/api/types";
-import { Board } from "@/components/board/Board";
-import { BoardOverflowMenu } from "@/components/board/BoardOverflowMenu";
-import { BoardPanel } from "@/components/board/BoardPanel";
-import { layoutBoardRing } from "@/components/board/boardLayout";
-import { buildGamePins } from "@/components/board/boardPins";
-import { shortTileName } from "@/components/board/tileLabel";
-import { InfoModal } from "@/components/ui/InfoModal";
-import { useLogout, useMe } from "@/hooks/useAuth";
-import { useBlockHardwareBack } from "@/hooks/useBlockHardwareBack";
-import { useBoardSession } from "@/hooks/useBoardSession";
-import { useBoardWalk, type AvatarColorKey } from "@/hooks/useBoardWalk";
-import { useGame } from "@/hooks/useGame";
-import { DEFAULT_WORLD_ID, useLocations } from "@/hooks/useLocations";
-import { useSession } from "@/hooks/useSession";
-import { notify } from "@/lib/notify";
-import { colors } from "@/theme/colors";
-import { fonts } from "@/theme/fonts";
+import type { Location } from '@/api/types';
+import { Board } from '@/components/board/Board';
+import { BoardOverflowMenu } from '@/components/board/BoardOverflowMenu';
+import { BoardPanel } from '@/components/board/BoardPanel';
+import { layoutBoardRing } from '@/components/board/boardLayout';
+import { shortTileName } from '@/components/board/tileLabel';
+import { InfoModal } from '@/components/ui/InfoModal';
+import { useLogout, useMe } from '@/hooks/useAuth';
+import { useBlockHardwareBack } from '@/hooks/useBlockHardwareBack';
+import { useBoardSession } from '@/hooks/useBoardSession';
+import {
+  useBoardWalk,
+  type AvatarColorKey,
+} from '@/hooks/useBoardWalk';
+import { useGame, useRollDice } from '@/hooks/useGame';
+import { useGamePinMotion } from '@/hooks/useGamePinMotion';
+import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
+import { useSession } from '@/hooks/useSession';
+import { notify } from '@/lib/notify';
+import { colors } from '@/theme/colors';
+import { fonts } from '@/theme/fonts';
 
 const PANEL_MIN = 168;
 
 /**
  * Board play surface; leave via panel ⋯; avatar pose via Reanimated.
- * Phase 6.0: optional gameId loads MeetCoin HUD + multiplayer pins.
+ * Phase 6.1: Roll dice, tile-by-tile pin motion, pass-GO MeetCoin.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ worldId?: string; gameId?: string }>();
   const worldId =
-    typeof params.worldId === "string" && params.worldId.trim().length > 0
+    typeof params.worldId === 'string' && params.worldId.trim().length > 0
       ? params.worldId.trim()
       : DEFAULT_WORLD_ID;
   const gameId =
-    typeof params.gameId === "string" && params.gameId.trim().length > 0
+    typeof params.gameId === 'string' && params.gameId.trim().length > 0
       ? params.gameId.trim()
       : null;
   const { token, user } = useSession();
@@ -52,10 +55,13 @@ export default function BoardScreen() {
   const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(worldId);
   const gameQuery = useGame(gameId);
+  const rollDice = useRollDice(gameId);
   const game = gameQuery.data ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const startedToastRef = useRef(false);
+  const passGoToastRef = useRef<string | null>(null);
+  const passGoReadyRef = useRef(false);
 
   useBlockHardwareBack(true);
 
@@ -64,12 +70,37 @@ export default function BoardScreen() {
       return;
     }
     startedToastRef.current = true;
+    // Ignore historical lastRoll pass-GO from a prior session fetch.
+    if (game.lastRoll?.passedGo) {
+      passGoToastRef.current = `${game.lastRoll.userId}:${game.lastRoll.fromIndex}:${game.lastRoll.toIndex}:${game.lastRoll.total}`;
+    }
+    passGoReadyRef.current = true;
     notify({
-      type: "success",
-      title: "Game started",
+      type: 'success',
+      title: 'Game started',
       message: `${game.players.length} players · ${game.currentUsername}'s turn`,
     });
   }, [game]);
+
+  useEffect(() => {
+    if (!passGoReadyRef.current) {
+      return;
+    }
+    const roll = game?.lastRoll;
+    if (!roll?.passedGo || roll.passGoAmount <= 0) {
+      return;
+    }
+    const key = `${roll.userId}:${roll.fromIndex}:${roll.toIndex}:${roll.total}`;
+    if (passGoToastRef.current === key) {
+      return;
+    }
+    passGoToastRef.current = key;
+    notify({
+      type: 'success',
+      title: 'Passed GO',
+      message: `${roll.username} +${roll.passGoAmount} MeetCoin`,
+    });
+  }, [game?.lastRoll]);
 
   const availableW = winW - insets.left - insets.right;
   const boardSide = Math.max(0, Math.min(winH, availableW - PANEL_MIN));
@@ -121,22 +152,15 @@ export default function BoardScreen() {
     onAccentReady,
   });
 
-  const gamePins = useMemo(() => {
-    if (!layout || !game) {
-      return null;
-    }
-    const pinRadius = Math.max(6, Math.round(layout.size * 0.018));
-    return buildGamePins({
-      layout,
-      players: game.players.map((p) => ({
-        userId: p.userId,
-        boardIndex: p.boardIndex,
-        pinColor: p.pinColor,
-      })),
-      localUserId,
-      pinRadius,
-    });
-  }, [layout, game, localUserId]);
+  const pinRadius = layout
+    ? Math.max(6, Math.round(layout.size * 0.018))
+    : 8;
+  const { pins: motionPins, animating: pinAnimating } = useGamePinMotion({
+    layout,
+    game,
+    localUserId,
+    pinRadius,
+  });
 
   useEffect(() => {
     if (!walk.nearby) {
@@ -164,7 +188,7 @@ export default function BoardScreen() {
         initials: walk.initials,
       });
       router.push({
-        pathname: "/(app)/hub/[slug]",
+        pathname: '/(app)/hub/[slug]',
         params: {
           slug: loc.slug,
           worldId,
@@ -176,12 +200,28 @@ export default function BoardScreen() {
   );
 
   const leaveBoard = useCallback(() => {
-    router.replace("/(app)/worlds");
+    router.replace('/(app)/worlds');
   }, []);
 
+  const onRoll = useCallback(() => {
+    if (!gameId || rollDice.isPending || pinAnimating) {
+      return;
+    }
+    void rollDice.mutateAsync().catch((err: unknown) => {
+      notify({
+        type: 'error',
+        title: 'Roll failed',
+        message: err instanceof Error ? err.message : 'Could not roll',
+      });
+    });
+  }, [gameId, rollDice, pinAnimating]);
+
   const nearby = walk.nearby;
-  const nearbyCode = nearby ? shortTileName(nearby) : "";
-  const boardPins = gamePins ?? walk.pins;
+  const nearbyCode = nearby ? shortTileName(nearby) : '';
+  const boardPins = game ? motionPins : walk.pins;
+  const isMyTurn = Boolean(
+    game && localUserId && game.currentUserId === localUserId,
+  );
 
   return (
     <View style={styles.root}>
@@ -198,7 +238,7 @@ export default function BoardScreen() {
             <View style={styles.boardState}>
               <ActivityIndicator color={colors.onBrand} />
               <Text style={styles.boardStateText}>
-                Loading {gameId ? "game" : worldId}…
+                Loading {gameId ? 'game' : worldId}…
               </Text>
             </View>
           ) : null}
@@ -210,7 +250,7 @@ export default function BoardScreen() {
                   ? error.message
                   : gameQuery.error instanceof Error
                     ? gameQuery.error.message
-                    : "Failed to load board"}
+                    : 'Failed to load board'}
               </Text>
             </View>
           ) : null}
@@ -248,6 +288,9 @@ export default function BoardScreen() {
             onMenuPress={() => setMenuOpen(true)}
             game={game}
             localUserId={localUserId}
+            onRoll={game ? onRoll : undefined}
+            rollDisabled={!isMyTurn || pinAnimating}
+            rollPending={rollDice.isPending}
           />
         </View>
       </View>
@@ -256,7 +299,7 @@ export default function BoardScreen() {
         visible={detailsOpen && Boolean(nearby)}
         onClose={() => setDetailsOpen(false)}
         variant="location"
-        title={nearby?.name ?? ""}
+        title={nearby?.name ?? ''}
         subtitle={nearbyCode ? `Board · ${nearbyCode}` : undefined}
         body={
           nearby?.about?.trim() ||
@@ -286,14 +329,14 @@ export default function BoardScreen() {
         onHealth={
           __DEV__
             ? () => {
-                router.push("/(app)/health");
+                router.push('/(app)/health');
               }
             : undefined
         }
         onLocations={
           __DEV__
             ? () => {
-                router.push("/(app)/locations");
+                router.push('/(app)/locations');
               }
             : undefined
         }
@@ -303,8 +346,8 @@ export default function BoardScreen() {
 }
 
 function usernameInitialSafe(username: string | null): string {
-  const raw = (username ?? "").trim();
-  return raw.length >= 1 ? raw.slice(0, 1).toUpperCase() : "?";
+  const raw = (username ?? '').trim();
+  return raw.length >= 1 ? raw.slice(0, 1).toUpperCase() : '?';
 }
 
 const styles = StyleSheet.create({
@@ -314,20 +357,20 @@ const styles = StyleSheet.create({
   },
   main: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.bg,
   },
   boardRail: {
-    position: "relative",
+    position: 'relative',
     flexShrink: 0,
-    overflow: "hidden",
+    overflow: 'hidden',
     backgroundColor: colors.brandMuted,
   },
   boardState: {
     ...(StyleSheet.absoluteFill as object),
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
     padding: 24,
   },
@@ -340,7 +383,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.danger,
-    textAlign: "center",
+    textAlign: 'center',
   },
   panelRail: {
     flex: 1,

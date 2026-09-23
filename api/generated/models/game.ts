@@ -5,10 +5,11 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.5.0
+ * OpenAPI spec version: 0.6.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
+import type { GameLastRollProperty } from './gameLastRollProperty';
 
 export interface Game {
   id: string;
@@ -20,7 +21,9 @@ export interface Game {
   currentTurn: number;
   currentUserId: string;
   currentUsername: string;
-  /** MeetCoin granted when passing GO (applied in later slices) */
+  /** MeetCoin granted when passing GO */
   passGoBonus: number;
   currency: string;
+  /** @nullable */
+  lastRoll?: GameLastRollProperty;
 }

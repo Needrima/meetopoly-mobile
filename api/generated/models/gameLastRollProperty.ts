@@ -7,11 +7,9 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.6.0
  */
+import type { GameLastRoll } from './gameLastRoll';
 
-export interface PasswordResetConfirmRequest {
-  /**
-   * @minLength 8
-   * @maxLength 128
-   */
-  password: string;
-}
+/**
+ * @nullable
+ */
+export type GameLastRollProperty = GameLastRoll | null;

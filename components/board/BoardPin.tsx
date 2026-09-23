@@ -1,34 +1,74 @@
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 type BoardPinProps = {
   x: number;
   y: number;
   radius: number;
   accent: string;
+  /** When true, interpolate to new tile center (~one hop). */
+  animate?: boolean;
 };
 
+const HOP_MS = 300;
+
 /**
- * Phase 4.5 — game pin on a boardIndex slot (starts on GO).
- * Soft obstacle for the walking avatar. Same accent as avatar pod/callout.
+ * Game pin on a boardIndex slot. Position via Reanimated when hopping tiles.
  */
-export function BoardPin({ x, y, radius, accent }: BoardPinProps) {
+export function BoardPin({
+  x,
+  y,
+  radius,
+  accent,
+  animate = true,
+}: BoardPinProps) {
   const head = radius * 1.35;
   const stemH = radius * 1.1;
   const stemW = Math.max(3, radius * 0.28);
+  const left = useSharedValue(x - head / 2);
+  const top = useSharedValue(y - head - stemH * 0.35);
+
+  useEffect(() => {
+    const nextLeft = x - head / 2;
+    const nextTop = y - head - stemH * 0.35;
+    if (!animate) {
+      left.value = nextLeft;
+      top.value = nextTop;
+      return;
+    }
+    left.value = withTiming(nextLeft, {
+      duration: HOP_MS,
+      easing: Easing.inOut(Easing.cubic),
+    });
+    top.value = withTiming(nextTop, {
+      duration: HOP_MS,
+      easing: Easing.inOut(Easing.cubic),
+    });
+  }, [x, y, head, stemH, animate, left, top]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    left: left.value,
+    top: top.value,
+  }));
 
   return (
-    <View
+    <Animated.View
       pointerEvents="none"
       style={[
         styles.root,
         {
-          left: x - head / 2,
-          top: y - head - stemH * 0.35,
           width: head,
           height: head + stemH,
         },
+        animStyle,
       ]}
-      accessibilityLabel="Game pin on GO"
+      accessibilityLabel="Game pin"
     >
       <View
         style={[
@@ -67,7 +107,7 @@ export function BoardPin({ x, y, radius, accent }: BoardPinProps) {
           },
         ]}
       />
-    </View>
+    </Animated.View>
   );
 }
 

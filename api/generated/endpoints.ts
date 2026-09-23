@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.5.0
+ * OpenAPI spec version: 0.6.0
  */
 import type {
   AuthSessionResponse,
@@ -505,6 +505,33 @@ export const getGame = async (gameId: string, options?: RequestInit): Promise<Ga
   {      
     ...options,
     method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Server rolls 2d6, moves the caller's pin, awards pass-GO MeetCoin when applicable,
+then advances turn (Phase 6.1 — doubles do not re-roll; explicit End is 6.4).
+
+ * @summary Roll dice on your turn
+ */
+export const getRollDiceUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/roll`
+}
+
+export const rollDice = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getRollDiceUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
     
     
   }

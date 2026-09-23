@@ -22,6 +22,10 @@ type BoardPanelProps = {
   /** Phase 6.0+ authoritative game snapshot. */
   game?: Game | null;
   localUserId?: string | null;
+  /** Phase 6.1 — roll when it is your turn. */
+  onRoll?: () => void;
+  rollDisabled?: boolean;
+  rollPending?: boolean;
 };
 
 /**
@@ -37,6 +41,9 @@ export function BoardPanel({
   onMenuPress,
   game = null,
   localUserId = null,
+  onRoll,
+  rollDisabled = false,
+  rollPending = false,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : '';
   const blurb =
@@ -49,6 +56,12 @@ export function BoardPanel({
   const isMyTurn = Boolean(
     game && localUserId && game.currentUserId === localUserId,
   );
+  const last = game?.lastRoll ?? null;
+  const diceLine = last
+    ? `${last.die1} + ${last.die2} = ${last.total}${
+        last.passedGo ? ` · +${last.passGoAmount} GO` : ''
+      }`
+    : null;
 
   return (
     <View style={styles.root}>
@@ -74,6 +87,11 @@ export function BoardPanel({
           <Text style={styles.turnLine} numberOfLines={1}>
             {isMyTurn ? 'Your turn' : `${turnName}'s turn`}
           </Text>
+          {diceLine ? (
+            <Text style={styles.diceLine} numberOfLines={1}>
+              Last: {diceLine}
+            </Text>
+          ) : null}
           {localPlayer ? (
             <View style={styles.cashRow}>
               <Text style={styles.cashLabel}>You</Text>
@@ -100,6 +118,15 @@ export function BoardPanel({
               </View>
             ))}
           </View>
+          {onRoll ? (
+            <Button
+              label={isMyTurn ? 'Roll' : 'Wait'}
+              onPress={onRoll}
+              disabled={rollDisabled || !isMyTurn}
+              loading={rollPending}
+              style={styles.rollBtn}
+            />
+          ) : null}
         </View>
       ) : null}
 
@@ -144,7 +171,7 @@ export function BoardPanel({
         <>
           <Text style={styles.title}>Controls</Text>
           <Text style={styles.body}>
-            Walk near a city, air hub, or utility to Enter. Your pin stays on GO.
+            Walk near a city, air hub, or utility to Enter. Pins move on dice.
           </Text>
         </>
       )}
@@ -239,6 +266,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.brand,
   },
+  diceLine: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
+  },
   cashRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -251,7 +283,7 @@ const styles = StyleSheet.create({
   },
   balances: {
     gap: 4,
-    maxHeight: 88,
+    maxHeight: 72,
   },
   balanceRow: {
     flexDirection: 'row',
@@ -272,6 +304,10 @@ const styles = StyleSheet.create({
   balanceNameYou: {
     fontFamily: fonts.bodySemiBold,
     color: colors.ink,
+  },
+  rollBtn: {
+    marginTop: 4,
+    height: 40,
   },
   title: {
     fontFamily: fonts.displayBold,
