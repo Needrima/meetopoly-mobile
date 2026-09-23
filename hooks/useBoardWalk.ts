@@ -1,38 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Location } from '@/api/types';
-import { BOARD_WALK } from '@/components/board/boardConstants';
-import { findNearestEnterable } from '@/components/board/boardNearby';
-import type { BoardLayout, TileLayout } from '@/components/board/boardLayout';
+import { BOARD_WALK, AVATAR_COLOR_KEYS, type AvatarColorKey } from '@/components/board/boardConstants';
 import {
   randomCenterSpawn,
   resolveWalkCollisions,
+  type CircleObstacle,
   type Vec2,
 } from '@/components/board/boardCollision';
+import type { BoardLayout, TileLayout } from '@/components/board/boardLayout';
+import { findNearestEnterable } from '@/components/board/boardNearby';
+import {
+  buildGoPins,
+  type BoardPinModel,
+} from '@/components/board/boardPins';
 import type { NormPose } from '@/hooks/useBoardSession';
 import { colorGroups } from '@/theme/colors';
 
 export type { NormPose } from '@/hooks/useBoardSession';
-
-/** Eight classic Monopoly track colors (no violet). */
-export const AVATAR_COLOR_KEYS = [
-  'brown',
-  'lightBlue',
-  'pink',
-  'orange',
-  'red',
-  'yellow',
-  'green',
-  'darkBlue',
-] as const;
-
-export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number];
+export type { AvatarColorKey } from '@/components/board/boardConstants';
+export { AVATAR_COLOR_KEYS } from '@/components/board/boardConstants';
 
 export type StickInput = { x: number; y: number };
 
 export type BoardWalkState = {
   pose: Vec2;
-  pin: Vec2;
+  /** All soft-collide pins (local + __DEV__ debug on GO). */
+  pins: BoardPinModel[];
   accent: string;
   accentKey: AvatarColorKey;
   initials: string;
@@ -63,19 +57,27 @@ function goTileFromLayout(layout: BoardLayout): TileLayout | undefined {
   );
 }
 
+function softObstaclesFromPins(pins: BoardPinModel[]): CircleObstacle[] {
+  return pins.map((p) => ({
+    x: p.x,
+    y: p.y,
+    radius: p.radius,
+    soft: true,
+  }));
+}
+
 type UseBoardWalkOpts = {
   layout: BoardLayout | null;
   locations: Location[];
   username?: string | null;
   enabled?: boolean;
-  /** Normalized pose from BoardSession (Leave restore). */
   restorePoseNorm?: NormPose | null;
   restoreAccent?: { key: AvatarColorKey; hex: string } | null;
   onAccentReady?: (accent: { key: AvatarColorKey; hex: string }) => void;
 };
 
 /**
- * Local board walk: spawn / restore, stick move, collisions, nearest Enter target.
+ * Local board walk: spawn / restore, stick move, multi-pin soft collide, nearby Enter.
  */
 export function useBoardWalk({
   layout,
@@ -87,9 +89,7 @@ export function useBoardWalk({
   onAccentReady,
 }: UseBoardWalkOpts): BoardWalkState {
   const initials = useMemo(() => usernameInitials(username), [username]);
-  const accentRef = useRef(
-    restoreAccent ?? pickRandomAvatarColor(),
-  );
+  const accentRef = useRef(restoreAccent ?? pickRandomAvatarColor());
   const accentAnnounced = useRef(false);
   const stickRef = useRef<StickInput>({ x: 0, y: 0 });
   const poseRef = useRef<Vec2>({ x: 0, y: 0 });
@@ -114,19 +114,33 @@ export function useBoardWalk({
     ? Math.max(6, Math.round(layout.size * BOARD_WALK.pinRadiusFrac))
     : 7;
 
-  const pin = useMemo(() => {
+  const pins = useMemo(() => {
     if (!layout) {
-      return { x: 0, y: 0 };
+      return [] as BoardPinModel[];
     }
     const go = goTileFromLayout(layout);
     if (!go) {
-      return {
-        x: layout.size - layout.trackDepth / 2,
-        y: layout.size - layout.trackDepth / 2,
-      };
+      return [
+        {
+          id: 'local',
+          x: layout.size - layout.trackDepth / 2,
+          y: layout.size - layout.trackDepth / 2,
+          radius: pinRadius,
+          accent: accentRef.current.hex,
+          isLocal: true,
+        },
+      ];
     }
-    return { x: go.x + go.width / 2, y: go.y + go.height / 2 };
-  }, [layout]);
+    return buildGoPins({
+      goTile: go,
+      pinRadius,
+      localAccent: accentRef.current.hex,
+      localAccentKey: accentRef.current.key,
+      includeDebug: __DEV__,
+    });
+  }, [layout, pinRadius, accentTick]);
+
+  const softPins = useMemo(() => softObstaclesFromPins(pins), [pins]);
 
   useEffect(() => {
     if (restoreAccent) {
@@ -164,7 +178,7 @@ export function useBoardWalk({
         avatarRadius,
         layout.size,
         layout.decks,
-        [{ x: pin.x, y: pin.y, radius: pinRadius, soft: true }],
+        softPins,
       );
     } else {
       spawn = randomCenterSpawn(layout.center, layout.decks, avatarRadius);
@@ -176,9 +190,7 @@ export function useBoardWalk({
     layout,
     enabled,
     avatarRadius,
-    pin.x,
-    pin.y,
-    pinRadius,
+    softPins,
     restorePoseNorm?.x,
     restorePoseNorm?.y,
   ]);
@@ -220,7 +232,7 @@ export function useBoardWalk({
           avatarRadius,
           layout.size,
           layout.decks,
-          [{ x: pin.x, y: pin.y, radius: pinRadius, soft: true }],
+          softPins,
         );
         poseRef.current = next;
         setPose(next);
@@ -231,7 +243,7 @@ export function useBoardWalk({
           avatarRadius,
           layout.size,
           layout.decks,
-          [{ x: pin.x, y: pin.y, radius: pinRadius, soft: true }],
+          softPins,
         );
         if (next.x !== poseRef.current.x || next.y !== poseRef.current.y) {
           poseRef.current = next;
@@ -244,7 +256,7 @@ export function useBoardWalk({
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [layout, enabled, avatarRadius, pin.x, pin.y, pinRadius, byIndex]);
+  }, [layout, enabled, avatarRadius, softPins, byIndex]);
 
   const setStick = (stick: StickInput) => {
     const mag = Math.hypot(stick.x, stick.y);
@@ -257,7 +269,7 @@ export function useBoardWalk({
 
   return {
     pose,
-    pin,
+    pins,
     accent: accentRef.current.hex,
     accentKey: accentRef.current.key,
     initials,

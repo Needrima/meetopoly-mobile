@@ -30,7 +30,8 @@ import { fonts } from '@/theme/fonts';
 const PANEL_MIN = 168;
 
 /**
- * Phase 4.6 — walk near enterable → Details / Enter hub; Leave restores pose.
+ * Phase 4.7 — walk near enterable → Details / Enter hub; Leave restores pose.
+ * __DEV__: multi-pin fan on GO (soft collide).
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
@@ -175,12 +176,7 @@ export default function BoardScreen() {
                 initials: walk.initials,
                 accent: walk.accent,
               }}
-              pin={{
-                x: walk.pin.x,
-                y: walk.pin.y,
-                radius: walk.pinRadius,
-                accent: walk.accent,
-              }}
+              pins={walk.pins}
             />
           ) : null}
 
@@ -204,7 +200,7 @@ export default function BoardScreen() {
 
         <View style={[styles.panelRail, { height: boardSide }]}>
           <Text style={styles.phase}>
-            Phase 4.6 · {locations.length || '…'} slots · {DEFAULT_WORLD_ID}
+            Phase 4.7 · {locations.length || '…'} slots · {DEFAULT_WORLD_ID}
           </Text>
           <BoardPanel
             onStick={walk.setStick}

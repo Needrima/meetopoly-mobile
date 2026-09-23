@@ -15,3 +15,18 @@ export const BOARD_WALK = {
    */
   nearbyRadiusTileFrac: 0.55,
 } as const;
+
+/** Eight classic Monopoly track colors (no violet) — avatar + pins. */
+export const AVATAR_COLOR_KEYS = [
+  'brown',
+  'lightBlue',
+  'pink',
+  'orange',
+  'red',
+  'yellow',
+  'green',
+  'darkBlue',
+] as const;
+
+export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number];
+

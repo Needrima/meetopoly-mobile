@@ -6,6 +6,7 @@ import { BoardAvatar } from '@/components/board/BoardAvatar';
 import { BoardCenter } from '@/components/board/BoardCenter';
 import { BoardPin } from '@/components/board/BoardPin';
 import { BoardTile } from '@/components/board/BoardTile';
+import type { BoardPinModel } from '@/components/board/boardPins';
 import { layoutBoardRing, type BoardLayout } from '@/components/board/boardLayout';
 import { colors } from '@/theme/colors';
 
@@ -23,16 +24,12 @@ type BoardProps = {
     initials: string;
     accent: string;
   } | null;
-  pin?: {
-    x: number;
-    y: number;
-    radius: number;
-    accent: string;
-  } | null;
+  /** Local + optional __DEV__ debug pins (soft obstacles). */
+  pins?: BoardPinModel[];
 };
 
 /**
- * Phase 4.6 — ring + decks + avatar + pin + nearest-tile glow.
+ * Phase 4.7 — ring + decks + avatar + multi-pin on GO + nearest-tile glow.
  */
 export function Board({
   size,
@@ -40,7 +37,7 @@ export function Board({
   layout: layoutProp,
   highlightedBoardIndex = null,
   avatar,
-  pin,
+  pins = [],
 }: BoardProps) {
   const layout = useMemo(
     () => layoutProp ?? layoutBoardRing(size, locations),
@@ -71,9 +68,15 @@ export function Board({
           highlighted={highlightedBoardIndex === tile.boardIndex}
         />
       ))}
-      {pin ? (
-        <BoardPin x={pin.x} y={pin.y} radius={pin.radius} accent={pin.accent} />
-      ) : null}
+      {pins.map((p) => (
+        <BoardPin
+          key={p.id}
+          x={p.x}
+          y={p.y}
+          radius={p.radius}
+          accent={p.accent}
+        />
+      ))}
       {avatar ? (
         <BoardAvatar
           x={avatar.x}

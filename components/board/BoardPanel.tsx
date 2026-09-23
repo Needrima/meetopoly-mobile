@@ -88,7 +88,7 @@ export function BoardPanel({
 
       <View style={styles.footer}>
         <View style={styles.stub}>
-          <Text style={styles.stubLabel}>Phase 4.6 · Enter</Text>
+          <Text style={styles.stubLabel}>Phase 4.7 · pins</Text>
           {initials ? (
             <View style={styles.swatchRow}>
               <View
