@@ -1,4 +1,4 @@
-import type { TileLayout } from '@/components/board/boardLayout';
+import type { BoardLayout, TileLayout } from '@/components/board/boardLayout';
 import type { Vec2 } from '@/components/board/boardCollision';
 import {
   AVATAR_COLOR_KEYS,
@@ -49,6 +49,7 @@ export function debugPinAccents(excludeKey: AvatarColorKey): string[] {
 
 /**
  * Local pin + optional __DEV__ debug pins, all centered on GO with a fan offset.
+ * Prefer `buildGamePins` when an M1 game snapshot is available.
  */
 export function buildGoPins(opts: {
   goTile: TileLayout;
@@ -88,4 +89,59 @@ export function buildGoPins(opts: {
   });
 
   return pins;
+}
+
+export type GamePinPlayer = {
+  userId: string;
+  boardIndex: number;
+  pinColor: string;
+};
+
+/**
+ * Fan pins for all game players on their boardIndex tile (6.0: all on GO).
+ */
+export function buildGamePins(opts: {
+  layout: BoardLayout;
+  players: GamePinPlayer[];
+  localUserId: string | null;
+  pinRadius: number;
+}): BoardPinModel[] {
+  const { layout, players, localUserId, pinRadius } = opts;
+  if (!players.length) {
+    return [];
+  }
+
+  const byIndex = new Map<number, GamePinPlayer[]>();
+  for (const p of players) {
+    const list = byIndex.get(p.boardIndex) ?? [];
+    list.push(p);
+    byIndex.set(p.boardIndex, list);
+  }
+
+  const out: BoardPinModel[] = [];
+  for (const [boardIndex, group] of byIndex) {
+    const tile = layout.tiles.find((t) => t.boardIndex === boardIndex);
+    if (!tile) {
+      continue;
+    }
+    const cx = tile.x + tile.width / 2;
+    const cy = tile.y + tile.height / 2;
+    const spacing = Math.max(
+      pinRadius * 1.15,
+      Math.min(tile.width, tile.height) * 0.14,
+    );
+    const offsets = pinFanOffsets(group.length, spacing);
+    group.forEach((p, i) => {
+      const off = offsets[i] ?? { x: 0, y: 0 };
+      out.push({
+        id: p.userId,
+        x: cx + off.x,
+        y: cy + off.y,
+        radius: pinRadius,
+        accent: p.pinColor,
+        isLocal: Boolean(localUserId && p.userId === localUserId),
+      });
+    });
+  }
+  return out;
 }

@@ -41,15 +41,15 @@ export default function LobbyScreen() {
   const startedRef = useRef(false);
 
   useEffect(() => {
-    if (!worldId || !lobby.allReady || startedRef.current) {
+    if (!worldId || !lobby.allReady || !lobby.gameId || startedRef.current) {
       return;
     }
     startedRef.current = true;
     router.replace({
       pathname: '/(app)/board',
-      params: { worldId },
+      params: { worldId, gameId: lobby.gameId },
     });
-  }, [lobby.allReady, worldId]);
+  }, [lobby.allReady, lobby.gameId, worldId]);
 
   const leave = () => {
     lobby.leave();

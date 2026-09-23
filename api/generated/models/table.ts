@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 import type { TableStatus } from './tableStatus';
 import type { TableSeat } from './tableSeat';
@@ -14,6 +14,11 @@ export interface Table {
   id: string;
   worldId: string;
   status: TableStatus;
+  /**
+   * Set when lobby starts an M1 game (Phase 6+)
+   * @nullable
+   */
+  gameId?: string | null;
   /**
    * @minItems 6
    * @maxItems 6

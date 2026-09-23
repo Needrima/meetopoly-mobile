@@ -110,7 +110,7 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
             if (msg.table) {
               setTable(msg.table);
             }
-            if (msg.type === 'started' || msg.table?.status === 'starting') {
+            if (msg.type === 'started' || msg.table?.status === 'starting' || msg.table?.status === 'in_game') {
               setStarted(true);
             }
             if (msg.type === 'error' && msg.error) {
@@ -179,7 +179,12 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
       return;
     }
     void setTableReady(id, { ready: !local.ready })
-      .then((next) => setTable(next))
+      .then((next) => {
+        setTable(next);
+        if (next.gameId || next.status === 'in_game' || next.status === 'starting') {
+          setStarted(true);
+        }
+      })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Ready failed');
       });
@@ -197,9 +202,10 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
   const localHolding = Boolean(localSeat?.holding);
   const canToggleReady = !waitingForPlayers && !localHolding && !joining;
   const allReady =
-    started ||
-    (seatedCount >= LOBBY_MIN_SEATS &&
-      seated.every((s) => s.ready && !s.holding));
+    Boolean(table?.gameId) &&
+    (started ||
+      table?.status === 'in_game' ||
+      table?.status === 'starting');
 
   const holdRemainingFor = (holdEndsAt: number | null): number => {
     if (holdEndsAt == null) {
@@ -210,6 +216,7 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
 
   return {
     tableId: table?.id ?? null,
+    gameId: table?.gameId ?? null,
     seats,
     seatedCount,
     readyCount,

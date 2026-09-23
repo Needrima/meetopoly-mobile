@@ -1,55 +1,75 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
-} from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { Location } from '@/api/types';
-import { Board } from '@/components/board/Board';
-import { BoardOverflowMenu } from '@/components/board/BoardOverflowMenu';
-import { BoardPanel } from '@/components/board/BoardPanel';
-import { layoutBoardRing } from '@/components/board/boardLayout';
-import { shortTileName } from '@/components/board/tileLabel';
-import { InfoModal } from '@/components/ui/InfoModal';
-import { useLogout, useMe } from '@/hooks/useAuth';
-import { useBlockHardwareBack } from '@/hooks/useBlockHardwareBack';
-import { useBoardSession } from '@/hooks/useBoardSession';
-import {
-  useBoardWalk,
-  type AvatarColorKey,
-} from '@/hooks/useBoardWalk';
-import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
-import { useSession } from '@/hooks/useSession';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+import type { Location } from "@/api/types";
+import { Board } from "@/components/board/Board";
+import { BoardOverflowMenu } from "@/components/board/BoardOverflowMenu";
+import { BoardPanel } from "@/components/board/BoardPanel";
+import { layoutBoardRing } from "@/components/board/boardLayout";
+import { buildGamePins } from "@/components/board/boardPins";
+import { shortTileName } from "@/components/board/tileLabel";
+import { InfoModal } from "@/components/ui/InfoModal";
+import { useLogout, useMe } from "@/hooks/useAuth";
+import { useBlockHardwareBack } from "@/hooks/useBlockHardwareBack";
+import { useBoardSession } from "@/hooks/useBoardSession";
+import { useBoardWalk, type AvatarColorKey } from "@/hooks/useBoardWalk";
+import { useGame } from "@/hooks/useGame";
+import { DEFAULT_WORLD_ID, useLocations } from "@/hooks/useLocations";
+import { useSession } from "@/hooks/useSession";
+import { notify } from "@/lib/notify";
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 const PANEL_MIN = 168;
 
 /**
  * Board play surface; leave via panel ⋯; avatar pose via Reanimated.
+ * Phase 6.0: optional gameId loads MeetCoin HUD + multiplayer pins.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ worldId?: string }>();
+  const params = useLocalSearchParams<{ worldId?: string; gameId?: string }>();
   const worldId =
-    typeof params.worldId === 'string' && params.worldId.trim().length > 0
+    typeof params.worldId === "string" && params.worldId.trim().length > 0
       ? params.worldId.trim()
       : DEFAULT_WORLD_ID;
+  const gameId =
+    typeof params.gameId === "string" && params.gameId.trim().length > 0
+      ? params.gameId.trim()
+      : null;
   const { token, user } = useSession();
   const me = useMe(Boolean(token));
   const logout = useLogout();
   const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(worldId);
+  const gameQuery = useGame(gameId);
+  const game = gameQuery.data ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const startedToastRef = useRef(false);
 
   useBlockHardwareBack(true);
+
+  useEffect(() => {
+    if (!game || startedToastRef.current) {
+      return;
+    }
+    startedToastRef.current = true;
+    notify({
+      type: "success",
+      title: "Game started",
+      message: `${game.players.length} players · ${game.currentUsername}'s turn`,
+    });
+  }, [game]);
 
   const availableW = winW - insets.left - insets.right;
   const boardSide = Math.max(0, Math.min(winH, availableW - PANEL_MIN));
@@ -64,6 +84,7 @@ export default function BoardScreen() {
   );
 
   const username = me.data?.username ?? user?.username ?? null;
+  const localUserId = me.data?.id ?? user?.id ?? null;
   const restorePoseNorm =
     snapshot?.worldId === worldId && snapshot.hasPose
       ? snapshot.poseNorm
@@ -100,6 +121,23 @@ export default function BoardScreen() {
     onAccentReady,
   });
 
+  const gamePins = useMemo(() => {
+    if (!layout || !game) {
+      return null;
+    }
+    const pinRadius = Math.max(6, Math.round(layout.size * 0.018));
+    return buildGamePins({
+      layout,
+      players: game.players.map((p) => ({
+        userId: p.userId,
+        boardIndex: p.boardIndex,
+        pinColor: p.pinColor,
+      })),
+      localUserId,
+      pinRadius,
+    });
+  }, [layout, game, localUserId]);
+
   useEffect(() => {
     if (!walk.nearby) {
       setDetailsOpen(false);
@@ -126,19 +164,24 @@ export default function BoardScreen() {
         initials: walk.initials,
       });
       router.push({
-        pathname: '/(app)/hub/[slug]',
-        params: { slug: loc.slug, worldId },
+        pathname: "/(app)/hub/[slug]",
+        params: {
+          slug: loc.slug,
+          worldId,
+          ...(gameId ? { gameId } : {}),
+        },
       });
     },
-    [layout, saveSnapshot, walk, worldId],
+    [layout, saveSnapshot, walk, worldId, gameId],
   );
 
   const leaveBoard = useCallback(() => {
-    router.replace('/(app)/worlds');
+    router.replace("/(app)/worlds");
   }, []);
 
   const nearby = walk.nearby;
-  const nearbyCode = nearby ? shortTileName(nearby) : '';
+  const nearbyCode = nearby ? shortTileName(nearby) : "";
+  const boardPins = gamePins ?? walk.pins;
 
   return (
     <View style={styles.root}>
@@ -151,26 +194,32 @@ export default function BoardScreen() {
         <View
           style={[styles.boardRail, { width: boardSide, height: boardSide }]}
         >
-          {isLoading ? (
+          {isLoading || (gameId && gameQuery.isLoading) ? (
             <View style={styles.boardState}>
               <ActivityIndicator color={colors.onBrand} />
               <Text style={styles.boardStateText}>
-                Loading {worldId}…
+                Loading {gameId ? "game" : worldId}…
               </Text>
             </View>
           ) : null}
 
-          {isError ? (
+          {isError || gameQuery.isError ? (
             <View style={styles.boardState}>
               <Text style={styles.boardStateError}>
                 {error instanceof Error
                   ? error.message
-                  : 'Failed to load locations'}
+                  : gameQuery.error instanceof Error
+                    ? gameQuery.error.message
+                    : "Failed to load board"}
               </Text>
             </View>
           ) : null}
 
-          {!isLoading && !isError && layout ? (
+          {!isLoading &&
+          !isError &&
+          !gameQuery.isError &&
+          layout &&
+          !(gameId && gameQuery.isLoading) ? (
             <Board
               size={boardSide}
               locations={locations}
@@ -183,7 +232,7 @@ export default function BoardScreen() {
                 initials: walk.initials,
                 accent: walk.accent,
               }}
-              pins={walk.pins}
+              pins={boardPins}
             />
           ) : null}
         </View>
@@ -197,6 +246,8 @@ export default function BoardScreen() {
             onEnter={persistAndEnter}
             onDetails={() => setDetailsOpen(true)}
             onMenuPress={() => setMenuOpen(true)}
+            game={game}
+            localUserId={localUserId}
           />
         </View>
       </View>
@@ -205,7 +256,7 @@ export default function BoardScreen() {
         visible={detailsOpen && Boolean(nearby)}
         onClose={() => setDetailsOpen(false)}
         variant="location"
-        title={nearby?.name ?? ''}
+        title={nearby?.name ?? ""}
         subtitle={nearbyCode ? `Board · ${nearbyCode}` : undefined}
         body={
           nearby?.about?.trim() ||
@@ -235,14 +286,14 @@ export default function BoardScreen() {
         onHealth={
           __DEV__
             ? () => {
-                router.push('/(app)/health');
+                router.push("/(app)/health");
               }
             : undefined
         }
         onLocations={
           __DEV__
             ? () => {
-                router.push('/(app)/locations');
+                router.push("/(app)/locations");
               }
             : undefined
         }
@@ -252,8 +303,8 @@ export default function BoardScreen() {
 }
 
 function usernameInitialSafe(username: string | null): string {
-  const raw = (username ?? '').trim();
-  return raw.length >= 1 ? raw.slice(0, 1).toUpperCase() : '?';
+  const raw = (username ?? "").trim();
+  return raw.length >= 1 ? raw.slice(0, 1).toUpperCase() : "?";
 }
 
 const styles = StyleSheet.create({
@@ -263,20 +314,20 @@ const styles = StyleSheet.create({
   },
   main: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.bg,
   },
   boardRail: {
-    position: 'relative',
+    position: "relative",
     flexShrink: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
     backgroundColor: colors.brandMuted,
   },
   boardState: {
     ...(StyleSheet.absoluteFill as object),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
     padding: 24,
   },
@@ -289,7 +340,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.danger,
-    textAlign: 'center',
+    textAlign: "center",
   },
   panelRail: {
     flex: 1,

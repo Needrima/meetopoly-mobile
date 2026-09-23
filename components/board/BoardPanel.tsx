@@ -1,9 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Location } from '@/api/types';
+import type { Game } from '@/api/types';
 import { Joystick } from '@/components/board/Joystick';
 import { shortTileName } from '@/components/board/tileLabel';
 import { Button } from '@/components/ui/Button';
+import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
 import type { StickInput } from '@/hooks/useBoardWalk';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
@@ -17,6 +19,9 @@ type BoardPanelProps = {
   onDetails?: (loc: Location) => void;
   /** Opens board ⋯ overflow menu (leave / logout / __DEV__). */
   onMenuPress?: () => void;
+  /** Phase 6.0+ authoritative game snapshot. */
+  game?: Game | null;
+  localUserId?: string | null;
 };
 
 /**
@@ -30,12 +35,20 @@ export function BoardPanel({
   onEnter,
   onDetails,
   onMenuPress,
+  game = null,
+  localUserId = null,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : '';
   const blurb =
     nearby?.aboutShort?.trim() ||
     nearby?.description?.trim() ||
     (nearby ? `${nearby.kind} on the board.` : '');
+
+  const localPlayer = game?.players.find((p) => p.userId === localUserId);
+  const turnName = game?.currentUsername || '—';
+  const isMyTurn = Boolean(
+    game && localUserId && game.currentUserId === localUserId,
+  );
 
   return (
     <View style={styles.root}>
@@ -55,6 +68,41 @@ export function BoardPanel({
           </Pressable>
         ) : null}
       </View>
+
+      {game ? (
+        <View style={styles.gameHud}>
+          <Text style={styles.turnLine} numberOfLines={1}>
+            {isMyTurn ? 'Your turn' : `${turnName}'s turn`}
+          </Text>
+          {localPlayer ? (
+            <View style={styles.cashRow}>
+              <Text style={styles.cashLabel}>You</Text>
+              <MeetCoinAmount amount={localPlayer.cash} size={15} />
+            </View>
+          ) : null}
+          <View style={styles.balances}>
+            {game.players.map((p) => (
+              <View key={p.userId} style={styles.balanceRow}>
+                <View
+                  style={[styles.pinDot, { backgroundColor: p.pinColor }]}
+                />
+                <Text
+                  style={[
+                    styles.balanceName,
+                    p.userId === localUserId ? styles.balanceNameYou : null,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {p.username}
+                  {p.userId === game.currentUserId ? ' · turn' : ''}
+                </Text>
+                <MeetCoinAmount amount={p.cash} size={13} color={colors.muted} />
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       {nearby ? (
         <>
           <Text style={styles.title} numberOfLines={2}>
@@ -180,6 +228,50 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.ink,
     marginTop: -4,
+  },
+  gameHud: {
+    marginTop: 6,
+    marginBottom: 4,
+    gap: 6,
+  },
+  turnLine: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: colors.brand,
+  },
+  cashRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cashLabel: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
+  },
+  balances: {
+    gap: 4,
+    maxHeight: 88,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pinDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  balanceName: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
+  },
+  balanceNameYou: {
+    fontFamily: fonts.bodySemiBold,
+    color: colors.ink,
   },
   title: {
     fontFamily: fonts.displayBold,

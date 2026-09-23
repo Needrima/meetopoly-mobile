@@ -6,4 +6,5 @@ export const queryKeys = {
   location: (id: string) => ['location', id] as const,
   locationBySlug: (worldId: string, slug: string) =>
     ['location', 'by-slug', worldId, slug] as const,
+  game: (gameId: string) => ['game', gameId] as const,
 };

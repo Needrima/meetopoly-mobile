@@ -5,10 +5,11 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 import type {
   AuthSessionResponse,
+  Game,
   GetLocationBySlugParams,
   HealthResponse,
   JoinTableRequest,
@@ -477,6 +478,33 @@ export const leaveTable = async (tableId: string, options?: RequestInit): Promis
   {      
     ...options,
     method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Authoritative game state (players, MeetCoin balances, pin boardIndex, whose turn).
+Created when a lobby reaches all-Ready (Phase 6.0).
+
+ * @summary Get M1 game snapshot
+ */
+export const getGetGameUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}`
+}
+
+export const getGame = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getGetGameUrl(gameId),
+  {      
+    ...options,
+    method: 'GET'
     
     
   }
