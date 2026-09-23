@@ -63,22 +63,6 @@ export function BoardPanel({
   const isMyTurn = Boolean(
     game && localUserId && game.currentUserId === localUserId,
   );
-  const last = game?.lastRoll ?? null;
-  const diceBits: string[] = [];
-  if (last) {
-    diceBits.push(`${last.die1} + ${last.die2} = ${last.total}`);
-    if (last.isDoubles) {
-      diceBits.push(
-        last.thirdDoubles
-          ? '3rd doubles · End turn'
-          : `doubles · roll again (${last.doublesStreak})`,
-      );
-    }
-    if (last.passedGo) {
-      diceBits.push(`+${last.passGoAmount} GO`);
-    }
-  }
-  const diceLine = diceBits.length ? diceBits.join(' · ') : null;
   const canRoll = Boolean(isMyTurn && game?.canRoll);
   const canEnd = Boolean(isMyTurn && game?.canEndTurn);
 
@@ -106,11 +90,6 @@ export function BoardPanel({
           <Text style={styles.turnLine} numberOfLines={1}>
             {isMyTurn ? 'Your turn' : `${turnName}'s turn`}
           </Text>
-          {diceLine ? (
-            <Text style={styles.diceLine} numberOfLines={1}>
-              Last: {diceLine}
-            </Text>
-          ) : null}
           {localPlayer ? (
             <View style={styles.cashRow}>
               <Text style={styles.cashLabel}>You</Text>
@@ -301,11 +280,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     fontSize: 14,
     color: colors.brand,
-  },
-  diceLine: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
   },
   cashRow: {
     flexDirection: 'row',
