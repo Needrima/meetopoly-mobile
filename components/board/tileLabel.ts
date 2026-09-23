@@ -81,7 +81,7 @@ export function labelFontSize(
   isCorner: boolean,
   minEdge: number,
 ): number {
-  const base = minEdge < 40 ? 7 : 8;
+  const base = minEdge < 36 ? 7 : minEdge < 44 ? 8 : 9;
   if (locLongCornerLabel(loc) && isCorner) {
     return Math.max(6, base - 1);
   }

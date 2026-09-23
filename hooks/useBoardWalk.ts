@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import type { Location } from '@/api/types';
-import { BOARD_WALK, AVATAR_COLOR_KEYS, type AvatarColorKey } from '@/components/board/boardConstants';
+import {
+  BOARD_WALK,
+  AVATAR_COLOR_KEYS,
+  type AvatarColorKey,
+} from '@/components/board/boardConstants';
 import {
   randomCenterSpawn,
   resolveWalkCollisions,
@@ -24,8 +32,11 @@ export { AVATAR_COLOR_KEYS } from '@/components/board/boardConstants';
 export type StickInput = { x: number; y: number };
 
 export type BoardWalkState = {
-  pose: Vec2;
-  /** All soft-collide pins (local + __DEV__ debug on GO). */
+  /** Avatar center — driven on UI thread; do not use for React layout each frame. */
+  poseX: SharedValue<number>;
+  poseY: SharedValue<number>;
+  /** Snapshot pose for Enter / persist (reads JS ref, not React state). */
+  getPose: () => Vec2;
   pins: BoardPinModel[];
   accent: string;
   accentKey: AvatarColorKey;
@@ -77,7 +88,7 @@ type UseBoardWalkOpts = {
 };
 
 /**
- * Local board walk: spawn / restore, stick move, multi-pin soft collide, nearby Enter.
+ * Local board walk: Reanimated pose SV + JS collision; nearby only on slug change.
  */
 export function useBoardWalk({
   layout,
@@ -94,10 +105,12 @@ export function useBoardWalk({
   const stickRef = useRef<StickInput>({ x: 0, y: 0 });
   const poseRef = useRef<Vec2>({ x: 0, y: 0 });
   const nearbyRef = useRef<Location | null>(null);
-  const [pose, setPose] = useState<Vec2>({ x: 0, y: 0 });
+  const poseX = useSharedValue(0);
+  const poseY = useSharedValue(0);
   const [nearby, setNearby] = useState<Location | null>(null);
   const [accentTick, setAccentTick] = useState(0);
   const spawnedForSize = useRef<number | null>(null);
+  const idleFrames = useRef(0);
 
   const byIndex = useMemo(() => {
     const map = new Map<number, Location>();
@@ -141,6 +154,16 @@ export function useBoardWalk({
   }, [layout, pinRadius, accentTick]);
 
   const softPins = useMemo(() => softObstaclesFromPins(pins), [pins]);
+  const softPinsRef = useRef(softPins);
+  softPinsRef.current = softPins;
+  const byIndexRef = useRef(byIndex);
+  byIndexRef.current = byIndex;
+
+  const applyPose = (next: Vec2) => {
+    poseRef.current = next;
+    poseX.value = next.x;
+    poseY.value = next.y;
+  };
 
   useEffect(() => {
     if (restoreAccent) {
@@ -178,21 +201,21 @@ export function useBoardWalk({
         avatarRadius,
         layout.size,
         layout.decks,
-        softPins,
+        softPinsRef.current,
       );
     } else {
       spawn = randomCenterSpawn(layout.center, layout.decks, avatarRadius);
     }
-    poseRef.current = spawn;
-    setPose(spawn);
+    applyPose(spawn);
     spawnedForSize.current = layout.size;
   }, [
     layout,
     enabled,
     avatarRadius,
-    softPins,
     restorePoseNorm?.x,
     restorePoseNorm?.y,
+    poseX,
+    poseY,
   ]);
 
   useEffect(() => {
@@ -205,7 +228,7 @@ export function useBoardWalk({
     const speed = layout.size * BOARD_WALK.speedFrac;
 
     const publishNearby = (p: Vec2) => {
-      const next = findNearestEnterable(p, layout, byIndex);
+      const next = findNearestEnterable(p, layout, byIndexRef.current);
       const prevSlug = nearbyRef.current?.slug ?? null;
       const nextSlug = next?.slug ?? null;
       if (prevSlug !== nextSlug) {
@@ -220,6 +243,7 @@ export function useBoardWalk({
       const stick = stickRef.current;
       const mag = Math.hypot(stick.x, stick.y);
       if (mag > 0.04) {
+        idleFrames.current = 0;
         const nx = stick.x / Math.max(mag, 1);
         const ny = stick.y / Math.max(mag, 1);
         const scale = Math.min(1, mag);
@@ -232,22 +256,27 @@ export function useBoardWalk({
           avatarRadius,
           layout.size,
           layout.decks,
-          softPins,
+          softPinsRef.current,
         );
-        poseRef.current = next;
-        setPose(next);
+        applyPose(next);
         publishNearby(next);
       } else {
-        const next = resolveWalkCollisions(
-          poseRef.current,
-          avatarRadius,
-          layout.size,
-          layout.decks,
-          softPins,
-        );
-        if (next.x !== poseRef.current.x || next.y !== poseRef.current.y) {
-          poseRef.current = next;
-          setPose(next);
+        idleFrames.current += 1;
+        // Soft-pin settle occasionally while idle; skip most frames.
+        if (idleFrames.current % 8 === 0) {
+          const next = resolveWalkCollisions(
+            poseRef.current,
+            avatarRadius,
+            layout.size,
+            layout.decks,
+            softPinsRef.current,
+          );
+          if (
+            next.x !== poseRef.current.x ||
+            next.y !== poseRef.current.y
+          ) {
+            applyPose(next);
+          }
         }
         publishNearby(poseRef.current);
       }
@@ -256,7 +285,7 @@ export function useBoardWalk({
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [layout, enabled, avatarRadius, softPins, byIndex]);
+  }, [layout, enabled, avatarRadius, poseX, poseY]);
 
   const setStick = (stick: StickInput) => {
     const mag = Math.hypot(stick.x, stick.y);
@@ -267,8 +296,12 @@ export function useBoardWalk({
     }
   };
 
+  const getPose = () => ({ ...poseRef.current });
+
   return {
-    pose,
+    poseX,
+    poseY,
+    getPose,
     pins,
     accent: accentRef.current.hex,
     accentKey: accentRef.current.key,

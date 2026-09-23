@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -12,11 +11,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Location } from '@/api/types';
 import { Board } from '@/components/board/Board';
+import { BoardOverflowMenu } from '@/components/board/BoardOverflowMenu';
 import { BoardPanel } from '@/components/board/BoardPanel';
 import { layoutBoardRing } from '@/components/board/boardLayout';
 import { shortTileName } from '@/components/board/tileLabel';
 import { InfoModal } from '@/components/ui/InfoModal';
-import { useMe } from '@/hooks/useAuth';
+import { useLogout, useMe } from '@/hooks/useAuth';
+import { useBlockHardwareBack } from '@/hooks/useBlockHardwareBack';
 import { useBoardSession } from '@/hooks/useBoardSession';
 import {
   useBoardWalk,
@@ -30,17 +31,20 @@ import { fonts } from '@/theme/fonts';
 const PANEL_MIN = 168;
 
 /**
- * Phase 4.7 — walk near enterable → Details / Enter hub; Leave restores pose.
- * __DEV__: multi-pin fan on GO (soft collide).
+ * Board play surface; leave via panel ⋯; avatar pose via Reanimated.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { token, user } = useSession();
   const me = useMe(Boolean(token));
+  const logout = useLogout();
   const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(DEFAULT_WORLD_ID);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useBlockHardwareBack(true);
 
   const availableW = winW - insets.left - insets.right;
   const boardSide = Math.max(0, Math.min(winH, availableW - PANEL_MIN));
@@ -103,11 +107,13 @@ export default function BoardScreen() {
         return;
       }
       setDetailsOpen(false);
+      setMenuOpen(false);
+      const pose = walk.getPose();
       saveSnapshot({
         worldId: DEFAULT_WORLD_ID,
         poseNorm: {
-          x: walk.pose.x / layout.size,
-          y: walk.pose.y / layout.size,
+          x: pose.x / layout.size,
+          y: pose.y / layout.size,
         },
         hasPose: true,
         accent: walk.accent,
@@ -119,16 +125,12 @@ export default function BoardScreen() {
         params: { slug: loc.slug, worldId: DEFAULT_WORLD_ID },
       });
     },
-    [
-      layout,
-      saveSnapshot,
-      walk.accent,
-      walk.accentKey,
-      walk.initials,
-      walk.pose.x,
-      walk.pose.y,
-    ],
+    [layout, saveSnapshot, walk],
   );
+
+  const leaveBoard = useCallback(() => {
+    router.replace('/(app)');
+  }, []);
 
   const nearby = walk.nearby;
   const nearbyCode = nearby ? shortTileName(nearby) : '';
@@ -170,8 +172,8 @@ export default function BoardScreen() {
               layout={layout}
               highlightedBoardIndex={walk.nearby?.boardIndex ?? null}
               avatar={{
-                x: walk.pose.x,
-                y: walk.pose.y,
+                poseX: walk.poseX,
+                poseY: walk.poseY,
                 radius: walk.avatarRadius,
                 initials: walk.initials,
                 accent: walk.accent,
@@ -179,29 +181,9 @@ export default function BoardScreen() {
               pins={walk.pins}
             />
           ) : null}
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/(app)');
-              }
-            }}
-            style={({ pressed }) => [
-              styles.back,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <Text style={styles.backLabel}>Back</Text>
-          </Pressable>
         </View>
 
         <View style={[styles.panelRail, { height: boardSide }]}>
-          <Text style={styles.phase}>
-            Phase 4.7 · {locations.length || '…'} slots · {DEFAULT_WORLD_ID}
-          </Text>
           <BoardPanel
             onStick={walk.setStick}
             accent={walk.accent}
@@ -209,6 +191,7 @@ export default function BoardScreen() {
             nearby={walk.nearby}
             onEnter={persistAndEnter}
             onDetails={() => setDetailsOpen(true)}
+            onMenuPress={() => setMenuOpen(true)}
           />
         </View>
       </View>
@@ -225,11 +208,36 @@ export default function BoardScreen() {
           nearby?.description?.trim() ||
           undefined
         }
+        attribution={nearby?.attribution?.trim() || undefined}
         primaryLabel="Enter"
         onPrimary={
           nearby
             ? () => {
                 persistAndEnter(nearby);
+              }
+            : undefined
+        }
+      />
+
+      <BoardOverflowMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onLeave={leaveBoard}
+        onLogout={() => {
+          void logout.mutateAsync();
+        }}
+        logoutPending={logout.isPending}
+        onHealth={
+          __DEV__
+            ? () => {
+                router.push('/(app)/health');
+              }
+            : undefined
+        }
+        onLocations={
+          __DEV__
+            ? () => {
+                router.push('/(app)/locations');
               }
             : undefined
         }
@@ -278,37 +286,11 @@ const styles = StyleSheet.create({
     color: colors.danger,
     textAlign: 'center',
   },
-  back: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    zIndex: 2,
-    borderRadius: 10,
-    backgroundColor: colors.hud,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  pressed: {
-    opacity: 0.75,
-  },
-  backLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.onBrand,
-  },
   panelRail: {
     flex: 1,
     minWidth: PANEL_MIN,
     backgroundColor: colors.surface,
     borderLeftWidth: 1,
     borderLeftColor: colors.border,
-  },
-  phase: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
-    textAlign: 'right',
-    paddingHorizontal: 16,
-    paddingTop: 10,
   },
 });

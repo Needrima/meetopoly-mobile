@@ -15,11 +15,12 @@ type BoardPanelProps = {
   nearby?: Location | null;
   onEnter?: (loc: Location) => void;
   onDetails?: (loc: Location) => void;
+  /** Opens board ⋯ overflow menu (leave / logout / __DEV__). */
+  onMenuPress?: () => void;
 };
 
 /**
- * Phase 4.6 — nearby location + Details / Enter; joystick dock BR.
- * Details overlay lives on the board screen (full-bleed), not here.
+ * Nearby location + Details / Enter; ⋯ top-right; joystick dock BR.
  */
 export function BoardPanel({
   onStick,
@@ -28,6 +29,7 @@ export function BoardPanel({
   nearby = null,
   onEnter,
   onDetails,
+  onMenuPress,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : '';
   const blurb =
@@ -37,7 +39,22 @@ export function BoardPanel({
 
   return (
     <View style={styles.root}>
-      <Text style={styles.eyebrow}>Panel</Text>
+      <View style={styles.header}>
+        <Text style={styles.eyebrow}>Panel</Text>
+        {onMenuPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Board menu"
+            onPress={onMenuPress}
+            style={({ pressed }) => [
+              styles.menuBtn,
+              pressed ? styles.pressed : null,
+            ]}
+          >
+            <Text style={styles.menuLabel}>⋯</Text>
+          </Pressable>
+        ) : null}
+      </View>
       {nearby ? (
         <>
           <Text style={styles.title} numberOfLines={2}>
@@ -88,7 +105,7 @@ export function BoardPanel({
 
       <View style={styles.footer}>
         <View style={styles.stub}>
-          <Text style={styles.stubLabel}>Phase 4.7 · pins</Text>
+          <Text style={styles.stubLabel}>You</Text>
           {initials ? (
             <View style={styles.swatchRow}>
               <View
@@ -106,7 +123,6 @@ export function BoardPanel({
                   {initials}
                 </Text>
               </View>
-              <Text style={styles.swatchHint}>You</Text>
             </View>
           ) : null}
         </View>
@@ -135,12 +151,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   eyebrow: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 11,
     letterSpacing: 1,
     textTransform: 'uppercase',
     color: colors.muted,
+  },
+  menuBtn: {
+    minWidth: 36,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  menuLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 18,
+    lineHeight: 20,
+    color: colors.ink,
+    marginTop: -4,
   },
   title: {
     fontFamily: fonts.displayBold,
@@ -229,11 +268,6 @@ const styles = StyleSheet.create({
   swatchText: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 12,
-  },
-  swatchHint: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
   },
   pressed: {
     opacity: 0.75,

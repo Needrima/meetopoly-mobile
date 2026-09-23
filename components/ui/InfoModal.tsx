@@ -15,6 +15,8 @@ export type InfoModalProps = {
   title: string;
   subtitle?: string;
   body?: string;
+  /** Optional CC / source credit under the body. */
+  attribution?: string;
   /** Optional primary action under the body (e.g. Enter hub). */
   primaryLabel?: string;
   onPrimary?: () => void;
@@ -31,6 +33,7 @@ export function InfoModal({
   title,
   subtitle,
   body,
+  attribution,
   primaryLabel,
   onPrimary,
 }: InfoModalProps) {
@@ -59,6 +62,9 @@ export function InfoModal({
             <Text style={styles.title}>{title}</Text>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             {body ? <Text style={styles.body}>{body}</Text> : null}
+            {attribution ? (
+              <Text style={styles.attribution}>{attribution}</Text>
+            ) : null}
 
             <View style={styles.actions}>
               {primaryLabel && onPrimary ? (
@@ -139,6 +145,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: colors.muted,
+  },
+  attribution: {
+    marginTop: 6,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.muted,
+    fontStyle: 'italic',
   },
   actions: {
     marginTop: 16,

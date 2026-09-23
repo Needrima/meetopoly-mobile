@@ -1,22 +1,26 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  type SharedValue,
+} from 'react-native-reanimated';
 
-import { fonts } from "@/theme/fonts";
+import { fonts } from '@/theme/fonts';
 
 type BoardAvatarProps = {
-  x: number;
-  y: number;
+  poseX: SharedValue<number>;
+  poseY: SharedValue<number>;
   radius: number;
   initials: string;
   accent: string;
 };
 
 /**
- * Phase 4.5 — walking avatar: colored pod + 2-letter callout.
- * (x, y) = board-local center of the pod.
+ * Walking avatar: pod + initial callout.
+ * Position via Reanimated shared values (UI thread; no React re-render per frame).
  */
 export function BoardAvatar({
-  x,
-  y,
+  poseX,
+  poseY,
   radius,
   initials,
   accent,
@@ -25,18 +29,24 @@ export function BoardAvatar({
   const podH = radius * 0.85;
   const face = radius * 1.55;
   const ink = inkForAccent(accent);
+  const rootH = podH + face * 0.7;
+  const offsetY = podH / 2 + face * 0.55;
+
+  const animStyle = useAnimatedStyle(() => ({
+    left: poseX.value - podW / 2,
+    top: poseY.value - offsetY,
+  }));
 
   return (
-    <View
+    <Animated.View
       pointerEvents="none"
       style={[
         styles.root,
         {
-          left: x - podW / 2,
-          top: y - podH / 2 - face * 0.55,
           width: podW,
-          height: podH + face * 0.7,
+          height: rootH,
         },
+        animStyle,
       ]}
       accessibilityLabel={`Avatar ${initials}`}
     >
@@ -74,33 +84,33 @@ export function BoardAvatar({
           },
         ]}
       />
-    </View>
+    </Animated.View>
   );
 }
 
 function inkForAccent(hex: string): string {
-  const h = hex.replace("#", "");
+  const h = hex.replace('#', '');
   if (h.length !== 6) {
-    return "#14201B";
+    return '#14201B';
   }
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
   const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luma > 0.62 ? "#14201B" : "#FFFFFF";
+  return luma > 0.62 ? '#14201B' : '#FFFFFF';
 }
 
 const styles = StyleSheet.create({
   root: {
-    position: "absolute",
+    position: 'absolute',
     zIndex: 20,
-    alignItems: "center",
-    justifyContent: "flex-end",
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   face: {
     borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   initials: {
     fontFamily: fonts.bodySemiBold,

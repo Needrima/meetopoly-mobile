@@ -1,75 +1,61 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getApiBaseUrl } from "@/api/client";
-import { useLogout } from "@/hooks/useAuth";
-import { useHealth } from "@/hooks/useHealth";
-import { useSession } from "@/hooks/useSession";
-import { colors } from "@/theme/colors";
-import { fonts } from "@/theme/fonts";
+import { Button } from '@/components/ui/Button';
+import { useLogout } from '@/hooks/useAuth';
+import { useSession } from '@/hooks/useSession';
+import { colors } from '@/theme/colors';
+import { fonts } from '@/theme/fonts';
 
-export default function HomeScreen() {
+/**
+ * Phase 4.8 — signed-in menu home (not the board).
+ * Play → board; Settings / About stubs; Log out.
+ */
+export default function HomeMenuScreen() {
   const { user } = useSession();
-  const { data, error, isFetching, isLoading, refetch, isError } = useHealth();
   const logout = useLogout();
-  const statusOk = data?.status === "ok";
+  const who = user?.username ?? user?.email ?? '…';
 
   return (
-    <SafeAreaView
-      style={styles.safe}
-      edges={["top", "right", "bottom", "left"]}
-    >
+    <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
       <View style={styles.row}>
-        <View style={styles.left}>
-          <Text style={styles.title}>Meetopoly</Text>
-          <Text style={styles.subtitle}>
-            Signed in as {user?.username ?? user?.email ?? "…"}
-          </Text>
+        <View style={styles.brandCol}>
+          <Text style={styles.brand}>Meetopoly</Text>
+          <Text style={styles.subtitle}>Signed in as {who}</Text>
+        </View>
+
+        <View style={styles.actions}>
+          <Button
+            label="Play"
+            onPress={() => {
+              router.push('/(app)/board');
+            }}
+            style={styles.playBtn}
+          />
           <Pressable
             accessibilityRole="button"
-            disabled={isFetching}
             onPress={() => {
-              void refetch();
+              router.push('/(app)/settings');
             }}
             style={({ pressed }) => [
-              styles.button,
-              pressed || isFetching ? styles.buttonPressed : null,
+              styles.secondary,
+              pressed ? styles.pressed : null,
             ]}
           >
-            <Text style={styles.buttonLabel}>
-              {isFetching ? "Refreshing…" : "Refresh health"}
-            </Text>
+            <Text style={styles.secondaryLabel}>Settings</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             onPress={() => {
-              router.push("/(app)/locations");
+              router.push('/(app)/about');
             }}
             style={({ pressed }) => [
-              styles.button,
-              pressed ? styles.buttonPressed : null,
+              styles.secondary,
+              pressed ? styles.pressed : null,
             ]}
           >
-            <Text style={styles.buttonLabel}>View locations</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              router.push("/(app)/board");
-            }}
-            style={({ pressed }) => [
-              styles.button,
-              pressed ? styles.buttonPressed : null,
-            ]}
-          >
-            <Text style={styles.buttonLabel}>Open board</Text>
+            <Text style={styles.secondaryLabel}>About Meetopoly</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -78,50 +64,14 @@ export default function HomeScreen() {
               void logout.mutateAsync();
             }}
             style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed || logout.isPending ? styles.buttonPressed : null,
+              styles.logout,
+              pressed || logout.isPending ? styles.pressed : null,
             ]}
           >
-            <Text style={styles.secondaryLabel}>
-              {logout.isPending ? "Signing out…" : "Log out"}
+            <Text style={styles.logoutLabel}>
+              {logout.isPending ? 'Signing out…' : 'Log out'}
             </Text>
           </Pressable>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardEyebrow}>API</Text>
-          <Text style={styles.mono}>{getApiBaseUrl()}</Text>
-
-          {isLoading ? (
-            <View style={styles.loading}>
-              <ActivityIndicator color={colors.brand} />
-              <Text style={styles.muted}>Calling /health…</Text>
-            </View>
-          ) : null}
-
-          {isError ? (
-            <Text style={styles.error}>
-              {error instanceof Error ? error.message : "Request failed"}
-            </Text>
-          ) : null}
-
-          {data ? (
-            <View style={styles.metrics}>
-              <Text
-                style={[
-                  styles.metricStrong,
-                  statusOk ? styles.ok : styles.warn,
-                ]}
-              >
-                status: {data.status}
-              </Text>
-              <Text style={styles.metric}>mongo: {data.mongo}</Text>
-              <Text style={styles.metric}>redis: {data.redis}</Text>
-              {data.version ? (
-                <Text style={styles.muted}>version: {data.version}</Text>
-              ) : null}
-            </View>
-          ) : null}
         </View>
       </View>
     </SafeAreaView>
@@ -135,114 +85,63 @@ const styles = StyleSheet.create({
   },
   row: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 48,
     paddingHorizontal: 40,
     paddingVertical: 24,
   },
-  left: {
+  brandCol: {
     flex: 1,
-    maxWidth: 320,
+    maxWidth: 360,
   },
-  title: {
-    marginBottom: 8,
+  brand: {
     fontFamily: fonts.displayBold,
-    fontSize: 36,
+    fontSize: 48,
     color: colors.brand,
+    marginBottom: 10,
   },
   subtitle: {
-    marginBottom: 24,
     fontFamily: fonts.body,
     fontSize: 16,
     lineHeight: 22,
     color: colors.muted,
   },
-  button: {
-    alignSelf: "flex-start",
-    borderRadius: 12,
-    backgroundColor: colors.brand,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    marginBottom: 12,
+  actions: {
+    width: 260,
+    gap: 12,
   },
-  secondaryButton: {
-    alignSelf: "flex-start",
+  playBtn: {
+    height: 52,
+  },
+  secondary: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  buttonPressed: {
-    opacity: 0.8,
-  },
-  buttonLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 16,
-    color: colors.onBrand,
+    paddingVertical: 14,
+    alignItems: 'center',
   },
   secondaryLabel: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 16,
     color: colors.ink,
   },
-  card: {
-    flex: 1,
-    maxWidth: 420,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: 20,
+  logout: {
+    marginTop: 8,
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
   },
-  cardEyebrow: {
-    marginBottom: 4,
+  logoutLabel: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: colors.muted,
-  },
-  mono: {
-    marginBottom: 16,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  loading: {
-    alignItems: "center",
-    paddingVertical: 16,
-    gap: 8,
-  },
-  metrics: {
-    gap: 8,
-  },
-  metricStrong: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 18,
-  },
-  metric: {
-    fontFamily: fonts.body,
-    fontSize: 16,
-    color: colors.ink,
-  },
-  muted: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.muted,
-  },
-  ok: {
-    color: colors.success,
-  },
-  warn: {
-    color: colors.warn,
-  },
-  error: {
-    fontFamily: fonts.body,
     fontSize: 16,
     color: colors.danger,
+  },
+  pressed: {
+    opacity: 0.8,
   },
 });

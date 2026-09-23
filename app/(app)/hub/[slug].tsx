@@ -16,7 +16,7 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * Phase 4.6 — hub placeholder (no SFU). Leave returns to board; pose via BoardSession.
+ * Hub placeholder (no SFU). Leave returns to board; pose via BoardSession.
  */
 export default function HubScreen() {
   const insets = useSafeAreaInsets();
@@ -55,7 +55,7 @@ export default function HubScreen() {
         },
       ]}
     >
-      <Text style={styles.eyebrow}>Hub · placeholder</Text>
+      <Text style={styles.eyebrow}>Hub</Text>
 
       {isLoading ? (
         <ActivityIndicator color={colors.brand} style={styles.spinner} />
@@ -84,6 +84,11 @@ export default function HubScreen() {
           <Text style={styles.meta}>
             {worldId} · {location.hubId}
           </Text>
+          {location.attribution?.trim() ? (
+            <Text style={styles.attribution}>
+              {location.attribution.trim()}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -159,6 +164,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.muted,
+  },
+  attribution: {
+    marginTop: 4,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.muted,
+    fontStyle: 'italic',
   },
   error: {
     fontFamily: fonts.body,

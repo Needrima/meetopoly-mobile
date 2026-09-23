@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 
 import type { Location } from '@/api/types';
 import { BoardAvatar } from '@/components/board/BoardAvatar';
@@ -13,23 +14,20 @@ import { colors } from '@/theme/colors';
 type BoardProps = {
   size: number;
   locations: Location[];
-  /** When provided, skips recomputing layout (share with walk hook). */
   layout?: BoardLayout;
-  /** boardIndex of nearest enterable (soft glow). */
   highlightedBoardIndex?: number | null;
   avatar?: {
-    x: number;
-    y: number;
+    poseX: SharedValue<number>;
+    poseY: SharedValue<number>;
     radius: number;
     initials: string;
     accent: string;
   } | null;
-  /** Local + optional __DEV__ debug pins (soft obstacles). */
   pins?: BoardPinModel[];
 };
 
 /**
- * Phase 4.7 — ring + decks + avatar + multi-pin on GO + nearest-tile glow.
+ * Ring + decks + Reanimated avatar + pins + nearest-tile glow.
  */
 export function Board({
   size,
@@ -79,8 +77,8 @@ export function Board({
       ))}
       {avatar ? (
         <BoardAvatar
-          x={avatar.x}
-          y={avatar.y}
+          poseX={avatar.poseX}
+          poseY={avatar.poseY}
           radius={avatar.radius}
           initials={avatar.initials}
           accent={avatar.accent}
@@ -96,3 +94,4 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
+

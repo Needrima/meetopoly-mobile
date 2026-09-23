@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View } from "react-native";
+import { memo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
-import type { Location } from "@/api/types";
-import type { TileLayout } from "@/components/board/boardLayout";
-import { resolveBoardIcon } from "@/components/board/iconRegistry";
+import type { Location } from '@/api/types';
+import type { TileLayout } from '@/components/board/boardLayout';
+import { resolveBoardIcon } from '@/components/board/iconRegistry';
 import {
   contentRotation,
   isGoArrowIcon,
@@ -10,10 +11,10 @@ import {
   locLongCornerLabel,
   planeIconRotation,
   shortTileName,
-} from "@/components/board/tileLabel";
-import { bandStyle, tileVisual } from "@/components/board/tileStyle";
-import { colors } from "@/theme/colors";
-import { fonts } from "@/theme/fonts";
+} from '@/components/board/tileLabel';
+import { bandStyle, tileVisual } from '@/components/board/tileStyle';
+import { colors } from '@/theme/colors';
+import { fonts } from '@/theme/fonts';
 
 type BoardTileProps = {
   tile: TileLayout;
@@ -23,9 +24,13 @@ type BoardTileProps = {
 };
 
 /**
- * Phase 4.3 — absolute tile frame; same label size on every side.
+ * Absolute tile frame; memoized so nearby glow does not redraw the whole ring.
  */
-export function BoardTile({ tile, location, highlighted = false }: BoardTileProps) {
+function BoardTileInner({
+  tile,
+  location,
+  highlighted = false,
+}: BoardTileProps) {
   const visual = tileVisual(location, { isCorner: tile.isCorner });
   const band =
     visual.bandColor != null
@@ -37,21 +42,25 @@ export function BoardTile({ tile, location, highlighted = false }: BoardTileProp
   const minEdge = Math.min(tile.width, tile.height);
   const iconSize = Math.max(
     10,
-    Math.min(20, Math.floor(minEdge * (tile.isCorner ? 0.36 : 0.38))),
+    Math.min(
+      tile.isCorner ? 22 : 18,
+      Math.floor(minEdge * (tile.isCorner ? 0.38 : 0.42)),
+    ),
   );
 
-  // Equal padding so icon+label stay optically centered (band is overlay only).
-  const contentPad = 3;
+  const contentPad = minEdge < 36 ? 2 : 3;
 
   const longCorner = locLongCornerLabel(location);
   const iconPath = location?.assets?.icon;
-  const isPlane = Boolean(iconPath?.includes("plane"));
+  const isPlane = Boolean(iconPath?.includes('plane'));
   const isGoArrow = isGoArrowIcon(iconPath);
 
   const iconTransforms = [
     ...(isPlane ? [{ rotate: planeIconRotation(tile.side) }] : []),
     ...(isGoArrow ? [{ scaleX: -1 as const }] : []),
   ];
+
+  const fontSize = labelFontSize(location, tile.isCorner, minEdge);
 
   return (
     <View
@@ -93,7 +102,9 @@ export function BoardTile({ tile, location, highlighted = false }: BoardTileProp
       >
         {Icon ? (
           <View
-            style={iconTransforms.length ? { transform: iconTransforms } : undefined}
+            style={
+              iconTransforms.length ? { transform: iconTransforms } : undefined
+            }
           >
             <Icon width={iconSize} height={iconSize} color={colors.ink} />
           </View>
@@ -102,7 +113,10 @@ export function BoardTile({ tile, location, highlighted = false }: BoardTileProp
           <Text
             style={[
               styles.label,
-              { fontSize: labelFontSize(location, tile.isCorner, minEdge) },
+              {
+                fontSize,
+                lineHeight: fontSize + 2,
+              },
             ]}
             numberOfLines={1}
             allowFontScaling={false}
@@ -118,12 +132,14 @@ export function BoardTile({ tile, location, highlighted = false }: BoardTileProp
   );
 }
 
+export const BoardTile = memo(BoardTileInner);
+
 const styles = StyleSheet.create({
   tile: {
-    position: "absolute",
+    position: 'absolute',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   tileGlow: {
     borderWidth: 2,
@@ -136,18 +152,17 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   band: {
-    position: "absolute",
+    position: 'absolute',
   },
   content: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 1,
   },
   label: {
     fontFamily: fonts.bodySemiBold,
     color: colors.ink,
-    textAlign: "center",
-    lineHeight: 11,
+    textAlign: 'center',
   },
 });
