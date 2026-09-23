@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.10.0
+ * OpenAPI spec version: 0.11.0
  */
 import type {
   AuthSessionResponse,
@@ -588,6 +588,34 @@ export const getResignGameUrl = (gameId: string,) => {
 export const resignGame = async (gameId: string, options?: RequestInit): Promise<Game> => {
   
   return apiMutator<Game>(getResignGameUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Phase 6.4 — purchase at list price when the current player occupies an unowned
+property / railroad / utility after landing. Skipping buy = End turn without calling this
+(deed stays unowned until Phase 13 auction).
+
+ * @summary Buy the unowned space you landed on
+ */
+export const getBuyPropertyUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/buy`
+}
+
+export const buyProperty = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getBuyPropertyUrl(gameId),
   {      
     ...options,
     method: 'POST'

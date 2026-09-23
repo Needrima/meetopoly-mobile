@@ -157,7 +157,7 @@ export function BoardPanel({
               {onRoll ? (
                 <View style={styles.actionBtn}>
                   <Button
-                    label={canRoll ? 'Roll' : 'Roll'}
+                    label="Roll"
                     onPress={onRoll}
                     disabled={rollDisabled || !canRoll}
                     loading={rollPending}

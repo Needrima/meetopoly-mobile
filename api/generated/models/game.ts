@@ -5,11 +5,13 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.10.0
+ * OpenAPI spec version: 0.11.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
 import type { GameTurnPhase } from './gameTurnPhase';
+import type { GameBuyOfferProperty } from './gameBuyOfferProperty';
+import type { GameDeed } from './gameDeed';
 import type { GameLastRollProperty } from './gameLastRollProperty';
 
 export interface Game {
@@ -29,6 +31,11 @@ export interface Game {
   doublesStreak: number;
   canRoll: boolean;
   canEndTurn: boolean;
+  /** Current player may buy the space they just landed on (Phase 6.4) */
+  canBuy: boolean;
+  /** @nullable */
+  buyOffer?: GameBuyOfferProperty;
+  deeds: GameDeed[];
   /** @nullable */
   lastRoll?: GameLastRollProperty;
   /** Set when status is finished (last active player) */

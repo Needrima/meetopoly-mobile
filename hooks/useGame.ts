@@ -160,3 +160,19 @@ export function useResignGame(gameId: string | null | undefined) {
     onSuccess,
   });
 }
+
+/** POST /games/{id}/buy — Phase 6.4 buy at list price. */
+export function useBuyProperty(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error('Missing game id'));
+      }
+      return apiMutator<Game>(`/games/${encodeURIComponent(id)}/buy`, {
+        method: 'POST',
+      });
+    },
+    onSuccess,
+  });
+}

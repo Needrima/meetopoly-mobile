@@ -8,13 +8,12 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.11.0
  */
 
-export type LocationKind = typeof LocationKind[keyof typeof LocationKind];
+export type GameBuyOfferKind = typeof GameBuyOfferKind[keyof typeof GameBuyOfferKind];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const LocationKind = {
+export const GameBuyOfferKind = {
   property: 'property',
   railroad: 'railroad',
   utility: 'utility',
-  special: 'special',
 } as const;

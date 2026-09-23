@@ -8,6 +8,7 @@
  */
 export * from './generated/endpoints';
 export {
+  buyProperty,
   endTurn,
   getEndTurnUrl,
   getGame,

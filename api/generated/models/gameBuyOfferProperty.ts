@@ -7,8 +7,9 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.11.0
  */
-import type { WorldSummary } from './worldSummary';
+import type { GameBuyOffer } from './gameBuyOffer';
 
-export interface WorldsResponse {
-  worlds: WorldSummary[];
-}
+/**
+ * @nullable
+ */
+export type GameBuyOfferProperty = GameBuyOffer | null;

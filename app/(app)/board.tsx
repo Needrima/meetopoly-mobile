@@ -13,6 +13,7 @@ import type { Location } from '@/api/types';
 import { Board } from '@/components/board/Board';
 import { BoardOverflowMenu } from '@/components/board/BoardOverflowMenu';
 import { BoardPanel } from '@/components/board/BoardPanel';
+import { BuyPropertyOverlay } from '@/components/board/BuyPropertyOverlay';
 import { layoutBoardRing } from '@/components/board/boardLayout';
 import { shortTileName } from '@/components/board/tileLabel';
 import { DiceRollOverlay } from '@/components/board/DiceRollOverlay';
@@ -27,6 +28,7 @@ import {
 import { useDiceRollMotion } from '@/hooks/useDiceRollMotion';
 import {
   useGame,
+  useBuyProperty,
   useEndTurn,
   useResignGame,
   useRollDice,
@@ -44,6 +46,7 @@ const PANEL_MIN = 168;
  * Board play surface; leave via panel ⋯; avatar pose via Reanimated.
  * Phase 6.2b: synced dice tumble, then tile-by-tile pin motion.
  * Phase 6.2c: Leave = resign (confirm); last active player wins.
+ * Phase 6.4: Buy unowned property at list price.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
@@ -65,6 +68,7 @@ export default function BoardScreen() {
   const gameQuery = useGame(gameId);
   const rollDice = useRollDice(gameId);
   const endTurnMut = useEndTurn(gameId);
+  const buyMut = useBuyProperty(gameId);
   const resignMut = useResignGame(gameId);
   const game = gameQuery.data ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -77,6 +81,7 @@ export default function BoardScreen() {
   const finishedHandledRef = useRef(false);
   const resignToastRef = useRef<string>('');
   const localLeavingRef = useRef(false);
+  const deedsSigRef = useRef<string | null>(null);
 
   const username = me.data?.username ?? user?.username ?? null;
   const localUserId = me.data?.id ?? user?.id ?? null;
@@ -88,6 +93,11 @@ export default function BoardScreen() {
       return;
     }
     startedToastRef.current = true;
+    // Seed deed signature so reconnect / first paint does not toast history.
+    deedsSigRef.current = (game.deeds ?? [])
+      .map((d) => `${d.boardIndex}:${d.ownerUserId}`)
+      .sort()
+      .join('|');
     // Ignore historical lastRoll pass-GO from a prior session fetch.
     if (game.lastRoll?.passedGo) {
       passGoToastRef.current = `${game.lastRoll.userId}:${game.lastRoll.fromIndex}:${game.lastRoll.toIndex}:${game.lastRoll.total}`;
@@ -172,6 +182,45 @@ export default function BoardScreen() {
   const availableW = winW - insets.left - insets.right;
   const boardSide = Math.max(0, Math.min(winH, availableW - PANEL_MIN));
   const locations = data?.locations ?? [];
+
+  // Phase 6.4 — toast everyone when a deed is added (WS).
+  useEffect(() => {
+    if (!game || !startedToastRef.current) {
+      return;
+    }
+    const deeds = game.deeds ?? [];
+    const sig = deeds
+      .map((d) => `${d.boardIndex}:${d.ownerUserId}`)
+      .sort()
+      .join('|');
+    if (deedsSigRef.current === null) {
+      deedsSigRef.current = sig;
+      return;
+    }
+    if (sig === deedsSigRef.current) {
+      return;
+    }
+    const prev = new Set(
+      deedsSigRef.current
+        ? deedsSigRef.current.split('|').filter(Boolean)
+        : [],
+    );
+    deedsSigRef.current = sig;
+    for (const d of deeds) {
+      const key = `${d.boardIndex}:${d.ownerUserId}`;
+      if (prev.has(key)) {
+        continue;
+      }
+      const loc = locations.find((l) => l.boardIndex === d.boardIndex);
+      const place = loc?.name ?? `space ${d.boardIndex}`;
+      const iBought = Boolean(localUserId && d.ownerUserId === localUserId);
+      notify({
+        type: 'success',
+        title: iBought ? 'You bought land' : 'Land bought',
+        message: iBought ? place : `${d.ownerUsername} bought ${place}`,
+      });
+    }
+  }, [game, localUserId, locations]);
 
   const layout = useMemo(
     () =>
@@ -352,11 +401,42 @@ export default function BoardScreen() {
     });
   }, [gameId, endTurnMut, turnBusy]);
 
+  const onBuy = useCallback(() => {
+    if (!gameId || buyMut.isPending || turnBusy) {
+      return;
+    }
+    buyMut.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: 'error',
+          title: 'Buy failed',
+          message: err.message || 'Could not buy',
+        });
+      },
+    });
+  }, [gameId, buyMut, turnBusy]);
+
   const nearby = walk.nearby;
   const nearbyCode = nearby ? shortTileName(nearby) : '';
   const boardPins = game ? motionPins : walk.pins;
   const isMyTurn = Boolean(
     game && localUserId && game.currentUserId === localUserId,
+  );
+  const buyOffer = game?.buyOffer ?? null;
+  const showBuyModal = Boolean(
+    buyOffer &&
+      isMyTurn &&
+      game?.status === 'active' &&
+      game.canBuy &&
+      !turnBusy,
+  );
+  const buyLoc = buyOffer
+    ? locations.find((l) => l.boardIndex === buyOffer.boardIndex) ?? null
+    : null;
+  const localCash =
+    game?.players.find((p) => p.userId === localUserId)?.cash ?? 0;
+  const canAffordBuy = Boolean(
+    buyOffer && localCash >= buyOffer.price,
   );
 
   return (
@@ -419,6 +499,16 @@ export default function BoardScreen() {
               die2={diceOverlay.die2}
               username={diceOverlay.username}
               isDoubles={diceOverlay.isDoubles}
+            />
+          ) : null}
+          {buyOffer ? (
+            <BuyPropertyOverlay
+              visible={showBuyModal}
+              offer={buyOffer}
+              location={buyLoc}
+              canAfford={canAffordBuy}
+              buyPending={buyMut.isPending}
+              onBuy={onBuy}
             />
           ) : null}
         </View>
