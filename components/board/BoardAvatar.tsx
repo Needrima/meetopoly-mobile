@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from "react-native";
 
-import { fonts } from '@/theme/fonts';
+import { fonts } from "@/theme/fonts";
 
 type BoardAvatarProps = {
   x: number;
@@ -14,7 +14,13 @@ type BoardAvatarProps = {
  * Phase 4.5 — walking avatar: colored pod + 2-letter callout.
  * (x, y) = board-local center of the pod.
  */
-export function BoardAvatar({ x, y, radius, initials, accent }: BoardAvatarProps) {
+export function BoardAvatar({
+  x,
+  y,
+  radius,
+  initials,
+  accent,
+}: BoardAvatarProps) {
   const podW = radius * 1.7;
   const podH = radius * 0.85;
   const face = radius * 1.55;
@@ -47,7 +53,12 @@ export function BoardAvatar({ x, y, radius, initials, accent }: BoardAvatarProps
           },
         ]}
       >
-        <Text style={[styles.initials, { color: ink, fontSize: Math.max(9, face * 0.38) }]}>
+        <Text
+          style={[
+            styles.initials,
+            { color: ink, fontSize: Math.max(9, face * 0.38) },
+          ]}
+        >
           {initials}
         </Text>
       </View>
@@ -68,28 +79,28 @@ export function BoardAvatar({ x, y, radius, initials, accent }: BoardAvatarProps
 }
 
 function inkForAccent(hex: string): string {
-  const h = hex.replace('#', '');
+  const h = hex.replace("#", "");
   if (h.length !== 6) {
-    return '#14201B';
+    return "#14201B";
   }
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
   const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luma > 0.62 ? '#14201B' : '#FFFFFF';
+  return luma > 0.62 ? "#14201B" : "#FFFFFF";
 }
 
 const styles = StyleSheet.create({
   root: {
-    position: 'absolute',
+    position: "absolute",
     zIndex: 20,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    alignItems: "center",
+    justifyContent: "flex-end",
   },
   face: {
     borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   initials: {
     fontFamily: fonts.bodySemiBold,
