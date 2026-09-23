@@ -193,7 +193,10 @@ export function useGamePinMotion(opts: {
     }
 
     // Same roll (WS echo) — do not interrupt an in-flight hop or pending park.
-    if (key === seenRollRef.current || key === pendingRef.current?.key) {
+    if (
+      key != null &&
+      (key === seenRollRef.current || key === pendingRef.current?.key)
+    ) {
       if (
         pendingRef.current &&
         key === pendingRef.current.key &&
@@ -207,15 +210,18 @@ export function useGamePinMotion(opts: {
       return;
     }
 
-    // New roll.
-    const pending = buildPending(roll, game.players);
-    if (holdWalk) {
-      pendingRef.current = pending;
-      setDisplayPlayers(pending.startPlayers);
+    // New roll — always park; never startWalk here (holdWalk may still be false
+    // on the first frame before dice motion claims the hold).
+    if (!roll || !key) {
       return;
     }
-
-    startWalk(pending);
+    const pending = buildPending(roll, game.players);
+    pendingRef.current = pending;
+    setDisplayPlayers(pending.startPlayers);
+    if (!holdWalk) {
+      // Dice will flip hold on next commit; walk starts when hold clears.
+      return;
+    }
   }, [game, holdWalk]);
 
   if (!layout || !displayPlayers.length) {

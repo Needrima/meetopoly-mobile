@@ -38,7 +38,7 @@ export function useDiceRollMotion(game: Game | null): {
 } {
   const [overlay, setOverlay] = useState<DiceOverlayState | null>(null);
   const [rolling, setRolling] = useState(false);
-  const [holdPinWalk, setHoldPinWalk] = useState(false);
+  const [holding, setHolding] = useState(false);
   const seenRef = useRef<string | null>(null);
   const firstSyncRef = useRef(true);
   const timersRef = useRef<DiceTimers | null>(null);
@@ -67,7 +67,7 @@ export function useDiceRollMotion(game: Game | null): {
       clearTimers();
       setOverlay(null);
       setRolling(false);
-      setHoldPinWalk(false);
+      setHolding(false);
       return;
     }
 
@@ -103,19 +103,18 @@ export function useDiceRollMotion(game: Game | null): {
       isDoubles: roll.isDoubles,
     });
     setRolling(true);
-    setHoldPinWalk(true);
+    setHolding(true);
 
     const settle = setTimeout(() => {
       setRolling(false);
     }, DICE_TUMBLE_MS);
 
-    // Keep final faces visible, then close overlay, then release pin walk.
     const hide = setTimeout(() => {
       setOverlay((prev) => (prev?.key === key ? null : prev));
     }, DICE_TUMBLE_MS + DICE_HOLD_MS);
 
     const release = setTimeout(() => {
-      setHoldPinWalk(false);
+      setHolding(false);
       if (timersRef.current?.key === key) {
         timersRef.current = null;
       }
@@ -124,7 +123,19 @@ export function useDiceRollMotion(game: Game | null): {
     timersRef.current = { key, settle, release, hide };
   }, [game]);
 
-  return { rolling, holdPinWalk, overlay };
+  // First render with a new roll still has holding=false; treat as hold so pin cannot walk yet.
+  const roll = game?.lastRoll ?? null;
+  const liveKey = roll ? gameRollKey(roll) : null;
+  const awaitingFirstHoldFrame =
+    !firstSyncRef.current &&
+    liveKey != null &&
+    liveKey !== seenRef.current;
+
+  return {
+    rolling,
+    holdPinWalk: holding || awaitingFirstHoldFrame,
+    overlay,
+  };
 }
 
 /** @deprecated use DICE_TUMBLE_MS */
