@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.13.0
+ * OpenAPI spec version: 0.14.0
  */
 
 export interface TableSeat {
@@ -18,6 +18,12 @@ export interface TableSeat {
   userId?: string | null;
   /** @nullable */
   username?: string | null;
+  /**
+   * Unique seat accent assigned on lobby join (`#RRGGBB`)
+   * @nullable
+   * @pattern ^#[0-9A-Fa-f]{6}$
+   */
+  pinColor?: string | null;
   ready: boolean;
   holding: boolean;
   /** @nullable */

@@ -167,6 +167,7 @@ export default function LobbyScreen() {
               key={seat.seatIndex}
               seatNumber={seat.seatIndex + 1}
               displayName={seat.displayName}
+              pinColor={seat.pinColor}
               isYou={seat.isLocal}
               ready={seat.ready}
               holding={seat.holding}

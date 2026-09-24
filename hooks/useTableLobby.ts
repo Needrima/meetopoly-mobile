@@ -17,6 +17,8 @@ export type LobbySeat = {
   seatIndex: number;
   playerId: string | null;
   displayName: string | null;
+  /** Unique seat accent from lobby join. */
+  pinColor: string | null;
   ready: boolean;
   isBot: boolean;
   isLocal: boolean;
@@ -36,6 +38,7 @@ function seatFromApi(s: TableSeat, localPlayerId: string): LobbySeat {
     seatIndex: s.seatIndex,
     playerId: s.userId ?? null,
     displayName: s.username ?? null,
+    pinColor: s.pinColor ?? null,
     ready: s.ready,
     isBot: false,
     isLocal: Boolean(s.userId && s.userId === localPlayerId),
@@ -50,6 +53,7 @@ function seatsFromTable(table: Table | null, localPlayerId: string): LobbySeat[]
       seatIndex: i,
       playerId: null,
       displayName: null,
+      pinColor: null,
       ready: false,
       isBot: false,
       isLocal: false,

@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.13.0
+ * OpenAPI spec version: 0.14.0
  */
 import type {
   AuthSessionResponse,
@@ -630,6 +630,7 @@ export const buyProperty = async (gameId: string, options?: RequestInit): Promis
 /**
  * Updates the caller's `pinColor` so board pins, HUD dots, and ownership chips
 match their local avatar / joystick accent. Idempotent when unchanged.
+Rejects colors already taken by another player in the same game.
 
  * @summary Sync pin color to avatar accent
  */

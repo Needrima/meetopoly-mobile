@@ -9,6 +9,8 @@ export type SeatSlotProps = {
   seatNumber: number;
   /** Display name when occupied; omitted = empty. */
   displayName?: string | null;
+  /** Unique seat accent from lobby. */
+  pinColor?: string | null;
   /** Highlight the local player's seat. */
   isYou?: boolean;
   ready?: boolean;
@@ -22,6 +24,7 @@ export type SeatSlotProps = {
 export function SeatSlot({
   seatNumber,
   displayName,
+  pinColor,
   isYou = false,
   ready = false,
   holding = false,
@@ -52,7 +55,12 @@ export function SeatSlot({
         holding ? styles.slotHolding : null,
       ]}
     >
-      <Text style={[styles.seatNum, numColor]}>Seat {seatNumber}</Text>
+      <View style={styles.nameRow}>
+        {occupied && pinColor ? (
+          <View style={[styles.pinDot, { backgroundColor: pinColor }]} />
+        ) : null}
+        <Text style={[styles.seatNum, numColor]}>Seat {seatNumber}</Text>
+      </View>
       <Text style={[styles.name, nameColor]} numberOfLines={1}>
         {occupied ? label : 'Open'}
       </Text>
@@ -101,6 +109,16 @@ const styles = StyleSheet.create({
     borderColor: colors.warn,
     borderWidth: 2,
     opacity: 0.92,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pinDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   seatNum: {
     fontFamily: fonts.body,

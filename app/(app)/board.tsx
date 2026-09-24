@@ -33,7 +33,6 @@ import {
   useEndTurn,
   useResignGame,
   useRollDice,
-  useSetPinColor,
 } from '@/hooks/useGame';
 import { useGamePinMotion } from '@/hooks/useGamePinMotion';
 import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
@@ -74,7 +73,6 @@ export default function BoardScreen() {
   const endTurnMut = useEndTurn(gameId);
   const buyMut = useBuyProperty(gameId);
   const resignMut = useResignGame(gameId);
-  const setPinColorMut = useSetPinColor(gameId);
   const game = gameQuery.data ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -91,7 +89,42 @@ export default function BoardScreen() {
   const paymentSigRef = useRef<string | null>(null);
 
   const username = me.data?.username ?? user?.username ?? null;
-  const localUserId = me.data?.id ?? user?.id ?? null;
+  const sessionUserId = me.data?.id ?? user?.id ?? null;
+  const localUserId = useMemo(() => {
+    if (sessionUserId) {
+      return sessionUserId;
+    }
+    if (!game || !username) {
+      return null;
+    }
+    const key = formatUsername(username).toLowerCase();
+    return (
+      game.players.find(
+        (p) => formatUsername(p.username).toLowerCase() === key,
+      )?.userId ?? null
+    );
+  }, [sessionUserId, game, username]);
+
+  const localGamePinColor = useMemo(() => {
+    if (!game) {
+      return null;
+    }
+    const byId = localUserId
+      ? game.players.find((p) => p.userId === localUserId)
+      : null;
+    if (byId?.pinColor) {
+      return byId.pinColor;
+    }
+    if (!username) {
+      return null;
+    }
+    const key = formatUsername(username).toLowerCase();
+    return (
+      game.players.find(
+        (p) => formatUsername(p.username).toLowerCase() === key,
+      )?.pinColor ?? null
+    );
+  }, [game, localUserId, username]);
 
   useBlockHardwareBack(true);
 
@@ -174,6 +207,9 @@ export default function BoardScreen() {
     onAccentReady,
   });
 
+  /** Lobby/game seat color wins over random walk accent. */
+  const displayAccent = localGamePinColor ?? walk.accent;
+
   const pinRadius = layout
     ? Math.max(6, Math.round(layout.size * 0.018))
     : 8;
@@ -185,7 +221,7 @@ export default function BoardScreen() {
     localUserId,
     pinRadius,
     holdWalk: holdPinWalk,
-    localAccent: walk.accent,
+    localAccent: displayAccent,
   });
   const turnBusy = holdPinWalk || pinAnimating;
 
@@ -358,34 +394,6 @@ export default function BoardScreen() {
     }
   }, [game, localUserId, turnBusy]);
 
-  // Sync avatar/joystick accent → server pinColor (HUD + chips for everyone).
-  const lastPinSyncRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!game || !localUserId || !walk.accent) {
-      return;
-    }
-    const me = game.players.find((p) => p.userId === localUserId);
-    if (!me) {
-      return;
-    }
-    const accent = walk.accent.toLowerCase();
-    if (me.pinColor.toLowerCase() === accent) {
-      lastPinSyncRef.current = accent;
-      return;
-    }
-    if (lastPinSyncRef.current === accent || setPinColorMut.isPending) {
-      return;
-    }
-    lastPinSyncRef.current = accent;
-    setPinColorMut.mutate(walk.accent, {
-      onError: () => {
-        if (lastPinSyncRef.current === accent) {
-          lastPinSyncRef.current = null;
-        }
-      },
-    });
-  }, [game, localUserId, walk.accent, setPinColorMut]);
-
   useEffect(() => {
     if (!walk.nearby) {
       setDetailsOpen(false);
@@ -407,7 +415,7 @@ export default function BoardScreen() {
           y: pose.y / layout.size,
         },
         hasPose: true,
-        accent: walk.accent,
+        accent: displayAccent,
         accentKey: walk.accentKey,
         initials: walk.initials,
       });
@@ -420,7 +428,7 @@ export default function BoardScreen() {
         },
       });
     },
-    [layout, saveSnapshot, walk, worldId, gameId],
+    [layout, saveSnapshot, walk, worldId, gameId, displayAccent],
   );
 
   const leaveBoard = useCallback(() => {
@@ -553,7 +561,7 @@ export default function BoardScreen() {
       game.players.map((p) => {
         const isLocal = Boolean(localUserId && p.userId === localUserId);
         const color =
-          isLocal && walk.accent ? walk.accent : p.pinColor;
+          isLocal && displayAccent ? displayAccent : p.pinColor;
         return [p.userId, color] as const;
       }),
     );
@@ -564,7 +572,7 @@ export default function BoardScreen() {
       }
     }
     return map;
-  }, [game, localUserId, walk.accent]);
+  }, [game, localUserId, displayAccent]);
 
   const inspectLoc =
     inspectIndex != null
@@ -587,11 +595,11 @@ export default function BoardScreen() {
         deed.ownerUsername || player?.username || 'Player',
       ),
       pinColor:
-        isLocalOwner && walk.accent
-          ? walk.accent
+        isLocalOwner && displayAccent
+          ? displayAccent
           : player?.pinColor ?? colors.muted,
     };
-  }, [game, inspectIndex, localUserId, walk.accent]);
+  }, [game, inspectIndex, localUserId, displayAccent]);
 
   const onTilePress = useCallback(
     (boardIndex: number) => {
@@ -661,7 +669,7 @@ export default function BoardScreen() {
                 poseY: walk.poseY,
                 radius: walk.avatarRadius,
                 initials: walk.initials,
-                accent: walk.accent,
+                accent: displayAccent,
               }}
               pins={boardPins}
             />
@@ -697,7 +705,7 @@ export default function BoardScreen() {
         <View style={[styles.panelRail, { height: boardSide }]}>
           <BoardPanel
             onStick={walk.setStick}
-            accent={walk.accent}
+            accent={displayAccent}
             initials={walk.initials}
             nearby={walk.nearby}
             onEnter={persistAndEnter}
@@ -705,6 +713,7 @@ export default function BoardScreen() {
             onMenuPress={() => setMenuOpen(true)}
             game={game}
             localUserId={localUserId}
+            localUsername={username}
             onRoll={game ? onRoll : undefined}
             rollDisabled={!isMyTurn || !game?.canRoll || turnBusy}
             rollPending={rollDice.isPending}

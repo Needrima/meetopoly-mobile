@@ -30,6 +30,7 @@ export type LobbySeat = {
   seatIndex: number;
   playerId: string | null;
   displayName: string | null;
+  pinColor: string | null;
   ready: boolean;
   isBot: boolean;
   isLocal: boolean;
@@ -50,6 +51,7 @@ function emptySeat(seatIndex: number): LobbySeat {
     seatIndex,
     playerId: null,
     displayName: null,
+    pinColor: null,
     ready: false,
     isBot: false,
     isLocal: false,

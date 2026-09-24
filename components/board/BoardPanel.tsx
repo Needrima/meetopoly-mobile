@@ -24,6 +24,8 @@ type BoardPanelProps = {
   /** Phase 6.0+ authoritative game snapshot. */
   game?: Game | null;
   localUserId?: string | null;
+  /** Local username — belt-and-suspenders HUD filter when ids diverge. */
+  localUsername?: string | null;
   /** Phase 6.1 — roll when it is your turn. */
   onRoll?: () => void;
   rollDisabled?: boolean;
@@ -47,6 +49,7 @@ export function BoardPanel({
   onMenuPress,
   game = null,
   localUserId = null,
+  localUsername = null,
   onRoll,
   rollDisabled = false,
   rollPending = false,
@@ -60,14 +63,39 @@ export function BoardPanel({
     nearby?.description?.trim() ||
     (nearby ? `${nearby.kind} on the board.` : '');
 
-  const localPlayer = game?.players.find((p) => p.userId === localUserId);
+  const localNameKey = formatUsername(localUsername).toLowerCase();
+  const localPlayer =
+    game?.players.find((p) => localUserId && p.userId === localUserId) ??
+    game?.players.find(
+      (p) =>
+        localNameKey.length > 0 &&
+        formatUsername(p.username).toLowerCase() === localNameKey,
+    );
   const turnName = game?.currentUsername || '—';
   const isMyTurn = Boolean(
-    game && localUserId && game.currentUserId === localUserId,
+    game && localPlayer && game.currentUserId === localPlayer.userId,
   );
   const canRoll = Boolean(isMyTurn && game?.canRoll);
   const canEnd = Boolean(isMyTurn && game?.canEndTurn);
   const bankLabels = usePlayerTimeBanks(game);
+  const localBank = localPlayer ? bankLabels[localPlayer.userId] ?? '' : '';
+  const localPin = accent ?? localPlayer?.pinColor ?? colors.accent;
+
+  const otherPlayers = (game?.players ?? []).filter((p) => {
+    if (localPlayer && p.userId === localPlayer.userId) {
+      return false;
+    }
+    if (localUserId && p.userId === localUserId) {
+      return false;
+    }
+    if (
+      localNameKey &&
+      formatUsername(p.username).toLowerCase() === localNameKey
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <View style={styles.root}>
@@ -101,14 +129,28 @@ export function BoardPanel({
           </Text>
           {localPlayer ? (
             <View style={styles.cashRow}>
-              <Text style={styles.cashLabel}>You</Text>
+              <View
+                style={[styles.pinDot, { backgroundColor: localPin }]}
+              />
+              <Text style={styles.cashLabel}>
+                You{isMyTurn ? ' · turn' : ''}
+              </Text>
+              {localBank ? (
+                <Text
+                  style={[
+                    styles.bankLabel,
+                    isMyTurn ? styles.bankLabelActive : styles.bankLabelPaused,
+                    localBank === '0:00' ? styles.bankLabelExpired : null,
+                  ]}
+                >
+                  {localBank}
+                </Text>
+              ) : null}
               <AnimatedMeetCoinAmount amount={localPlayer.cash} size={15} />
             </View>
           ) : null}
           <View style={styles.balances}>
-            {game.players
-              .filter((p) => !(localUserId && p.userId === localUserId))
-              .map((p) => {
+            {otherPlayers.map((p) => {
               const bank = bankLabels[p.userId] ?? '';
               const isCurrent = p.userId === game.currentUserId && !p.resigned;
               const pinHex = p.pinColor;
@@ -240,13 +282,13 @@ export function BoardPanel({
               <View
                 style={[
                   styles.swatch,
-                  { backgroundColor: accent ?? colors.accent },
+                  { backgroundColor: localPin },
                 ]}
               >
                 <Text
                   style={[
                     styles.swatchText,
-                    { color: inkForHex(accent ?? colors.accent) },
+                    { color: inkForHex(localPin) },
                   ]}
                 >
                   {initials}
@@ -255,7 +297,7 @@ export function BoardPanel({
             </View>
           ) : null}
         </View>
-        <Joystick onStick={onStick} size={96} accent={accent} />
+        <Joystick onStick={onStick} size={96} accent={localPin} />
       </View>
     </View>
   );
@@ -323,12 +365,13 @@ const styles = StyleSheet.create({
   cashRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 6,
   },
   cashLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
+    flex: 1,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 13,
+    color: colors.ink,
   },
   balances: {
     gap: 4,
