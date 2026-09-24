@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { formatUsername } from '@/lib/formatUsername';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -26,7 +27,8 @@ export function SeatSlot({
   holding = false,
   holdRemainingSec = 0,
 }: SeatSlotProps) {
-  const occupied = Boolean(displayName);
+  const label = formatUsername(displayName);
+  const occupied = Boolean(label);
   const numColor = occupied ? styles.seatNumFilled : styles.seatNumEmpty;
   const nameColor = occupied ? styles.nameFilled : styles.nameEmpty;
 
@@ -34,7 +36,7 @@ export function SeatSlot({
     <View
       accessibilityLabel={
         occupied
-          ? `Seat ${seatNumber}, ${displayName}${isYou ? ', you' : ''}${
+          ? `Seat ${seatNumber}, ${label}${isYou ? ', you' : ''}${
               holding
                 ? `, reconnecting ${holdRemainingSec}s`
                 : ready
@@ -52,7 +54,7 @@ export function SeatSlot({
     >
       <Text style={[styles.seatNum, numColor]}>Seat {seatNumber}</Text>
       <Text style={[styles.name, nameColor]} numberOfLines={1}>
-        {occupied ? displayName : 'Open'}
+        {occupied ? label : 'Open'}
       </Text>
       {isYou && !holding ? <Text style={styles.you}>You</Text> : null}
       {holding ? (

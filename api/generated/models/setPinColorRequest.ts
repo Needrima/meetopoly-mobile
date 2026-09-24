@@ -8,11 +8,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.13.0
  */
 
-export type GameStatus = typeof GameStatus[keyof typeof GameStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const GameStatus = {
-  active: 'active',
-  finished: 'finished',
-} as const;
+export interface SetPinColorRequest {
+  /**
+   * Hex accent `#RRGGBB` matching the player's avatar/joystick color
+   * @pattern ^#[0-9A-Fa-f]{6}$
+   */
+  pinColor: string;
+}

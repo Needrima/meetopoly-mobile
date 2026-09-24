@@ -25,24 +25,35 @@ type WalkTimers = {
   timeout: ReturnType<typeof setTimeout> | null;
 };
 
-function asPins(players: GamePlayer[]): GamePinPlayer[] {
+function asPins(
+  players: GamePlayer[],
+  localUserId: string | null,
+  localAccent: string | null,
+): GamePinPlayer[] {
   return players.map((p) => ({
     userId: p.userId,
     boardIndex: p.boardIndex,
-    pinColor: p.pinColor,
+    pinColor:
+      localUserId && p.userId === localUserId && localAccent
+        ? localAccent
+        : p.pinColor,
   }));
 }
 
-function buildPending(roll: GameLastRoll, players: GamePlayer[]): PendingWalk {
+function buildPending(
+  roll: GameLastRoll,
+  players: GamePlayer[],
+  localUserId: string | null,
+  localAccent: string | null,
+): PendingWalk {
   const moverId = roll.userId;
+  const colored = asPins(players, localUserId, localAccent);
   return {
     key: gameRollKey(roll),
     roll,
-    finalPlayers: asPins(players),
-    startPlayers: players.map((p) =>
-      p.userId === moverId
-        ? { userId: p.userId, boardIndex: roll.fromIndex, pinColor: p.pinColor }
-        : { userId: p.userId, boardIndex: p.boardIndex, pinColor: p.pinColor },
+    finalPlayers: colored,
+    startPlayers: colored.map((p) =>
+      p.userId === moverId ? { ...p, boardIndex: roll.fromIndex } : p,
     ),
   };
 }
@@ -58,8 +69,18 @@ export function useGamePinMotion(opts: {
   pinRadius: number;
   /** Phase 6.2b — wait for dice before tile-walk. */
   holdWalk?: boolean;
+  /** Prefer local avatar accent for the local player's pin. */
+  localAccent?: string | null;
 }): { pins: BoardPinModel[]; animating: boolean } {
-  const { layout, game, localUserId, pinRadius, holdWalk = false } = opts;
+  const {
+    layout,
+    game,
+    localUserId,
+    pinRadius,
+    holdWalk = false,
+    localAccent = null,
+  } = opts;
+
   const [displayPlayers, setDisplayPlayers] = useState<GamePinPlayer[]>([]);
   const [animating, setAnimating] = useState(false);
   const seenRollRef = useRef<string | null>(null);
@@ -167,7 +188,7 @@ export function useGamePinMotion(opts: {
         seenRollRef.current = null;
       }
       if (!animatingRef.current) {
-        setDisplayPlayers(asPins(game.players));
+        setDisplayPlayers(asPins(game.players, localUserId, localAccent));
       }
       return;
     }
@@ -175,18 +196,18 @@ export function useGamePinMotion(opts: {
     if (firstSyncRef.current) {
       firstSyncRef.current = false;
       seenRollRef.current = key;
-      setDisplayPlayers(asPins(game.players));
+      setDisplayPlayers(asPins(game.players, localUserId, localAccent));
       setAnimating(false);
       animatingRef.current = false;
       return;
     }
 
     // Hold cleared — start a deferred walk.
+    // animating may already be true from the park (buy-modal flash guard).
     if (
       !holdWalk &&
       pendingRef.current &&
-      pendingRef.current.key !== seenRollRef.current &&
-      !animatingRef.current
+      pendingRef.current.key !== seenRollRef.current
     ) {
       startWalk(pendingRef.current);
       return;
@@ -205,7 +226,7 @@ export function useGamePinMotion(opts: {
         return;
       }
       if (!animatingRef.current && !pendingRef.current) {
-        setDisplayPlayers(asPins(game.players));
+        setDisplayPlayers(asPins(game.players, localUserId, localAccent));
       }
       return;
     }
@@ -215,14 +236,28 @@ export function useGamePinMotion(opts: {
     if (!roll || !key) {
       return;
     }
-    const pending = buildPending(roll, game.players);
+    const pending = buildPending(roll, game.players, localUserId, localAccent);
     pendingRef.current = pending;
     setDisplayPlayers(pending.startPlayers);
+
+    const delta =
+      (roll.toIndex - roll.fromIndex + BOARD_SPACES) % BOARD_SPACES;
+    const steps =
+      roll.thirdDoubles || delta === 0
+        ? 0
+        : Math.max(1, Math.min(BOARD_SPACES - 1, delta));
+    // Busy from roll arrival until walk finishes — closes buy-modal flash gap
+    // between dice hold release and startWalk.
+    if (steps > 0) {
+      setAnimating(true);
+      animatingRef.current = true;
+    }
+
     if (!holdWalk) {
       // Dice will flip hold on next commit; walk starts when hold clears.
       return;
     }
-  }, [game, holdWalk]);
+  }, [game, holdWalk, localUserId, localAccent]);
 
   if (!layout || !displayPlayers.length) {
     return { pins: [], animating };

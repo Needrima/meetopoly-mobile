@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/Button';
 import { useLogout } from '@/hooks/useAuth';
 import { useSession } from '@/hooks/useSession';
+import { formatUsername } from '@/lib/formatUsername';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -15,7 +16,7 @@ import { fonts } from '@/theme/fonts';
 export default function HomeMenuScreen() {
   const { user } = useSession();
   const logout = useLogout();
-  const who = user?.username ?? user?.email ?? '…';
+  const who = formatUsername(user?.username) || user?.email || '…';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>

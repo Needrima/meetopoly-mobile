@@ -33,11 +33,14 @@ import {
   useEndTurn,
   useResignGame,
   useRollDice,
+  useSetPinColor,
 } from '@/hooks/useGame';
 import { useGamePinMotion } from '@/hooks/useGamePinMotion';
 import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
 import { notify } from '@/lib/notify';
+import { formatUsername } from '@/lib/formatUsername';
+import { buyToastTitle, countOwnedOfKind } from '@/lib/buyToast';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -71,6 +74,7 @@ export default function BoardScreen() {
   const endTurnMut = useEndTurn(gameId);
   const buyMut = useBuyProperty(gameId);
   const resignMut = useResignGame(gameId);
+  const setPinColorMut = useSetPinColor(gameId);
   const game = gameQuery.data ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -118,170 +122,13 @@ export default function BoardScreen() {
     notify({
       type: 'success',
       title: 'Game started',
-      message: `${game.players.length} players · ${game.currentUsername}'s turn`,
+      message: `${game.players.length} players · ${formatUsername(game.currentUsername)}'s turn`,
     });
   }, [game]);
-
-  useEffect(() => {
-    if (!passGoReadyRef.current) {
-      return;
-    }
-    const roll = game?.lastRoll;
-    if (!roll?.passedGo || roll.passGoAmount <= 0) {
-      return;
-    }
-    const key = `${roll.userId}:${roll.fromIndex}:${roll.toIndex}:${roll.total}`;
-    if (passGoToastRef.current === key) {
-      return;
-    }
-    passGoToastRef.current = key;
-    notify({
-      type: 'success',
-      title: 'Passed GO',
-      message: `${roll.username} +${roll.passGoAmount} MeetCoin`,
-    });
-  }, [game?.lastRoll]);
-
-  // Phase 6.2c — resign + finished via game WS.
-  useEffect(() => {
-    if (!game || !localUserId) {
-      return;
-    }
-    const resignedSig = game.players
-      .filter((p) => p.resigned)
-      .map((p) => p.userId)
-      .sort()
-      .join(',');
-    if (resignedSig && resignedSig !== resignToastRef.current) {
-      const prev = new Set(
-        resignToastRef.current ? resignToastRef.current.split(',') : [],
-      );
-      const newlyOut = game.players.filter(
-        (p) => p.resigned && !prev.has(p.userId),
-      );
-      resignToastRef.current = resignedSig;
-      for (const p of newlyOut) {
-        if (p.userId === localUserId || localLeavingRef.current) {
-          continue;
-        }
-        notify({
-          type: 'info',
-          title: 'Player left',
-          message: `${p.username} resigned`,
-        });
-      }
-    }
-    if (game.status === 'finished' && !finishedHandledRef.current) {
-      finishedHandledRef.current = true;
-      setLeaveConfirmOpen(false);
-      setWinnerOpen(true);
-      const iWon = game.winnerUserId === localUserId;
-      notify({
-        type: 'success',
-        title: iWon ? 'You win' : 'Game over',
-        message: iWon
-          ? 'Last player standing'
-          : `${game.winnerUsername ?? 'Someone'} wins`,
-      });
-    }
-  }, [game, localUserId]);
 
   const availableW = winW - insets.left - insets.right;
   const boardSide = Math.max(0, Math.min(winH, availableW - PANEL_MIN));
   const locations = data?.locations ?? [];
-
-  // Phase 6.4 — toast everyone when a deed is added (WS).
-  useEffect(() => {
-    if (!game || !startedToastRef.current) {
-      return;
-    }
-    const deeds = game.deeds ?? [];
-    const sig = deeds
-      .map((d) => `${d.boardIndex}:${d.ownerUserId}`)
-      .sort()
-      .join('|');
-    if (deedsSigRef.current === null) {
-      deedsSigRef.current = sig;
-      return;
-    }
-    if (sig === deedsSigRef.current) {
-      return;
-    }
-    const prev = new Set(
-      deedsSigRef.current
-        ? deedsSigRef.current.split('|').filter(Boolean)
-        : [],
-    );
-    deedsSigRef.current = sig;
-    for (const d of deeds) {
-      const key = `${d.boardIndex}:${d.ownerUserId}`;
-      if (prev.has(key)) {
-        continue;
-      }
-      const loc = locations.find((l) => l.boardIndex === d.boardIndex);
-      const place = loc?.name ?? `space ${d.boardIndex}`;
-      const iBought = Boolean(localUserId && d.ownerUserId === localUserId);
-      notify({
-        type: 'success',
-        title: iBought ? 'You bought land' : 'Land bought',
-        message: iBought ? place : `${d.ownerUsername} bought ${place}`,
-      });
-    }
-  }, [game, localUserId, locations]);
-
-  // Phase 6.5 — toast everyone when rent/tax is auto-collected.
-  useEffect(() => {
-    if (!game || !startedToastRef.current) {
-      return;
-    }
-    const p = game.lastPayment;
-    if (!p) {
-      return;
-    }
-    const sig = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ''}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
-    if (paymentSigRef.current === null) {
-      paymentSigRef.current = sig;
-      return;
-    }
-    if (sig === paymentSigRef.current) {
-      return;
-    }
-    paymentSigRef.current = sig;
-    const place = p.spaceName || `space ${p.boardIndex}`;
-    const iPaid = Boolean(localUserId && p.fromUserId === localUserId);
-    const received = Boolean(localUserId && p.toUserId === localUserId);
-    if (p.kind === 'tax') {
-      notify({
-        type: iPaid && !p.paidInFull ? 'error' : 'info',
-        title: iPaid ? 'Tax paid' : 'Tax collected',
-        message: iPaid
-          ? `−${p.amount} MeetCoin · ${place}`
-          : `${p.fromUsername} paid ${p.amount} tax at ${place}`,
-      });
-    } else {
-      notify({
-        type: iPaid && !p.paidInFull ? 'error' : 'success',
-        title: iPaid
-          ? 'Rent paid'
-          : received
-            ? 'Rent collected'
-            : 'Rent paid',
-        message: iPaid
-          ? `−${p.amount} to ${p.toUsername || 'owner'} · ${place}`
-          : received
-            ? `+${p.amount} from ${p.fromUsername} · ${place}`
-            : `${p.fromUsername} → ${p.toUsername || 'owner'} · ${p.amount} · ${place}`,
-      });
-    }
-    if (iPaid && !p.paidInFull) {
-      notify({
-        type: 'error',
-        title: 'Cannot afford full amount',
-        message:
-          'End and Roll are blocked. Resign to leave (bankruptcy rules come later).',
-      });
-    }
-  }, [game, localUserId]);
 
   const layout = useMemo(
     () =>
@@ -338,8 +185,206 @@ export default function BoardScreen() {
     localUserId,
     pinRadius,
     holdWalk: holdPinWalk,
+    localAccent: walk.accent,
   });
   const turnBusy = holdPinWalk || pinAnimating;
+
+  // Pass-GO toast after pin finishes walking (not when WS arrives).
+  useEffect(() => {
+    if (!passGoReadyRef.current || turnBusy) {
+      return;
+    }
+    const roll = game?.lastRoll;
+    if (!roll?.passedGo || roll.passGoAmount <= 0) {
+      return;
+    }
+    const key = `${roll.userId}:${roll.fromIndex}:${roll.toIndex}:${roll.total}`;
+    if (passGoToastRef.current === key) {
+      return;
+    }
+    passGoToastRef.current = key;
+    notify({
+      type: 'success',
+      title: 'Passed GO',
+      message: `${formatUsername(roll.username)} +${roll.passGoAmount} MeetCoin`,
+    });
+  }, [game?.lastRoll, turnBusy]);
+
+  // Phase 6.2c — resign + finished via game WS.
+  useEffect(() => {
+    if (!game || !localUserId) {
+      return;
+    }
+    const resignedSig = game.players
+      .filter((p) => p.resigned)
+      .map((p) => p.userId)
+      .sort()
+      .join(',');
+    if (resignedSig && resignedSig !== resignToastRef.current) {
+      const prev = new Set(
+        resignToastRef.current ? resignToastRef.current.split(',') : [],
+      );
+      const newlyOut = game.players.filter(
+        (p) => p.resigned && !prev.has(p.userId),
+      );
+      resignToastRef.current = resignedSig;
+      for (const p of newlyOut) {
+        if (p.userId === localUserId || localLeavingRef.current) {
+          continue;
+        }
+        notify({
+          type: 'info',
+          title: 'Player left',
+          message: `${formatUsername(p.username)} resigned`,
+        });
+      }
+    }
+    if (game.status === 'finished' && !finishedHandledRef.current) {
+      finishedHandledRef.current = true;
+      setLeaveConfirmOpen(false);
+      setWinnerOpen(true);
+      const iWon = game.winnerUserId === localUserId;
+      notify({
+        type: 'success',
+        title: iWon ? 'You win' : 'Game over',
+        message: iWon
+          ? 'Last player standing'
+          : `${formatUsername(game.winnerUsername) || 'Someone'} wins`,
+      });
+    }
+  }, [game, localUserId]);
+
+  // Phase 6.4 — toast everyone when a deed is added (WS).
+  useEffect(() => {
+    if (!game || !startedToastRef.current) {
+      return;
+    }
+    const deeds = game.deeds ?? [];
+    const sig = deeds
+      .map((d) => `${d.boardIndex}:${d.ownerUserId}`)
+      .sort()
+      .join('|');
+    if (deedsSigRef.current === null) {
+      deedsSigRef.current = sig;
+      return;
+    }
+    if (sig === deedsSigRef.current) {
+      return;
+    }
+    const prev = new Set(
+      deedsSigRef.current
+        ? deedsSigRef.current.split('|').filter(Boolean)
+        : [],
+    );
+    deedsSigRef.current = sig;
+    for (const d of deeds) {
+      const key = `${d.boardIndex}:${d.ownerUserId}`;
+      if (prev.has(key)) {
+        continue;
+      }
+      const loc = locations.find((l) => l.boardIndex === d.boardIndex);
+      const place = loc?.name ?? `space ${d.boardIndex}`;
+      const iBought = Boolean(localUserId && d.ownerUserId === localUserId);
+      const ownedOfKind = countOwnedOfKind(
+        deeds,
+        locations,
+        d.ownerUserId,
+        loc?.kind,
+      );
+      notify({
+        type: 'success',
+        title: buyToastTitle({
+          kind: loc?.kind,
+          iBought,
+          ownerUsername: d.ownerUsername,
+          ownedOfKind,
+        }),
+        message: place,
+      });
+    }
+  }, [game, localUserId, locations]);
+
+  // Phase 6.5 — rent/tax toast after pin settles.
+  useEffect(() => {
+    if (!game || !startedToastRef.current || turnBusy) {
+      return;
+    }
+    const p = game.lastPayment;
+    if (!p) {
+      return;
+    }
+    const sig = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ''}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
+    if (paymentSigRef.current === null) {
+      paymentSigRef.current = sig;
+      return;
+    }
+    if (sig === paymentSigRef.current) {
+      return;
+    }
+    paymentSigRef.current = sig;
+    const place = p.spaceName || `space ${p.boardIndex}`;
+    const iPaid = Boolean(localUserId && p.fromUserId === localUserId);
+    const received = Boolean(localUserId && p.toUserId === localUserId);
+    if (p.kind === 'tax') {
+      notify({
+        type: iPaid && !p.paidInFull ? 'error' : 'info',
+        title: iPaid ? 'Tax paid' : 'Tax collected',
+        message: iPaid
+          ? `−${p.amount} MeetCoin · ${place}`
+          : `${formatUsername(p.fromUsername)} paid ${p.amount} tax at ${place}`,
+      });
+    } else {
+      notify({
+        type: iPaid && !p.paidInFull ? 'error' : 'success',
+        title: iPaid
+          ? 'Rent paid'
+          : received
+            ? 'Rent collected'
+            : 'Rent paid',
+        message: iPaid
+          ? `−${p.amount} to ${formatUsername(p.toUsername) || 'owner'} · ${place}`
+          : received
+            ? `+${p.amount} from ${formatUsername(p.fromUsername)} · ${place}`
+            : `${formatUsername(p.fromUsername)} → ${formatUsername(p.toUsername) || 'owner'} · ${p.amount} · ${place}`,
+      });
+    }
+    if (iPaid && !p.paidInFull) {
+      notify({
+        type: 'error',
+        title: 'Cannot afford full amount',
+        message:
+          'End and Roll are blocked. Resign to leave (bankruptcy rules come later).',
+      });
+    }
+  }, [game, localUserId, turnBusy]);
+
+  // Sync avatar/joystick accent → server pinColor (HUD + chips for everyone).
+  const lastPinSyncRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!game || !localUserId || !walk.accent) {
+      return;
+    }
+    const me = game.players.find((p) => p.userId === localUserId);
+    if (!me) {
+      return;
+    }
+    const accent = walk.accent.toLowerCase();
+    if (me.pinColor.toLowerCase() === accent) {
+      lastPinSyncRef.current = accent;
+      return;
+    }
+    if (lastPinSyncRef.current === accent || setPinColorMut.isPending) {
+      return;
+    }
+    lastPinSyncRef.current = accent;
+    setPinColorMut.mutate(walk.accent, {
+      onError: () => {
+        if (lastPinSyncRef.current === accent) {
+          lastPinSyncRef.current = null;
+        }
+      },
+    });
+  }, [game, localUserId, walk.accent, setPinColorMut]);
 
   useEffect(() => {
     if (!walk.nearby) {
@@ -405,7 +450,7 @@ export default function BoardScreen() {
           notify({
             type: 'info',
             title: 'Game over',
-            message: `${next.winnerUsername ?? 'Someone'} wins`,
+            message: `${formatUsername(next.winnerUsername) || 'Someone'} wins`,
           });
           return;
         }
@@ -505,7 +550,12 @@ export default function BoardScreen() {
       return map;
     }
     const pinByUser = new Map(
-      game.players.map((p) => [p.userId, p.pinColor] as const),
+      game.players.map((p) => {
+        const isLocal = Boolean(localUserId && p.userId === localUserId);
+        const color =
+          isLocal && walk.accent ? walk.accent : p.pinColor;
+        return [p.userId, color] as const;
+      }),
     );
     for (const d of game.deeds ?? []) {
       const color = pinByUser.get(d.ownerUserId);
@@ -514,7 +564,7 @@ export default function BoardScreen() {
       }
     }
     return map;
-  }, [game]);
+  }, [game, localUserId, walk.accent]);
 
   const inspectLoc =
     inspectIndex != null
@@ -529,11 +579,19 @@ export default function BoardScreen() {
       return null;
     }
     const player = game.players.find((p) => p.userId === deed.ownerUserId);
+    const isLocalOwner = Boolean(
+      localUserId && deed.ownerUserId === localUserId,
+    );
     return {
-      username: deed.ownerUsername || player?.username || 'Player',
-      pinColor: player?.pinColor ?? colors.muted,
+      username: formatUsername(
+        deed.ownerUsername || player?.username || 'Player',
+      ),
+      pinColor:
+        isLocalOwner && walk.accent
+          ? walk.accent
+          : player?.pinColor ?? colors.muted,
     };
-  }, [game, inspectIndex]);
+  }, [game, inspectIndex, localUserId, walk.accent]);
 
   const onTilePress = useCallback(
     (boardIndex: number) => {
@@ -614,7 +672,7 @@ export default function BoardScreen() {
               rolling={diceRolling}
               die1={diceOverlay.die1}
               die2={diceOverlay.die2}
-              username={diceOverlay.username}
+              username={formatUsername(diceOverlay.username)}
               isDoubles={diceOverlay.isDoubles}
             />
           ) : null}
@@ -670,6 +728,7 @@ export default function BoardScreen() {
           undefined
         }
         attribution={nearby?.attribution?.trim() || undefined}
+        actionsLayout="row"
         primaryLabel="Enter"
         onPrimary={
           nearby
@@ -678,6 +737,7 @@ export default function BoardScreen() {
               }
             : undefined
         }
+        secondaryLabel="Close"
       />
 
       <InfoModal
@@ -705,13 +765,14 @@ export default function BoardScreen() {
         title={
           game?.winnerUserId === localUserId
             ? 'You win'
-            : `${game?.winnerUsername ?? 'Someone'} wins`
+            : `${formatUsername(game?.winnerUsername) || 'Someone'} wins`
         }
         body={
           game?.winnerUserId === localUserId
             ? 'You are the last player standing.'
             : 'The game has finished. Back to worlds when you are ready.'
         }
+        actionsLayout="row"
         primaryLabel="Back to worlds"
         onPrimary={dismissWinner}
         secondaryLabel="Close"

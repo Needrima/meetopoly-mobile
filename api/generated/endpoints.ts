@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.12.0
+ * OpenAPI spec version: 0.13.0
  */
 import type {
   AuthSessionResponse,
@@ -23,6 +23,7 @@ import type {
   PasswordResetStartResponse,
   PasswordResetVerifyRequest,
   PasswordResetVerifyResponse,
+  SetPinColorRequest,
   SetTableReadyRequest,
   SignupPasswordRequest,
   SignupProfileRequest,
@@ -621,6 +622,35 @@ export const buyProperty = async (gameId: string, options?: RequestInit): Promis
     method: 'POST'
     
     
+  }
+);}
+
+
+
+/**
+ * Updates the caller's `pinColor` so board pins, HUD dots, and ownership chips
+match their local avatar / joystick accent. Idempotent when unchanged.
+
+ * @summary Sync pin color to avatar accent
+ */
+export const getSetPinColorUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/pin-color`
+}
+
+export const setPinColor = async (gameId: string,
+    setPinColorRequest: SetPinColorRequest, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getSetPinColorUrl(gameId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setPinColorRequest,)
   }
 );}
 

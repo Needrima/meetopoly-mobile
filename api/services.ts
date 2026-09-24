@@ -16,4 +16,5 @@ export {
   getRollDiceUrl,
   resignGame,
   rollDice,
+  setPinColor,
 } from './generated/endpoints';

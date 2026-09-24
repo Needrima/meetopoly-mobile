@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.12.0
+ * OpenAPI spec version: 0.13.0
  */
 
 export * from './authSessionResponse';
@@ -45,6 +45,7 @@ export * from './passwordResetStartRequest';
 export * from './passwordResetStartResponse';
 export * from './passwordResetVerifyRequest';
 export * from './passwordResetVerifyResponse';
+export * from './setPinColorRequest';
 export * from './setTableReadyRequest';
 export * from './signupPasswordRequest';
 export * from './signupProfileRequest';

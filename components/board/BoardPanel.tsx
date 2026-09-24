@@ -5,9 +5,10 @@ import type { Game } from '@/api/types';
 import { Joystick } from '@/components/board/Joystick';
 import { shortTileName } from '@/components/board/tileLabel';
 import { Button } from '@/components/ui/Button';
-import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
+import { AnimatedMeetCoinAmount } from '@/components/ui/AnimatedMeetCoinAmount';
 import type { StickInput } from '@/hooks/useBoardWalk';
 import { usePlayerTimeBanks } from '@/hooks/useTurnCountdown';
+import { formatUsername } from '@/lib/formatUsername';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -92,40 +93,42 @@ export function BoardPanel({
           <Text style={styles.turnLine} numberOfLines={1}>
             {game.status === 'finished'
               ? game.winnerUsername
-                ? `${game.winnerUsername} wins`
+                ? `${formatUsername(game.winnerUsername)} wins`
                 : 'Game over'
               : isMyTurn
                 ? 'Your turn'
-                : `${turnName}'s turn`}
+                : `${formatUsername(turnName)}'s turn`}
           </Text>
           {localPlayer ? (
             <View style={styles.cashRow}>
               <Text style={styles.cashLabel}>You</Text>
-              <MeetCoinAmount amount={localPlayer.cash} size={15} />
+              <AnimatedMeetCoinAmount amount={localPlayer.cash} size={15} />
             </View>
           ) : null}
           <View style={styles.balances}>
-            {game.players.map((p) => {
+            {game.players
+              .filter((p) => !(localUserId && p.userId === localUserId))
+              .map((p) => {
               const bank = bankLabels[p.userId] ?? '';
               const isCurrent = p.userId === game.currentUserId && !p.resigned;
+              const pinHex = p.pinColor;
               return (
                 <View key={p.userId} style={styles.balanceRow}>
                   <View
                     style={[
                       styles.pinDot,
-                      { backgroundColor: p.pinColor },
+                      { backgroundColor: pinHex },
                       p.resigned ? styles.pinDotOut : null,
                     ]}
                   />
                   <Text
                     style={[
                       styles.balanceName,
-                      p.userId === localUserId ? styles.balanceNameYou : null,
                       p.resigned ? styles.balanceNameOut : null,
                     ]}
                     numberOfLines={1}
                   >
-                    {p.username}
+                    {formatUsername(p.username)}
                     {p.resigned
                       ? ' · out'
                       : isCurrent
@@ -143,7 +146,7 @@ export function BoardPanel({
                       {bank}
                     </Text>
                   ) : null}
-                  <MeetCoinAmount
+                  <AnimatedMeetCoinAmount
                     amount={p.cash}
                     size={13}
                     color={colors.muted}
@@ -365,10 +368,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.muted,
-  },
-  balanceNameYou: {
-    fontFamily: fonts.bodySemiBold,
-    color: colors.ink,
   },
   balanceNameOut: {
     textDecorationLine: 'line-through',

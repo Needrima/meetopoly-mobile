@@ -176,3 +176,21 @@ export function useBuyProperty(gameId: string | null | undefined) {
     onSuccess,
   });
 }
+
+/** POST /games/{id}/pin-color — sync pin to avatar accent. */
+export function useSetPinColor(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, string>({
+    mutationFn: (pinColor: string) => {
+      if (!id) {
+        return Promise.reject(new Error('Missing game id'));
+      }
+      return apiMutator<Game>(`/games/${encodeURIComponent(id)}/pin-color`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinColor }),
+      });
+    },
+    onSuccess,
+  });
+}

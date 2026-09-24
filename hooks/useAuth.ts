@@ -33,6 +33,7 @@ import type {
   UserProfile,
 } from "@/api/types";
 import { useSession } from "@/hooks/useSession";
+import { formatUsername } from "@/lib/formatUsername";
 
 function bearer(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
@@ -123,7 +124,7 @@ export function useSignupProfile() {
       }
       const res = await signupCompleteProfile(
         {
-          username: input.username.trim(),
+          username: formatUsername(input.username.trim()),
           country: input.country.trim().toUpperCase(),
         },
         { headers: bearer(token) },
