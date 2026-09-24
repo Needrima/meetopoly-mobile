@@ -164,6 +164,8 @@ export function useBoardPresence(gameId: string | null | undefined): {
   dcOpen: boolean;
   remotes: Record<string, PresencePose>;
   sendPose: (pose: PresencePoseInput) => void;
+  /** Drop a remote avatar (call when game marks them resigned — Phase 7.5). */
+  clearRemote: (userId: string) => void;
   /** Tear down presence WS + WebRTC immediately (leave board / resign). */
   disconnect: () => void;
 } {
@@ -494,19 +496,8 @@ export function useBoardPresence(gameId: string | null | undefined): {
           break;
         }
         case 'peer-left': {
-          const peer = msg as PeerLeftMessage;
-          clearRemote(peer.userId);
-          if (toastedLeftRef.current.has(peer.userId)) {
-            break;
-          }
-          toastedLeftRef.current.add(peer.userId);
-          const name = formatUsername(peer.username) || 'Player';
-          notify({
-            type: 'info',
-            title: `${name} left`,
-            message: 'Left board presence',
-            visibilityTime: 2800,
-          });
+          // Phase 7.5: keep last pose until game resign clears the remote (silent hold).
+          // Do not toast — resign toast comes from game WS state.
           break;
         }
         case 'error': {
@@ -593,5 +584,5 @@ export function useBoardPresence(gameId: string | null | undefined): {
     };
   }, [token, id, applyRemotePose, clearRemote]);
 
-  return { status, roomId, dcOpen, remotes, sendPose, disconnect };
+  return { status, roomId, dcOpen, remotes, sendPose, clearRemote, disconnect };
 }

@@ -234,15 +234,21 @@ export default function BoardScreen() {
 
   const remoteAvatars = useMemo(() => {
     const colorByUser = new Map<string, string>();
+    const resigned = new Set<string>();
     for (const p of game?.players ?? []) {
       if (p.pinColor) {
         colorByUser.set(p.userId, p.pinColor);
       }
+      if (p.resigned) {
+        resigned.add(p.userId);
+      }
     }
-    return Object.values(presence.remotes).map((pose) => ({
-      pose,
-      accent: colorByUser.get(pose.userId) ?? colors.muted,
-    }));
+    return Object.values(presence.remotes)
+      .filter((pose) => !resigned.has(pose.userId))
+      .map((pose) => ({
+        pose,
+        accent: colorByUser.get(pose.userId) ?? colors.muted,
+      }));
   }, [presence.remotes, game?.players]);
 
   /** Lobby/game seat color wins over random walk accent. */
@@ -303,6 +309,7 @@ export default function BoardScreen() {
       );
       resignToastRef.current = resignedSig;
       for (const p of newlyOut) {
+        presence.clearRemote?.(p.userId);
         if (p.userId === localUserId || localLeavingRef.current) {
           continue;
         }
@@ -326,7 +333,7 @@ export default function BoardScreen() {
           : `${formatUsername(game.winnerUsername) || 'Someone'} wins`,
       });
     }
-  }, [game, localUserId]);
+  }, [game, localUserId, presence.clearRemote]);
 
   // Phase 6.4 — toast everyone when a deed is added (WS).
   useEffect(() => {

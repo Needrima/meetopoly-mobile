@@ -30,14 +30,16 @@ function asPins(
   localUserId: string | null,
   localAccent: string | null,
 ): GamePinPlayer[] {
-  return players.map((p) => ({
-    userId: p.userId,
-    boardIndex: p.boardIndex,
-    pinColor:
-      localUserId && p.userId === localUserId && localAccent
-        ? localAccent
-        : p.pinColor,
-  }));
+  return players
+    .filter((p) => !p.resigned)
+    .map((p) => ({
+      userId: p.userId,
+      boardIndex: p.boardIndex,
+      pinColor:
+        localUserId && p.userId === localUserId && localAccent
+          ? localAccent
+          : p.pinColor,
+    }));
 }
 
 function buildPending(
