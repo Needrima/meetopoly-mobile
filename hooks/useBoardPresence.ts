@@ -427,7 +427,7 @@ export function useBoardPresence(gameId: string | null | undefined): {
           const name = formatUsername(peer.username) || 'Player';
           notify({
             type: 'info',
-            title: `${name} joined presence`,
+            title: `${name} joined`,
             message: 'On the board with you',
             visibilityTime: 2800,
           });

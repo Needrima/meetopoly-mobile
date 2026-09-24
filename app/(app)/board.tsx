@@ -16,7 +16,6 @@ import { BoardPanel } from '@/components/board/BoardPanel';
 import { BuyPropertyOverlay } from '@/components/board/BuyPropertyOverlay';
 import { TileInfoOverlay } from '@/components/board/TileInfoOverlay';
 import { layoutBoardRing } from '@/components/board/boardLayout';
-import { shortTileName } from '@/components/board/tileLabel';
 import { DiceRollOverlay } from '@/components/board/DiceRollOverlay';
 import { InfoModal } from '@/components/ui/InfoModal';
 import { useLogout, useMe } from '@/hooks/useAuth';
@@ -77,7 +76,6 @@ export default function BoardScreen() {
   const buyMut = useBuyProperty(gameId);
   const resignMut = useResignGame(gameId);
   const game = gameQuery.data ?? null;
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [winnerOpen, setWinnerOpen] = useState(false);
@@ -432,18 +430,11 @@ export default function BoardScreen() {
     }
   }, [game, localUserId, turnBusy]);
 
-  useEffect(() => {
-    if (!walk.nearby) {
-      setDetailsOpen(false);
-    }
-  }, [walk.nearby]);
-
   const persistAndEnter = useCallback(
     (loc: Location) => {
       if (!layout) {
         return;
       }
-      setDetailsOpen(false);
       setMenuOpen(false);
       const pose = walk.getPose();
       saveSnapshot({
@@ -568,8 +559,6 @@ export default function BoardScreen() {
     });
   }, [gameId, buyMut, turnBusy]);
 
-  const nearby = walk.nearby;
-  const nearbyCode = nearby ? shortTileName(nearby) : '';
   const boardPins = game ? motionPins : walk.pins;
   const isMyTurn = Boolean(
     game && localUserId && game.currentUserId === localUserId,
@@ -745,10 +734,8 @@ export default function BoardScreen() {
           <BoardPanel
             onStick={walk.setStick}
             accent={displayAccent}
-            initials={walk.initials}
             nearby={walk.nearby}
             onEnter={persistAndEnter}
-            onDetails={() => setDetailsOpen(true)}
             onMenuPress={() => setMenuOpen(true)}
             game={game}
             localUserId={localUserId}
@@ -762,31 +749,6 @@ export default function BoardScreen() {
           />
         </View>
       </View>
-
-      <InfoModal
-        visible={detailsOpen && Boolean(nearby)}
-        onClose={() => setDetailsOpen(false)}
-        variant="location"
-        title={nearby?.name ?? ''}
-        subtitle={nearbyCode ? `Board · ${nearbyCode}` : undefined}
-        body={
-          nearby?.about?.trim() ||
-          nearby?.aboutShort?.trim() ||
-          nearby?.description?.trim() ||
-          undefined
-        }
-        attribution={nearby?.attribution?.trim() || undefined}
-        actionsLayout="row"
-        primaryLabel="Enter"
-        onPrimary={
-          nearby
-            ? () => {
-                persistAndEnter(nearby);
-              }
-            : undefined
-        }
-        secondaryLabel="Close"
-      />
 
       <InfoModal
         visible={leaveConfirmOpen}

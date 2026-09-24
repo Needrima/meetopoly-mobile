@@ -12,13 +12,14 @@ import { formatUsername } from '@/lib/formatUsername';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
+const JOYSTICK_SIZE = 96;
+const DOCK_PAD = 12;
+
 type BoardPanelProps = {
   onStick: (stick: StickInput) => void;
   accent?: string;
-  initials?: string;
   nearby?: Location | null;
   onEnter?: (loc: Location) => void;
-  onDetails?: (loc: Location) => void;
   /** Opens board ⋯ overflow menu (leave / logout / __DEV__). */
   onMenuPress?: () => void;
   /** Phase 6.0+ authoritative game snapshot. */
@@ -37,15 +38,13 @@ type BoardPanelProps = {
 };
 
 /**
- * Nearby location + Details / Enter; ⋯ top-right; joystick dock BR.
+ * Game HUD; Enter (short tile name) above absolute BR joystick.
  */
 export function BoardPanel({
   onStick,
   accent,
-  initials,
   nearby = null,
   onEnter,
-  onDetails,
   onMenuPress,
   game = null,
   localUserId = null,
@@ -58,11 +57,8 @@ export function BoardPanel({
   endPending = false,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : '';
-  const blurb =
-    nearby?.aboutShort?.trim() ||
-    nearby?.description?.trim() ||
-    (nearby ? `${nearby.kind} on the board.` : '');
-
+  const enterLabel = code ? `Enter ${code}` : 'Enter';
+  const showEnter = Boolean(nearby && onEnter);
   const localNameKey = formatUsername(localUsername).toLowerCase();
   const localPlayer =
     game?.players.find((p) => localUserId && p.userId === localUserId) ??
@@ -98,7 +94,12 @@ export function BoardPanel({
   });
 
   return (
-    <View style={styles.root}>
+    <View
+      style={[
+        styles.root,
+        { paddingBottom: DOCK_PAD + JOYSTICK_SIZE },
+      ]}
+    >
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Panel</Text>
         {onMenuPress ? (
@@ -213,7 +214,7 @@ export function BoardPanel({
               {onEndTurn ? (
                 <View style={styles.actionBtn}>
                   <Button
-                    label="End"
+                    label="End turn"
                     onPress={onEndTurn}
                     disabled={endDisabled || !canEnd}
                     loading={endPending}
@@ -223,96 +224,35 @@ export function BoardPanel({
               ) : null}
             </View>
           ) : null}
-        </View>
-      ) : null}
-
-      {nearby ? (
-        <>
-          <Text style={styles.title} numberOfLines={2}>
-            {nearby.name}
-          </Text>
-          <Text style={styles.code}>{code}</Text>
-          <Text style={styles.body} numberOfLines={3}>
-            {blurb}
-          </Text>
-          <View style={styles.ctaRow}>
-            <Pressable
-              accessibilityRole="button"
+          {showEnter && nearby && onEnter ? (
+            <Button
+              label={enterLabel}
               onPress={() => {
-                if (nearby && onDetails) {
-                  onDetails(nearby);
-                }
+                onEnter(nearby);
               }}
-              style={({ pressed }) => [
-                styles.detailsBtn,
-                pressed ? styles.pressed : null,
-              ]}
-            >
-              <Text style={styles.detailsLabel}>Details</Text>
-            </Pressable>
-            <View style={styles.enterWrap}>
-              <Button
-                label="Enter"
-                onPress={() => {
-                  if (nearby && onEnter) {
-                    onEnter(nearby);
-                  }
-                }}
-                style={styles.enterBtn}
-              />
-            </View>
-          </View>
-        </>
-      ) : (
-        <>
-          <Text style={styles.title}>Controls</Text>
-          <Text style={styles.body}>
-            Walk near a city, air hub, or utility to Enter. Pins move on dice.
-          </Text>
-        </>
-      )}
-
-      <View style={styles.spacer} />
-
-      <View style={styles.footer}>
-        <View style={styles.stub}>
-          <Text style={styles.stubLabel}>You</Text>
-          {initials ? (
-            <View style={styles.swatchRow}>
-              <View
-                style={[
-                  styles.swatch,
-                  { backgroundColor: localPin },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.swatchText,
-                    { color: inkForHex(localPin) },
-                  ]}
-                >
-                  {initials}
-                </Text>
-              </View>
-            </View>
+              style={styles.enterBtn}
+            />
           ) : null}
         </View>
-        <Joystick onStick={onStick} size={96} accent={localPin} />
+      ) : showEnter && nearby && onEnter ? (
+        <Button
+          label={enterLabel}
+          onPress={() => {
+            onEnter(nearby);
+          }}
+          style={[styles.enterBtn, styles.enterBtnSolo]}
+        />
+      ) : null}
+
+      <View style={styles.joystickDock}>
+        <Joystick
+          onStick={onStick}
+          size={JOYSTICK_SIZE}
+          accent={localPin}
+        />
       </View>
     </View>
   );
-}
-
-function inkForHex(hex: string): string {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) {
-    return colors.ink;
-  }
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luma > 0.62 ? colors.ink : colors.onBrand;
 }
 
 const styles = StyleSheet.create({
@@ -320,7 +260,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 24,
     paddingHorizontal: 16,
-    paddingBottom: 12,
   },
   header: {
     flexDirection: 'row',
@@ -427,93 +366,17 @@ const styles = StyleSheet.create({
   actionBtn: {
     flex: 1,
   },
-  title: {
-    fontFamily: fonts.displayBold,
-    fontSize: 20,
-    color: colors.brand,
-    marginTop: 4,
-  },
-  code: {
-    marginTop: 2,
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
-    letterSpacing: 0.5,
-    color: colors.ink,
-  },
-  body: {
-    marginTop: 8,
-    fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.muted,
-  },
-  ctaRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  detailsBtn: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailsLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  enterWrap: {
-    flex: 1,
-  },
   enterBtn: {
     height: 44,
+    marginTop: 8,
   },
-  spacer: {
-    flex: 1,
+  enterBtnSolo: {
+    marginTop: 12,
   },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  stub: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bg,
-    padding: 12,
-    gap: 8,
-  },
-  stubLabel: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 13,
-    color: colors.ink,
-  },
-  swatchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  swatch: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(20,32,27,0.25)',
-  },
-  swatchText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
+  joystickDock: {
+    position: 'absolute',
+    right: 16,
+    bottom: DOCK_PAD,
   },
   pressed: {
     opacity: 0.75,
