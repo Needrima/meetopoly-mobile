@@ -11,7 +11,7 @@ import { gameRollKey } from '@/hooks/gameRollKey';
 
 const BOARD_SPACES = 40;
 /** ms between tile hops — ~2s for a typical 7. */
-export const PIN_STEP_MS = 320;
+export const PIN_STEP_MS = 200;
 
 type PendingWalk = {
   key: string;
