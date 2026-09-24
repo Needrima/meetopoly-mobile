@@ -46,7 +46,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <SessionProvider>
-          <StatusBar style="dark" />
+          <StatusBar hidden />
           <Stack
             screenOptions={{
               headerShown: false,

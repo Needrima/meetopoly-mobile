@@ -34,6 +34,7 @@ import {
   useResignGame,
   useRollDice,
 } from '@/hooks/useGame';
+import { useBoardPresence } from '@/hooks/useBoardPresence';
 import { useGamePinMotion } from '@/hooks/useGamePinMotion';
 import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
@@ -69,6 +70,7 @@ export default function BoardScreen() {
   const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(worldId);
   const gameQuery = useGame(gameId);
+  useBoardPresence(gameId);
   const rollDice = useRollDice(gameId);
   const endTurnMut = useEndTurn(gameId);
   const buyMut = useBuyProperty(gameId);

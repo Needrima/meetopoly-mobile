@@ -318,7 +318,7 @@ function inkForHex(hex: string): string {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    paddingTop: 4,
+    paddingTop: 24,
     paddingHorizontal: 16,
     paddingBottom: 12,
   },

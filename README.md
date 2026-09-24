@@ -6,7 +6,7 @@ Expo (SDK 57) + Expo Router + NativeWind + TanStack Query. City icons live in `c
 
 - Node 20+
 - Backend running (`meetopoly-be` on `:8080`) with local Mongo + Redis + SMTP configured
-- Expo Go or a simulator
+- Expo Go for most Phase 6 play, **or** a **dev client** build for full Phase 7 WebRTC (`react-native-webrtc`)
 
 ## Run
 
@@ -16,6 +16,17 @@ npm start
 ```
 
 Then press `i` (iOS), `a` (Android), or scan the QR code with Expo Go.
+
+### Dev client (Phase 7 presence PeerConnection)
+
+Expo Go cannot load native WebRTC. For a real SFU PeerConnection + idle `presence` DataChannel:
+
+```bash
+npx expo prebuild
+npx expo run:ios   # or run:android
+```
+
+Join/leave presence **toasts** still work over the signaling WebSocket in Expo Go; only the PeerConnection path needs the native module.
 
 ### API URL
 
