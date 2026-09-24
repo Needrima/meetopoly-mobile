@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getWsBaseUrl } from '@/api/client';
 import { useSession } from '@/hooks/useSession';
 import { formatUsername } from '@/lib/formatUsername';
 import { notify } from '@/lib/notify';
+import {
+  encodePresencePose,
+  parsePresencePose,
+  type PresencePose,
+  type PresencePoseInput,
+} from '@/lib/presencePose';
 
 const PRESENCE_DC_LABEL = 'presence';
 
@@ -70,7 +76,7 @@ export type BoardPresenceStatus =
   | 'connected'
   | 'error';
 
-/** Minimal WebRTC surface used by Phase 7.0 (avoids hard Expo Go import crash). */
+/** Minimal WebRTC surface (avoids hard Expo Go import crash). */
 type WebRTCModule = {
   RTCPeerConnection: new (config?: {
     iceServers?: { urls: string | string[] }[];
@@ -101,9 +107,12 @@ type PeerConnectionLike = {
 };
 
 type DataChannelLike = {
+  readyState?: string;
   onopen: (() => void) | null;
   onclose: (() => void) | null;
-  onmessage: (() => void) | null;
+  onmessage: ((ev: { data: string | ArrayBuffer }) => void) | null;
+  send: (data: string) => void;
+  close?: () => void;
 };
 
 function loadWebRTC(): WebRTCModule | null {
@@ -134,33 +143,97 @@ function candidatePayload(c: IceCandidateInit) {
   };
 }
 
+function messageDataToString(data: string | ArrayBuffer): string {
+  if (typeof data === 'string') {
+    return data;
+  }
+  try {
+    return new TextDecoder().decode(data);
+  } catch {
+    return '';
+  }
+}
+
 /**
- * Phase 7.0 — join `board:{gameId}` presence room over WS signaling + Pion SFU.
- * Opens an idle DataChannel (`presence`); pose fan-out starts in 7.1.
- * Toasts on peer join/leave. Full PeerConnection needs a dev client build.
+ * Phase 7.0–7.1 — board presence room + pose DataChannel fan-out.
+ * sendPose / remotes: Phase 7.1. Drawing remotes = Phase 7.2.
  */
 export function useBoardPresence(gameId: string | null | undefined): {
   status: BoardPresenceStatus;
   roomId: string | null;
   dcOpen: boolean;
+  remotes: Record<string, PresencePose>;
+  sendPose: (pose: PresencePoseInput) => void;
 } {
   const { token } = useSession();
   const id = gameId?.trim() ?? '';
   const [status, setStatus] = useState<BoardPresenceStatus>('idle');
   const [roomId, setRoomId] = useState<string | null>(null);
   const [dcOpen, setDcOpen] = useState(false);
+  const [remotes, setRemotes] = useState<Record<string, PresencePose>>({});
 
   const pcRef = useRef<PeerConnectionLike | null>(null);
+  const dcRef = useRef<DataChannelLike | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pendingIceRef = useRef<IceCandidateInit[]>([]);
   const remoteSetRef = useRef(false);
   const toastedLeftRef = useRef<Set<string>>(new Set());
+  const identityRef = useRef<{ userId: string; username: string } | null>(null);
+
+  const applyRemotePose = useCallback((pose: PresencePose) => {
+    setRemotes((prev) => {
+      const prevPose = prev[pose.userId];
+      if (
+        prevPose &&
+        prevPose.x === pose.x &&
+        prevPose.y === pose.y &&
+        prevPose.rot === pose.rot
+      ) {
+        return prev;
+      }
+      return { ...prev, [pose.userId]: pose };
+    });
+  }, []);
+
+  const clearRemote = useCallback((userId: string) => {
+    setRemotes((prev) => {
+      if (!(userId in prev)) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[userId];
+      return next;
+    });
+  }, []);
+
+  const sendPose = useCallback((pose: PresencePoseInput) => {
+    const dc = dcRef.current;
+    const identity = identityRef.current;
+    if (!dc || !identity) {
+      return;
+    }
+    if (dc.readyState && dc.readyState !== 'open') {
+      return;
+    }
+    try {
+      dc.send(
+        encodePresencePose(identity, {
+          ...pose,
+          t: pose.t ?? Date.now(),
+        }),
+      );
+    } catch (err) {
+      console.warn('[presence] sendPose failed', err);
+    }
+  }, []);
 
   useEffect(() => {
     if (!token || !id) {
       setStatus('idle');
       setRoomId(null);
       setDcOpen(false);
+      setRemotes({});
+      identityRef.current = null;
       return;
     }
 
@@ -172,6 +245,7 @@ export function useBoardPresence(gameId: string | null | undefined): {
     const teardownPeer = () => {
       remoteSetRef.current = false;
       pendingIceRef.current = [];
+      dcRef.current = null;
       const pc = pcRef.current;
       pcRef.current = null;
       if (pc) {
@@ -202,12 +276,39 @@ export function useBoardPresence(gameId: string | null | undefined): {
       }
     };
 
+    const bindDataChannel = (dc: DataChannelLike) => {
+      dcRef.current = dc;
+      dc.onopen = () => {
+        if (!cancelled) {
+          setDcOpen(true);
+        }
+      };
+      dc.onclose = () => {
+        if (dcRef.current === dc) {
+          dcRef.current = null;
+        }
+        if (!cancelled) {
+          setDcOpen(false);
+        }
+      };
+      dc.onmessage = (ev) => {
+        const text = messageDataToString(ev.data);
+        const pose = parsePresencePose(text);
+        if (!pose || cancelled) {
+          return;
+        }
+        if (identityRef.current && pose.userId === identityRef.current.userId) {
+          return;
+        }
+        applyRemotePose(pose);
+      };
+    };
+
     const startWebRTC = async (
       ws: WebSocket,
       iceServers: WelcomeMessage['iceServers'],
     ) => {
       if (!webrtc) {
-        // Signaling-only: join/leave toasts still work without a native PC.
         setStatus('connected');
         return;
       }
@@ -245,18 +346,7 @@ export function useBoardPresence(gameId: string | null | undefined): {
       };
 
       const dc = pc.createDataChannel(PRESENCE_DC_LABEL, { ordered: true });
-      dc.onopen = () => {
-        if (!cancelled) {
-          setDcOpen(true);
-        }
-      };
-      dc.onclose = () => {
-        if (!cancelled) {
-          setDcOpen(false);
-        }
-      };
-      // Phase 7.0: idle — ignore payloads until 7.1 pose fan-out.
-      dc.onmessage = () => {};
+      bindDataChannel(dc);
 
       const offer = await pc.createOffer({});
       await pc.setLocalDescription(offer);
@@ -280,13 +370,16 @@ export function useBoardPresence(gameId: string | null | undefined): {
       switch (msg.type) {
         case 'welcome': {
           const welcome = msg as WelcomeMessage;
+          identityRef.current = {
+            userId: welcome.userId,
+            username: welcome.username,
+          };
           setRoomId(welcome.roomId);
           setStatus('connecting');
           try {
             await startWebRTC(ws, welcome.iceServers);
           } catch (err) {
             console.warn('[presence] WebRTC start failed', err);
-            // Keep WS room membership for join/leave toasts.
             setStatus('connected');
           }
           break;
@@ -342,6 +435,7 @@ export function useBoardPresence(gameId: string | null | undefined): {
         }
         case 'peer-left': {
           const peer = msg as PeerLeftMessage;
+          clearRemote(peer.userId);
           if (toastedLeftRef.current.has(peer.userId)) {
             break;
           }
@@ -412,6 +506,7 @@ export function useBoardPresence(gameId: string | null | undefined): {
       const ws = wsRef.current;
       wsRef.current = null;
       teardownPeer();
+      identityRef.current = null;
       if (
         ws &&
         (ws.readyState === WebSocket.OPEN ||
@@ -422,8 +517,9 @@ export function useBoardPresence(gameId: string | null | undefined): {
       setStatus('idle');
       setRoomId(null);
       setDcOpen(false);
+      setRemotes({});
     };
-  }, [token, id]);
+  }, [token, id, applyRemotePose, clearRemote]);
 
-  return { status, roomId, dcOpen };
+  return { status, roomId, dcOpen, remotes, sendPose };
 }

@@ -70,7 +70,7 @@ export default function BoardScreen() {
   const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(worldId);
   const gameQuery = useGame(gameId);
-  useBoardPresence(gameId);
+  const presence = useBoardPresence(gameId);
   const rollDice = useRollDice(gameId);
   const endTurnMut = useEndTurn(gameId);
   const buyMut = useBuyProperty(gameId);
@@ -208,6 +208,45 @@ export default function BoardScreen() {
     restoreAccent,
     onAccentReady,
   });
+
+  // Phase 7.1 — publish local pose ~10 Hz over presence DataChannel (draw remotes = 7.2).
+  const getPoseRef = useRef(walk.getPose);
+  getPoseRef.current = walk.getPose;
+  const sendPoseRef = useRef(presence.sendPose);
+  sendPoseRef.current = presence.sendPose;
+  useEffect(() => {
+    if (!layout || !presence.dcOpen || !gameId) {
+      return;
+    }
+    const size = layout.size;
+    const tick = () => {
+      const pose = getPoseRef.current();
+      sendPoseRef.current({
+        x: pose.x / size,
+        y: pose.y / size,
+      });
+    };
+    tick();
+    const id = setInterval(tick, 100);
+    return () => clearInterval(id);
+  }, [layout, presence.dcOpen, gameId]);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+    const ids = Object.keys(presence.remotes);
+    if (ids.length === 0) {
+      return;
+    }
+    console.log(
+      '[presence] remotes',
+      ids.map((id) => {
+        const p = presence.remotes[id]!;
+        return `${p.username}@(${p.x.toFixed(2)},${p.y.toFixed(2)})`;
+      }),
+    );
+  }, [presence.remotes]);
 
   /** Lobby/game seat color wins over random walk accent. */
   const displayAccent = localGamePinColor ?? walk.accent;
