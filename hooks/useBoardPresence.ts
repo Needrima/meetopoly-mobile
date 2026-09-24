@@ -155,8 +155,8 @@ function messageDataToString(data: string | ArrayBuffer): string {
 }
 
 /**
- * Phase 7.0–7.1 — board presence room + pose DataChannel fan-out.
- * sendPose / remotes: Phase 7.1. Drawing remotes = Phase 7.2.
+ * Phase 7.0–7.4 — board presence + pose DC; PC/DC recover while signaling WS stays up.
+ * Dual presence: pins stay on game WS; this hook never drives boardIndex.
  */
 export function useBoardPresence(gameId: string | null | undefined): {
   status: BoardPresenceStatus;
@@ -164,6 +164,8 @@ export function useBoardPresence(gameId: string | null | undefined): {
   dcOpen: boolean;
   remotes: Record<string, PresencePose>;
   sendPose: (pose: PresencePoseInput) => void;
+  /** Tear down presence WS + WebRTC immediately (leave board / resign). */
+  disconnect: () => void;
 } {
   const { token } = useSession();
   const id = gameId?.trim() ?? '';
@@ -179,6 +181,8 @@ export function useBoardPresence(gameId: string | null | undefined): {
   const remoteSetRef = useRef(false);
   const toastedLeftRef = useRef<Set<string>>(new Set());
   const identityRef = useRef<{ userId: string; username: string } | null>(null);
+  const iceServersRef = useRef<WelcomeMessage['iceServers']>(undefined);
+  const disconnectRef = useRef<() => void>(() => {});
 
   const applyRemotePose = useCallback((pose: PresencePose) => {
     setRemotes((prev) => {
@@ -227,6 +231,10 @@ export function useBoardPresence(gameId: string | null | undefined): {
     }
   }, []);
 
+  const disconnect = useCallback(() => {
+    disconnectRef.current();
+  }, []);
+
   useEffect(() => {
     if (!token || !id) {
       setStatus('idle');
@@ -234,18 +242,30 @@ export function useBoardPresence(gameId: string | null | undefined): {
       setDcOpen(false);
       setRemotes({});
       identityRef.current = null;
+      disconnectRef.current = () => {};
       return;
     }
 
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let recoverTimer: ReturnType<typeof setTimeout> | undefined;
     let attempt = 0;
+    let recoverAttempt = 0;
+    let renegotiating = false;
     const webrtc = loadWebRTC();
 
     const teardownPeer = () => {
       remoteSetRef.current = false;
       pendingIceRef.current = [];
+      const dc = dcRef.current;
       dcRef.current = null;
+      if (dc?.close) {
+        try {
+          dc.close();
+        } catch {
+          // ignore
+        }
+      }
       const pc = pcRef.current;
       pcRef.current = null;
       if (pc) {
@@ -276,11 +296,39 @@ export function useBoardPresence(gameId: string | null | undefined): {
       }
     };
 
+    const scheduleRecover = (reason: string) => {
+      if (cancelled || renegotiating || recoverTimer) {
+        return;
+      }
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      const delay = Math.min(4_000, 400 * 2 ** recoverAttempt);
+      recoverAttempt += 1;
+      console.warn('[presence] schedule WebRTC recover', reason, delay);
+      recoverTimer = setTimeout(() => {
+        recoverTimer = undefined;
+        if (cancelled) {
+          return;
+        }
+        const openWs = wsRef.current;
+        if (!openWs || openWs.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        void startWebRTC(openWs, iceServersRef.current).catch((err) => {
+          console.warn('[presence] recover failed', err);
+        });
+      }, delay);
+    };
+
     const bindDataChannel = (dc: DataChannelLike) => {
       dcRef.current = dc;
       dc.onopen = () => {
         if (!cancelled) {
+          recoverAttempt = 0;
           setDcOpen(true);
+          setStatus('connected');
         }
       };
       dc.onclose = () => {
@@ -289,6 +337,9 @@ export function useBoardPresence(gameId: string | null | undefined): {
         }
         if (!cancelled) {
           setDcOpen(false);
+        }
+        if (!cancelled && !renegotiating) {
+          scheduleRecover('dc-close');
         }
       };
       dc.onmessage = (ev) => {
@@ -312,52 +363,60 @@ export function useBoardPresence(gameId: string | null | undefined): {
         setStatus('connected');
         return;
       }
-      teardownPeer();
-      const pc = new webrtc.RTCPeerConnection({
-        iceServers: iceServersFromWelcome(iceServers),
-      });
-      pcRef.current = pc;
+      renegotiating = true;
+      try {
+        teardownPeer();
+        const pc = new webrtc.RTCPeerConnection({
+          iceServers: iceServersFromWelcome(iceServers),
+        });
+        pcRef.current = pc;
 
-      pc.onicecandidate = (ev) => {
-        const candidate = ev.candidate;
-        if (!candidate || cancelled || ws.readyState !== WebSocket.OPEN) {
+        pc.onicecandidate = (ev) => {
+          const candidate = ev.candidate;
+          if (!candidate || cancelled || ws.readyState !== WebSocket.OPEN) {
+            return;
+          }
+          ws.send(
+            JSON.stringify({
+              type: 'ice',
+              candidate: candidatePayload(candidate),
+            }),
+          );
+        };
+
+        pc.onconnectionstatechange = () => {
+          if (cancelled || pcRef.current !== pc) {
+            return;
+          }
+          if (pc.connectionState === 'connected') {
+            setStatus('connected');
+          } else if (
+            pc.connectionState === 'failed' ||
+            pc.connectionState === 'closed'
+          ) {
+            setDcOpen(false);
+            if (!renegotiating) {
+              scheduleRecover(`pc-${pc.connectionState}`);
+            }
+          }
+        };
+
+        const dc = pc.createDataChannel(PRESENCE_DC_LABEL, { ordered: true });
+        bindDataChannel(dc);
+
+        const offer = await pc.createOffer({});
+        await pc.setLocalDescription(offer);
+        if (cancelled || ws.readyState !== WebSocket.OPEN) {
           return;
         }
-        ws.send(
-          JSON.stringify({
-            type: 'ice',
-            candidate: candidatePayload(candidate),
-          }),
-        );
-      };
-
-      pc.onconnectionstatechange = () => {
-        if (cancelled) {
+        const local = pc.localDescription;
+        if (!local?.sdp) {
           return;
         }
-        if (pc.connectionState === 'connected') {
-          setStatus('connected');
-        } else if (
-          pc.connectionState === 'failed' ||
-          pc.connectionState === 'closed'
-        ) {
-          setDcOpen(false);
-        }
-      };
-
-      const dc = pc.createDataChannel(PRESENCE_DC_LABEL, { ordered: true });
-      bindDataChannel(dc);
-
-      const offer = await pc.createOffer({});
-      await pc.setLocalDescription(offer);
-      if (cancelled || ws.readyState !== WebSocket.OPEN) {
-        return;
+        ws.send(JSON.stringify({ type: 'offer', sdp: local.sdp }));
+      } finally {
+        renegotiating = false;
       }
-      const local = pc.localDescription;
-      if (!local?.sdp) {
-        return;
-      }
-      ws.send(JSON.stringify({ type: 'offer', sdp: local.sdp }));
     };
 
     const handleMessage = async (ws: WebSocket, raw: string) => {
@@ -374,6 +433,7 @@ export function useBoardPresence(gameId: string | null | undefined): {
             userId: welcome.userId,
             username: welcome.username,
           };
+          iceServersRef.current = welcome.iceServers;
           setRoomId(welcome.roomId);
           setStatus('connecting');
           try {
@@ -496,17 +556,21 @@ export function useBoardPresence(gameId: string | null | undefined): {
       };
     };
 
-    connect();
-
-    return () => {
+    const hardDisconnect = () => {
       cancelled = true;
       if (retryTimer) {
         clearTimeout(retryTimer);
+        retryTimer = undefined;
+      }
+      if (recoverTimer) {
+        clearTimeout(recoverTimer);
+        recoverTimer = undefined;
       }
       const ws = wsRef.current;
       wsRef.current = null;
       teardownPeer();
       identityRef.current = null;
+      iceServersRef.current = undefined;
       if (
         ws &&
         (ws.readyState === WebSocket.OPEN ||
@@ -519,7 +583,15 @@ export function useBoardPresence(gameId: string | null | undefined): {
       setDcOpen(false);
       setRemotes({});
     };
+
+    disconnectRef.current = hardDisconnect;
+    connect();
+
+    return () => {
+      hardDisconnect();
+      disconnectRef.current = () => {};
+    };
   }, [token, id, applyRemotePose, clearRemote]);
 
-  return { status, roomId, dcOpen, remotes, sendPose };
+  return { status, roomId, dcOpen, remotes, sendPose, disconnect };
 }

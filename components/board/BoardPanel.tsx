@@ -13,7 +13,8 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 const JOYSTICK_SIZE = 96;
-const DOCK_PAD = 12;
+/** Inset from panel edges so the stick thumb stays on-screen. */
+const DOCK_PAD = 36;
 
 type BoardPanelProps = {
   onStick: (stick: StickInput) => void;
@@ -375,7 +376,7 @@ const styles = StyleSheet.create({
   },
   joystickDock: {
     position: 'absolute',
-    right: 16,
+    right: DOCK_PAD,
     bottom: DOCK_PAD,
   },
   pressed: {

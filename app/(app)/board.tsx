@@ -51,6 +51,8 @@ const PANEL_MIN = 168;
  * Phase 6.2c: Leave = resign (confirm); last active player wins.
  * Phase 6.4: Buy unowned property at list price.
  * Phase 7.2: remote presence avatars interpolated on the board (pins from game WS).
+ * Phase 7.4: dual presence — Roll moves pins only; avatars keep walking on DataChannel;
+ * presence disconnect on leave; PC/DC recover does not touch game WS.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
@@ -448,6 +450,7 @@ export default function BoardScreen() {
         accentKey: walk.accentKey,
         initials: walk.initials,
       });
+      // Keep board presence alive while hub is stacked (Phase 8 will switch rooms).
       router.push({
         pathname: '/(app)/hub/[slug]',
         params: {
@@ -457,12 +460,20 @@ export default function BoardScreen() {
         },
       });
     },
-    [layout, saveSnapshot, walk, worldId, gameId, displayAccent],
+    [
+      layout,
+      saveSnapshot,
+      walk,
+      worldId,
+      gameId,
+      displayAccent,
+    ],
   );
 
   const leaveBoard = useCallback(() => {
+    presence.disconnect();
     router.replace('/(app)/worlds');
-  }, []);
+  }, [presence.disconnect]);
 
   const requestLeave = useCallback(() => {
     setMenuOpen(false);
