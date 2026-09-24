@@ -6,8 +6,13 @@ import type { Location } from '@/api/types';
 import { BoardAvatar } from '@/components/board/BoardAvatar';
 import { BoardCenter } from '@/components/board/BoardCenter';
 import { BoardPin } from '@/components/board/BoardPin';
+import {
+  BoardRemoteAvatar,
+  type RemoteAvatarModel,
+} from '@/components/board/BoardRemoteAvatar';
 import { BoardTile } from '@/components/board/BoardTile';
 import type { BoardPinModel } from '@/components/board/boardPins';
+import { BOARD_WALK } from '@/components/board/boardConstants';
 import { layoutBoardRing, type BoardLayout } from '@/components/board/boardLayout';
 import { colors } from '@/theme/colors';
 
@@ -27,6 +32,8 @@ type BoardProps = {
     initials: string;
     accent: string;
   } | null;
+  /** Phase 7.2 — other players' presence avatars (pins stay from game WS). */
+  remotes?: Omit<RemoteAvatarModel, 'boardSize' | 'radius'>[];
   pins?: BoardPinModel[];
 };
 
@@ -41,6 +48,7 @@ export function Board({
   ownerColorByIndex,
   onTilePress,
   avatar,
+  remotes = [],
   pins = [],
 }: BoardProps) {
   const layout = useMemo(
@@ -87,6 +95,15 @@ export function Board({
           y={p.y}
           radius={p.radius}
           accent={p.accent}
+        />
+      ))}
+      {remotes.map((r) => (
+        <BoardRemoteAvatar
+          key={r.pose.userId}
+          pose={r.pose}
+          accent={r.accent}
+          radius={avatar?.radius ?? layout.size * BOARD_WALK.avatarRadiusFrac}
+          boardSize={layout.size}
         />
       ))}
       {avatar ? (

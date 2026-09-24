@@ -51,6 +51,7 @@ const PANEL_MIN = 168;
  * Phase 6.2b: synced dice tumble, then tile-by-tile pin motion.
  * Phase 6.2c: Leave = resign (confirm); last active player wins.
  * Phase 6.4: Buy unowned property at list price.
+ * Phase 7.2: remote presence avatars interpolated on the board (pins from game WS).
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
@@ -209,7 +210,7 @@ export default function BoardScreen() {
     onAccentReady,
   });
 
-  // Phase 7.1 — publish local pose ~10 Hz over presence DataChannel (draw remotes = 7.2).
+  // Phase 7.1–7.2 — publish local pose ~10 Hz; remotes drawn + interpolated on Board.
   const getPoseRef = useRef(walk.getPose);
   getPoseRef.current = walk.getPose;
   const sendPoseRef = useRef(presence.sendPose);
@@ -231,22 +232,18 @@ export default function BoardScreen() {
     return () => clearInterval(id);
   }, [layout, presence.dcOpen, gameId]);
 
-  useEffect(() => {
-    if (!__DEV__) {
-      return;
+  const remoteAvatars = useMemo(() => {
+    const colorByUser = new Map<string, string>();
+    for (const p of game?.players ?? []) {
+      if (p.pinColor) {
+        colorByUser.set(p.userId, p.pinColor);
+      }
     }
-    const ids = Object.keys(presence.remotes);
-    if (ids.length === 0) {
-      return;
-    }
-    console.log(
-      '[presence] remotes',
-      ids.map((id) => {
-        const p = presence.remotes[id]!;
-        return `${p.username}@(${p.x.toFixed(2)},${p.y.toFixed(2)})`;
-      }),
-    );
-  }, [presence.remotes]);
+    return Object.values(presence.remotes).map((pose) => ({
+      pose,
+      accent: colorByUser.get(pose.userId) ?? colors.muted,
+    }));
+  }, [presence.remotes, game?.players]);
 
   /** Lobby/game seat color wins over random walk accent. */
   const displayAccent = localGamePinColor ?? walk.accent;
@@ -712,6 +709,7 @@ export default function BoardScreen() {
                 initials: walk.initials,
                 accent: displayAccent,
               }}
+              remotes={remoteAvatars}
               pins={boardPins}
             />
           ) : null}

@@ -12,6 +12,8 @@ type BoardAvatarProps = {
   radius: number;
   initials: string;
   accent: string;
+  /** Local avatar sits above remotes (default 20). */
+  zIndex?: number;
 };
 
 /**
@@ -24,6 +26,7 @@ export function BoardAvatar({
   radius,
   initials,
   accent,
+  zIndex = 20,
 }: BoardAvatarProps) {
   const podW = radius * 1.7;
   const podH = radius * 0.85;
@@ -45,6 +48,7 @@ export function BoardAvatar({
         {
           width: podW,
           height: rootH,
+          zIndex,
         },
         animStyle,
       ]}
@@ -103,7 +107,6 @@ function inkForAccent(hex: string): string {
 const styles = StyleSheet.create({
   root: {
     position: 'absolute',
-    zIndex: 20,
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
