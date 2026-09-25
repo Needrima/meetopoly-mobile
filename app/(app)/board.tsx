@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Location } from '@/api/types';
@@ -55,8 +56,11 @@ const PANEL_MIN = 168;
  * Phase 7.4: dual presence — Roll moves pins only; avatars keep walking on DataChannel;
  * presence disconnect on leave; PC/DC recover does not touch game WS.
  * Phase 8.0: board presence pauses while hub is focused; game WS stays up.
+ * Keep-awake while this screen is mounted (incl. hub stacked) so idle sleep
+ * does not drop game WS / presence WebRTC.
  */
 export default function BoardScreen() {
+  useKeepAwake('meetopoly-board', { suppressDeactivateWarnings: true });
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ worldId?: string; gameId?: string }>();
