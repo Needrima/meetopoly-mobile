@@ -194,3 +194,37 @@ export function useSetPinColor(gameId: string | null | undefined) {
     onSuccess,
   });
 }
+
+/** POST /games/{id}/enter-hub — Phase 8.2 in-hub badge for board peers. */
+export function useEnterHub(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, string>({
+    mutationFn: (hubId: string) => {
+      if (!id) {
+        return Promise.reject(new Error('Missing game id'));
+      }
+      return apiMutator<Game>(`/games/${encodeURIComponent(id)}/enter-hub`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hubId }),
+      });
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/leave-hub — clear in-hub marker. */
+export function useLeaveHub(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error('Missing game id'));
+      }
+      return apiMutator<Game>(`/games/${encodeURIComponent(id)}/leave-hub`, {
+        method: 'POST',
+      });
+    },
+    onSuccess,
+  });
+}

@@ -154,11 +154,7 @@ function messageDataToString(data: string | ArrayBuffer): string {
   }
 }
 
-/**
- * Phase 7.0–7.4 — board presence + pose DC; PC/DC recover while signaling WS stays up.
- * Dual presence: pins stay on game WS; this hook never drives boardIndex.
- */
-export function useBoardPresence(gameId: string | null | undefined): {
+export type PresenceChannelResult = {
   status: BoardPresenceStatus;
   roomId: string | null;
   dcOpen: boolean;
@@ -168,9 +164,28 @@ export function useBoardPresence(gameId: string | null | undefined): {
   clearRemote: (userId: string) => void;
   /** Tear down presence WS + WebRTC immediately (leave board / resign). */
   disconnect: () => void;
-} {
+};
+
+type PresenceChannelOpts = {
+  /** Path after /ws/presence/ — e.g. board/{id} or hub/{id} (segments already encoded). */
+  roomPath: string | null;
+  enabled?: boolean;
+  /** Toast body for peer-joined (board vs hub). */
+  joinToastMessage?: string;
+};
+
+/**
+ * Shared presence signaling + pose DC (board or hub). PC/DC recover while WS stays up.
+ * Dual presence: pins stay on game WS; this hook never drives boardIndex.
+ */
+function usePresenceChannel({
+  roomPath,
+  enabled = true,
+  joinToastMessage = 'On the board with you',
+}: PresenceChannelOpts): PresenceChannelResult {
   const { token } = useSession();
-  const id = gameId?.trim() ?? '';
+  const path = roomPath?.trim() ?? '';
+  const active = Boolean(token && path && enabled);
   const [status, setStatus] = useState<BoardPresenceStatus>('idle');
   const [roomId, setRoomId] = useState<string | null>(null);
   const [dcOpen, setDcOpen] = useState(false);
@@ -185,6 +200,8 @@ export function useBoardPresence(gameId: string | null | undefined): {
   const identityRef = useRef<{ userId: string; username: string } | null>(null);
   const iceServersRef = useRef<WelcomeMessage['iceServers']>(undefined);
   const disconnectRef = useRef<() => void>(() => {});
+  const joinToastRef = useRef(joinToastMessage);
+  joinToastRef.current = joinToastMessage;
 
   const applyRemotePose = useCallback((pose: PresencePose) => {
     setRemotes((prev) => {
@@ -238,7 +255,7 @@ export function useBoardPresence(gameId: string | null | undefined): {
   }, []);
 
   useEffect(() => {
-    if (!token || !id) {
+    if (!active) {
       setStatus('idle');
       setRoomId(null);
       setDcOpen(false);
@@ -490,14 +507,13 @@ export function useBoardPresence(gameId: string | null | undefined): {
           notify({
             type: 'info',
             title: `${name} joined`,
-            message: 'On the board with you',
+            message: joinToastRef.current,
             visibilityTime: 2800,
           });
           break;
         }
         case 'peer-left': {
-          // Phase 7.5: keep last pose until game resign clears the remote (silent hold).
-          // Do not toast — resign toast comes from game WS state.
+          // Board (7.5): linger avatar until resign. Hub (8.0): silent leave (no toast).
           break;
         }
         case 'error': {
@@ -517,7 +533,7 @@ export function useBoardPresence(gameId: string | null | undefined): {
       setStatus('connecting');
       toastedLeftRef.current.clear();
       const ws = new WebSocket(
-        `${getWsBaseUrl()}/ws/presence/board/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`,
+        `${getWsBaseUrl()}/ws/presence/${path}?token=${encodeURIComponent(token!)}`,
       );
       wsRef.current = ws;
 
@@ -582,7 +598,37 @@ export function useBoardPresence(gameId: string | null | undefined): {
       hardDisconnect();
       disconnectRef.current = () => {};
     };
-  }, [token, id, applyRemotePose, clearRemote]);
+  }, [active, token, path, applyRemotePose]);
 
   return { status, roomId, dcOpen, remotes, sendPose, clearRemote, disconnect };
+}
+
+/**
+ * Phase 7 board presence. Pass `enabled=false` when the board is blurred (e.g. hub
+ * stacked) so Enter leaves the board room without dropping the game WS.
+ */
+export function useBoardPresence(
+  gameId: string | null | undefined,
+  enabled = true,
+): PresenceChannelResult {
+  const id = gameId?.trim() ?? '';
+  return usePresenceChannel({
+    roomPath: id ? `board/${encodeURIComponent(id)}` : null,
+    enabled: enabled && Boolean(id),
+    joinToastMessage: 'On the board with you',
+  });
+}
+
+/**
+ * Phase 8.0 hub presence — any logged-in user; room `hub:{hubId}` on the server.
+ */
+export function useHubPresence(
+  hubId: string | null | undefined,
+): PresenceChannelResult {
+  const id = hubId?.trim() ?? '';
+  return usePresenceChannel({
+    roomPath: id ? `hub/${encodeURIComponent(id)}` : null,
+    enabled: Boolean(id),
+    joinToastMessage: 'In this hub with you',
+  });
 }

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
 
 import type { Location } from '@/api/types';
 import type { Game } from '@/api/types';
@@ -16,6 +17,23 @@ const JOYSTICK_SIZE = 96;
 /** Inset from panel edges so the stick thumb stays on-screen. */
 const DOCK_PAD = 36;
 
+/** Phase 8.2 — short code for roster badge `Name(in LOS)`. */
+function hubBadgeCode(
+  hubId: string | null | undefined,
+  byHubId: ReadonlyMap<string, string>,
+): string {
+  const id = hubId?.trim();
+  if (!id) {
+    return '';
+  }
+  const known = byHubId.get(id);
+  if (known) {
+    return known;
+  }
+  const slug = id.split(':').pop() ?? '';
+  return slug.slice(0, 3).toUpperCase() || 'HUB';
+}
+
 type BoardPanelProps = {
   onStick: (stick: StickInput) => void;
   accent?: string;
@@ -25,6 +43,8 @@ type BoardPanelProps = {
   onMenuPress?: () => void;
   /** Phase 6.0+ authoritative game snapshot. */
   game?: Game | null;
+  /** World locations — resolve hubId → short tile code for in-hub badges. */
+  locations?: Location[];
   localUserId?: string | null;
   /** Local username — belt-and-suspenders HUD filter when ids diverge. */
   localUsername?: string | null;
@@ -48,6 +68,7 @@ export function BoardPanel({
   onEnter,
   onMenuPress,
   game = null,
+  locations = [],
   localUserId = null,
   localUsername = null,
   onRoll,
@@ -60,6 +81,15 @@ export function BoardPanel({
   const code = nearby ? shortTileName(nearby) : '';
   const enterLabel = code ? `Enter ${code}` : 'Enter';
   const showEnter = Boolean(nearby && onEnter);
+  const hubCodeById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const loc of locations) {
+      if (loc.hubId) {
+        map.set(loc.hubId, shortTileName(loc));
+      }
+    }
+    return map;
+  }, [locations]);
   const localNameKey = formatUsername(localUsername).toLowerCase();
   const localPlayer =
     game?.players.find((p) => localUserId && p.userId === localUserId) ??
@@ -156,6 +186,14 @@ export function BoardPanel({
               const bank = bankLabels[p.userId] ?? '';
               const isCurrent = p.userId === game.currentUserId && !p.resigned;
               const pinHex = p.pinColor;
+              const hubCode = hubBadgeCode(p.hubId, hubCodeById);
+              const name = formatUsername(p.username);
+              const hubSuffix = hubCode ? `(in ${hubCode})` : '';
+              const statusSuffix = p.resigned
+                ? ' · out'
+                : isCurrent
+                  ? ' · turn'
+                  : '';
               return (
                 <View key={p.userId} style={styles.balanceRow}>
                   <View
@@ -172,12 +210,9 @@ export function BoardPanel({
                     ]}
                     numberOfLines={1}
                   >
-                    {formatUsername(p.username)}
-                    {p.resigned
-                      ? ' · out'
-                      : isCurrent
-                        ? ' · turn'
-                        : ''}
+                    {name}
+                    {hubSuffix}
+                    {statusSuffix}
                   </Text>
                   {bank ? (
                     <Text

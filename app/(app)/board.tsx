@@ -6,7 +6,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Location } from '@/api/types';
@@ -30,6 +30,7 @@ import {
   useGame,
   useBuyProperty,
   useEndTurn,
+  useEnterHub,
   useResignGame,
   useRollDice,
 } from '@/hooks/useGame';
@@ -53,6 +54,7 @@ const PANEL_MIN = 168;
  * Phase 7.2: remote presence avatars interpolated on the board (pins from game WS).
  * Phase 7.4: dual presence — Roll moves pins only; avatars keep walking on DataChannel;
  * presence disconnect on leave; PC/DC recover does not touch game WS.
+ * Phase 8.0: board presence pauses while hub is focused; game WS stays up.
  */
 export default function BoardScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
@@ -72,11 +74,20 @@ export default function BoardScreen() {
   const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(worldId);
   const gameQuery = useGame(gameId);
-  const presence = useBoardPresence(gameId);
+  /** Leave board SFU room while hub is stacked; reconnect on Leave hub. */
+  const [boardPresenceOn, setBoardPresenceOn] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setBoardPresenceOn(true);
+      return () => setBoardPresenceOn(false);
+    }, []),
+  );
+  const presence = useBoardPresence(gameId, boardPresenceOn);
   const rollDice = useRollDice(gameId);
   const endTurnMut = useEndTurn(gameId);
   const buyMut = useBuyProperty(gameId);
   const resignMut = useResignGame(gameId);
+  const enterHubMut = useEnterHub(gameId);
   const game = gameQuery.data ?? null;
   const [menuOpen, setMenuOpen] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
@@ -457,7 +468,15 @@ export default function BoardScreen() {
         accentKey: walk.accentKey,
         initials: walk.initials,
       });
-      // Keep board presence alive while hub is stacked (Phase 8 will switch rooms).
+      // Phase 8.2: fan out hubId on game WS; 8.0 presence switches on blur.
+      const hubId = loc.hubId?.trim();
+      if (gameId && hubId) {
+        enterHubMut.mutate(hubId, {
+          onError: (err) => {
+            console.warn('[hub] enter-hub failed', err);
+          },
+        });
+      }
       router.push({
         pathname: '/(app)/hub/[slug]',
         params: {
@@ -474,6 +493,7 @@ export default function BoardScreen() {
       worldId,
       gameId,
       displayAccent,
+      enterHubMut.mutate,
     ],
   );
 
@@ -756,6 +776,7 @@ export default function BoardScreen() {
             onEnter={persistAndEnter}
             onMenuPress={() => setMenuOpen(true)}
             game={game}
+            locations={locations}
             localUserId={localUserId}
             localUsername={username}
             onRoll={game ? onRoll : undefined}

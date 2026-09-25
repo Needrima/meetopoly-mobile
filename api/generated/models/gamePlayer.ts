@@ -26,4 +26,9 @@ For the current player this is live (bank minus elapsed on this turn).
 For others it is the paused remainder. Starts at 45 minutes.
  */
   timeRemainingMs: number;
+  /**
+   * Phase 8.2 — set while the player is inside a location hub
+   * (e.g. `hub:africa-1:lagos`); null/omitted when on the board.
+   */
+  hubId?: string | null;
 }

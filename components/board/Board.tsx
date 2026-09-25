@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 
@@ -37,24 +37,22 @@ type BoardProps = {
   pins?: BoardPinModel[];
 };
 
-/**
- * Ring + decks + Reanimated avatar + pins + nearest-tile glow.
- */
-export function Board({
-  size,
+type StaticLayerProps = {
+  layout: BoardLayout;
+  locations: Location[];
+  highlightedBoardIndex: number | null;
+  ownerColorByIndex?: ReadonlyMap<number, string>;
+  onTilePress?: (boardIndex: number) => void;
+};
+
+/** Tiles + decks — isolated so pin hops do not rebuild the ring. */
+const BoardStaticLayer = memo(function BoardStaticLayer({
+  layout,
   locations,
-  layout: layoutProp,
-  highlightedBoardIndex = null,
+  highlightedBoardIndex,
   ownerColorByIndex,
   onTilePress,
-  avatar,
-  remotes = [],
-  pins = [],
-}: BoardProps) {
-  const layout = useMemo(
-    () => layoutProp ?? layoutBoardRing(size, locations),
-    [layoutProp, size, locations],
-  );
+}: StaticLayerProps) {
   const byIndex = useMemo(() => {
     const map = new Map<number, Location>();
     for (const loc of locations) {
@@ -64,7 +62,7 @@ export function Board({
   }, [locations]);
 
   return (
-    <View style={[styles.root, { width: size, height: size }]}>
+    <>
       <BoardCenter
         x={layout.center.x}
         y={layout.center.y}
@@ -88,6 +86,17 @@ export function Board({
           }
         />
       ))}
+    </>
+  );
+});
+
+const BoardPinsLayer = memo(function BoardPinsLayer({
+  pins,
+}: {
+  pins: BoardPinModel[];
+}) {
+  return (
+    <>
       {pins.map((p) => (
         <BoardPin
           key={p.id}
@@ -97,15 +106,70 @@ export function Board({
           accent={p.accent}
         />
       ))}
+    </>
+  );
+});
+
+const BoardRemotesLayer = memo(function BoardRemotesLayer({
+  remotes,
+  radius,
+  boardSize,
+}: {
+  remotes: Omit<RemoteAvatarModel, 'boardSize' | 'radius'>[];
+  radius: number;
+  boardSize: number;
+}) {
+  return (
+    <>
       {remotes.map((r) => (
         <BoardRemoteAvatar
           key={r.pose.userId}
           pose={r.pose}
           accent={r.accent}
-          radius={avatar?.radius ?? layout.size * BOARD_WALK.avatarRadiusFrac}
-          boardSize={layout.size}
+          radius={radius}
+          boardSize={boardSize}
         />
       ))}
+    </>
+  );
+});
+
+/**
+ * Ring + decks + Reanimated avatar + pins + nearest-tile glow.
+ * Pin hops only re-render the pins layer so avatar motion stays smooth.
+ */
+export function Board({
+  size,
+  locations,
+  layout: layoutProp,
+  highlightedBoardIndex = null,
+  ownerColorByIndex,
+  onTilePress,
+  avatar,
+  remotes = [],
+  pins = [],
+}: BoardProps) {
+  const layout = useMemo(
+    () => layoutProp ?? layoutBoardRing(size, locations),
+    [layoutProp, size, locations],
+  );
+  const remoteRadius = avatar?.radius ?? layout.size * BOARD_WALK.avatarRadiusFrac;
+
+  return (
+    <View style={[styles.root, { width: size, height: size }]}>
+      <BoardStaticLayer
+        layout={layout}
+        locations={locations}
+        highlightedBoardIndex={highlightedBoardIndex}
+        ownerColorByIndex={ownerColorByIndex}
+        onTilePress={onTilePress}
+      />
+      <BoardPinsLayer pins={pins} />
+      <BoardRemotesLayer
+        remotes={remotes}
+        radius={remoteRadius}
+        boardSize={layout.size}
+      />
       {avatar ? (
         <BoardAvatar
           poseX={avatar.poseX}
