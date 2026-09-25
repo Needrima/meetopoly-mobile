@@ -195,18 +195,23 @@ export function useSetPinColor(gameId: string | null | undefined) {
   });
 }
 
-/** POST /games/{id}/enter-hub — Phase 8.2 in-hub badge for board peers. */
+/** POST /games/{id}/enter-hub — Phase 8.2 in-hub badge; 8.4 hubRevision stale guard. */
 export function useEnterHub(gameId: string | null | undefined) {
   const { id, onSuccess } = useGameMutation(gameId);
-  return useMutation<Game, Error, string>({
-    mutationFn: (hubId: string) => {
+  return useMutation<
+    Game,
+    Error,
+    { hubId: string; hubRevision: number; signal?: AbortSignal }
+  >({
+    mutationFn: ({ hubId, hubRevision, signal }) => {
       if (!id) {
         return Promise.reject(new Error('Missing game id'));
       }
       return apiMutator<Game>(`/games/${encodeURIComponent(id)}/enter-hub`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hubId }),
+        body: JSON.stringify({ hubId, hubRevision }),
+        signal,
       });
     },
     onSuccess,

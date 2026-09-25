@@ -35,6 +35,7 @@ import { DEFAULT_WORLD_ID, useLocationBySlug } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
 import { usePlayerTimeBanks } from '@/hooks/useTurnCountdown';
 import { formatUsername } from '@/lib/formatUsername';
+import { abortHubEnter } from '@/lib/hubEnterGuard';
 import { notify } from '@/lib/notify';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
@@ -139,6 +140,7 @@ export default function HubScreen() {
           return;
         }
         if (gameId) {
+          abortHubEnter();
           leaveHubRef.current(undefined, {
             onError: (err) => {
               console.warn('[hub] leave-hub failed', err);
@@ -287,6 +289,7 @@ export default function HubScreen() {
 
   const leaveExplicit = useCallback(() => {
     skipLeaveOnBlurRef.current = false;
+    abortHubEnter();
     // Focus cleanup will leave-hub; navigate now.
     goBackToBoard();
   }, [goBackToBoard]);

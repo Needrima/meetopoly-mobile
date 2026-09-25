@@ -7,6 +7,7 @@ import { notify } from '@/lib/notify';
 import {
   encodePresencePose,
   parsePresencePose,
+  PRESENCE_POSE_TYPE,
   type PresencePose,
   type PresencePoseInput,
 } from '@/lib/presencePose';
@@ -154,6 +155,31 @@ function messageDataToString(data: string | ArrayBuffer): string {
   }
 }
 
+/** Stable frozen pose for welcome roster peers until a live pose arrives. */
+function seedPoseFromPeer(peer: PresencePeer): PresencePose {
+  let h = 2166136261;
+  for (let i = 0; i < peer.userId.length; i++) {
+    h ^= peer.userId.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const x = 0.28 + ((h >>> 0) % 1000) / 2500;
+  const y = 0.28 + ((h >>> 10) % 1000) / 2500;
+  return {
+    type: PRESENCE_POSE_TYPE,
+    userId: peer.userId,
+    username: peer.username || 'Player',
+    x: Math.min(0.72, Math.max(0.28, x)),
+    y: Math.min(0.72, Math.max(0.28, y)),
+  };
+}
+
+function isHubFullMessage(message?: string): boolean {
+  if (!message) {
+    return false;
+  }
+  return message.toLowerCase().includes('hub full');
+}
+
 export type PresenceChannelResult = {
   status: BoardPresenceStatus;
   roomId: string | null;
@@ -177,6 +203,10 @@ type PresenceChannelOpts = {
    * Board keeps false so avatars linger until resign / hubId synthetic (7.5 / 8.2).
    */
   clearRemoteOnPeerLeft?: boolean;
+  /**
+   * When true (hub), seed remotes from welcome.peers and stop reconnect on hub-full.
+   */
+  seedWelcomePeers?: boolean;
 };
 
 /**
@@ -188,6 +218,7 @@ function usePresenceChannel({
   enabled = true,
   joinToastMessage = 'On the board with you',
   clearRemoteOnPeerLeft = false,
+  seedWelcomePeers = false,
 }: PresenceChannelOpts): PresenceChannelResult {
   const { token } = useSession();
   const path = roomPath?.trim() ?? '';
@@ -210,6 +241,8 @@ function usePresenceChannel({
   joinToastRef.current = joinToastMessage;
   const clearOnLeaveRef = useRef(clearRemoteOnPeerLeft);
   clearOnLeaveRef.current = clearRemoteOnPeerLeft;
+  const seedWelcomeRef = useRef(seedWelcomePeers);
+  seedWelcomeRef.current = seedWelcomePeers;
 
   const applyRemotePose = useCallback((pose: PresencePose) => {
     setRemotes((prev) => {
@@ -274,12 +307,39 @@ function usePresenceChannel({
     }
 
     let cancelled = false;
+    let stopReconnect = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let recoverTimer: ReturnType<typeof setTimeout> | undefined;
     let attempt = 0;
     let recoverAttempt = 0;
     let renegotiating = false;
     const webrtc = loadWebRTC();
+
+    const stopFatal = (nextStatus: BoardPresenceStatus = 'error') => {
+      stopReconnect = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = undefined;
+      }
+      teardownPeer();
+      const ws = wsRef.current;
+      wsRef.current = null;
+      if (
+        ws &&
+        (ws.readyState === WebSocket.OPEN ||
+          ws.readyState === WebSocket.CONNECTING)
+      ) {
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+      }
+      if (!cancelled) {
+        setStatus(nextStatus);
+        setDcOpen(false);
+      }
+    };
 
     const teardownPeer = () => {
       remoteSetRef.current = false;
@@ -463,6 +523,16 @@ function usePresenceChannel({
           iceServersRef.current = welcome.iceServers;
           setRoomId(welcome.roomId);
           setStatus('connecting');
+          if (seedWelcomeRef.current) {
+            const seeded: Record<string, PresencePose> = {};
+            for (const peer of welcome.peers ?? []) {
+              if (!peer.userId || peer.userId === welcome.userId) {
+                continue;
+              }
+              seeded[peer.userId] = seedPoseFromPeer(peer);
+            }
+            setRemotes(seeded);
+          }
           try {
             await startWebRTC(ws, welcome.iceServers);
           } catch (err) {
@@ -518,6 +588,20 @@ function usePresenceChannel({
             message: joinToastRef.current,
             visibilityTime: 2800,
           });
+          if (seedWelcomeRef.current && peer.userId) {
+            setRemotes((prev) => {
+              if (prev[peer.userId]) {
+                return prev;
+              }
+              return {
+                ...prev,
+                [peer.userId]: seedPoseFromPeer({
+                  userId: peer.userId,
+                  username: peer.username,
+                }),
+              };
+            });
+          }
           break;
         }
         case 'peer-left': {
@@ -540,6 +624,15 @@ function usePresenceChannel({
         case 'error': {
           const err = msg as ErrorMessage;
           console.warn('[presence] server error', err.message);
+          if (seedWelcomeRef.current && isHubFullMessage(err.message)) {
+            notify({
+              type: 'error',
+              title: 'Hub full',
+              message: 'This hub already has 16 players',
+              visibilityTime: 3600,
+            });
+            stopFatal('error');
+          }
           break;
         }
         default:
@@ -574,7 +667,11 @@ function usePresenceChannel({
           wsRef.current = null;
         }
         teardownPeer();
-        if (cancelled) {
+        // Hub: drop ghosts before welcome re-seed. Board keeps linger remotes across soft reconnect.
+        if (!cancelled && seedWelcomeRef.current) {
+          setRemotes({});
+        }
+        if (cancelled || stopReconnect) {
           return;
         }
         setStatus('connecting');
@@ -586,6 +683,7 @@ function usePresenceChannel({
 
     const hardDisconnect = () => {
       cancelled = true;
+      stopReconnect = true;
       if (retryTimer) {
         clearTimeout(retryTimer);
         retryTimer = undefined;
@@ -652,5 +750,6 @@ export function useHubPresence(
     enabled: Boolean(id),
     joinToastMessage: 'In this hub with you',
     clearRemoteOnPeerLeft: true,
+    seedWelcomePeers: true,
   });
 }

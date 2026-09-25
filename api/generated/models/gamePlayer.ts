@@ -31,4 +31,8 @@ For others it is the paused remainder. Starts at 45 minutes.
    * (e.g. `hub:africa-1:lagos`); null/omitted when on the board.
    */
   hubId?: string | null;
+  /**
+   * Phase 8.4 — bumps on leave-hub / resign. Pass on enter-hub to ignore stale enters.
+   */
+  hubRevision?: number;
 }

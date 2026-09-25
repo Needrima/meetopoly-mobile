@@ -41,6 +41,7 @@ import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
 import { notify } from '@/lib/notify';
 import { formatUsername } from '@/lib/formatUsername';
+import { beginHubEnter } from '@/lib/hubEnterGuard';
 import { buyToastTitle, countOwnedOfKind } from '@/lib/buyToast';
 import { buildBoardRemoteAvatars } from '@/lib/buildBoardRemoteAvatars';
 import { colors } from '@/theme/colors';
@@ -469,13 +470,23 @@ export default function BoardScreen() {
         initials: walk.initials,
       });
       // Phase 8.2: fan out hubId on game WS; 8.0 presence switches on blur.
+      // Phase 8.4: hubRevision + abort so leave cannot lose to a late enter.
       const hubId = loc.hubId?.trim();
       if (gameId && hubId) {
-        enterHubMut.mutate(hubId, {
-          onError: (err) => {
-            console.warn('[hub] enter-hub failed', err);
+        const signal = beginHubEnter();
+        const hubRevision =
+          game?.players.find((p) => p.userId === localUserId)?.hubRevision ?? 0;
+        enterHubMut.mutate(
+          { hubId, hubRevision, signal },
+          {
+            onError: (err) => {
+              if (err?.name === 'AbortError') {
+                return;
+              }
+              console.warn('[hub] enter-hub failed', err);
+            },
           },
-        });
+        );
       }
       router.push({
         pathname: '/(app)/hub/[slug]',
@@ -492,6 +503,8 @@ export default function BoardScreen() {
       walk,
       worldId,
       gameId,
+      game?.players,
+      localUserId,
       displayAccent,
       enterHubMut.mutate,
     ],
