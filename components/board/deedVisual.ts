@@ -17,6 +17,20 @@ const GROUP_HEX: Record<string, string> = {
 
 export type DeedRentRow = { label: string; value: string };
 
+/**
+ * Seed names for utilities/railroads often include the world pack
+ * ("Europe 3 Water Works"). Strip that for player-facing UI.
+ */
+export function stripWorldNamePrefix(name: string): string {
+  const stripped = name
+    .replace(
+      /^(?:Africa|Asia(?:\s+\d+)?|Europe(?:\s+\d+)?|central-america-\d+|north-america-\d+|south-america-\d+|middle-east-\d+|oceania-\d+)\s+/i,
+      '',
+    )
+    .trim();
+  return stripped.length > 0 ? stripped : name;
+}
+
 export function stripColorFor(
   loc: Location | null | undefined,
   kind: string,

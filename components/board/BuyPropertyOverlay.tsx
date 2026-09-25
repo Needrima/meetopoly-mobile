@@ -7,6 +7,7 @@ import {
   kindFallbackLabel,
   rentRowsFor,
   stripColorFor,
+  stripWorldNamePrefix,
 } from '@/components/board/deedVisual';
 import { resolveBoardIcon } from '@/components/board/iconRegistry';
 import { Button } from '@/components/ui/Button';
@@ -74,7 +75,7 @@ export function BuyPropertyOverlay({
                   style={[styles.deedName, { color: onStrip }]}
                   numberOfLines={1}
                 >
-                  {offer.name}
+                  {stripWorldNamePrefix(offer.name)}
                 </Text>
               </View>
 

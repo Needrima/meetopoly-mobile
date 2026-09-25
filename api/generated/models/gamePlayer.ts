@@ -21,7 +21,7 @@ export interface GamePlayer {
   pinColor: string;
   /** Left mid-game or time-bank eliminated; skipped for turns */
   resigned: boolean;
-  /** Personal time bank remaining in milliseconds (Phase 6.3b).
+  /** Personal time remaining in milliseconds (Phase 6.3b).
 For the current player this is live (bank minus elapsed on this turn).
 For others it is the paused remainder. Starts at 45 minutes.
  */

@@ -54,7 +54,7 @@ export interface Game {
   winnerUserId?: string;
   /** Display name of the winner */
   winnerUsername?: string;
-  /** UTC instant when the current player's time bank started draining (Phase 6.3b).
+  /** UTC instant when the current player's time started draining (Phase 6.3b).
 Omitted when finished or clock paused. Clients may tick locally from this + timeRemainingMs.
  */
   turnStartedAt?: string;

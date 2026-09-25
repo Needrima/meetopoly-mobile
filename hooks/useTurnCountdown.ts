@@ -15,7 +15,7 @@ export function formatBankMs(ms: number): string {
 }
 
 /**
- * Per-player time banks (Phase 6.3b) for HUD on every device.
+ * Per-player time (Phase 6.3b) for HUD on every device.
  * Current player's bank ticks down; others stay paused at their remainder.
  */
 export function usePlayerTimeBanks(
