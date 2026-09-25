@@ -19,6 +19,7 @@ import { shortTileName } from '@/components/board/tileLabel';
 import { tileVisual } from '@/components/board/tileStyle';
 import { HubBuySheet } from '@/components/hub/HubBuySheet';
 import { HubLocationCopy } from '@/components/hub/HubLocationCopy';
+import { HubRoster, type HubRosterRow } from '@/components/hub/HubRoster';
 import { HubScene } from '@/components/hub/HubScene';
 import { HubTurnSheet } from '@/components/hub/HubTurnSheet';
 import { useMe } from '@/hooks/useAuth';
@@ -49,8 +50,8 @@ const PANE_FLEX = 1;
 const CENTER_EDGE = 2;
 
 /**
- * Phase 9 hub chrome: equal 3-pane shell + floor copy (9.0c).
- * Roster (9.0d) comes next. Keep-awake — board may not cover this route.
+ * Phase 9 hub chrome: 3-pane + floor copy + roster (9.0d).
+ * Keep-awake — board may not cover this route.
  */
 export default function HubScreen() {
   useBlockHardwareBack(true);
@@ -251,6 +252,78 @@ export default function HubScreen() {
       localUserId ?? username ?? 'local',
     );
   }, [localPlayer?.pinColor, walk.accent, floorColor, localUserId, username]);
+
+  const rosterRows = useMemo((): HubRosterRow[] => {
+    const pinByUser = new Map<string, string>();
+    const countryByUser = new Map<string, string>();
+    for (const p of game?.players ?? []) {
+      if (p.pinColor) {
+        pinByUser.set(p.userId, p.pinColor);
+      }
+      if (typeof p.country === 'string' && p.country.trim()) {
+        countryByUser.set(p.userId, p.country.trim().toUpperCase());
+      }
+    }
+    const localCountry =
+      (typeof localPlayer?.country === 'string' &&
+        localPlayer.country.trim().toUpperCase()) ||
+      (typeof me.data?.country === 'string' &&
+        me.data.country.trim().toUpperCase()) ||
+      '';
+
+    const byId = new Map<string, HubRosterRow>();
+    for (const entry of presence.roster) {
+      if (!entry.userId) {
+        continue;
+      }
+      const preferred = pinByUser.get(entry.userId) ?? colors.muted;
+      const country =
+        (typeof entry.country === 'string' && entry.country.trim()
+          ? entry.country.trim().toUpperCase()
+          : '') ||
+        countryByUser.get(entry.userId) ||
+        undefined;
+      byId.set(entry.userId, {
+        userId: entry.userId,
+        username: entry.username,
+        country,
+        accent: accentAgainstFloor(preferred, floorColor, entry.userId),
+        isLocal: Boolean(localUserId && entry.userId === localUserId),
+      });
+    }
+
+    if (localUserId) {
+      const existing = byId.get(localUserId);
+      byId.set(localUserId, {
+        userId: localUserId,
+        username: existing?.username || username || 'Player',
+        country: existing?.country || localCountry || undefined,
+        accent: localAccent,
+        isLocal: true,
+      });
+    }
+
+    return Array.from(byId.values()).sort((a, b) => {
+      if (a.isLocal && !b.isLocal) {
+        return -1;
+      }
+      if (!a.isLocal && b.isLocal) {
+        return 1;
+      }
+      return formatUsername(a.username).localeCompare(
+        formatUsername(b.username),
+      );
+    });
+  }, [
+    presence.roster,
+    game?.players,
+    localUserId,
+    localPlayer?.country,
+    me.data?.country,
+    username,
+    localAccent,
+    floorColor,
+  ]);
 
   const bankLabel = localUserId ? (bankLabels[localUserId] ?? '') : '';
   const canRoll = Boolean(isMyTurn && game?.canRoll);
@@ -482,25 +555,23 @@ export default function HubScreen() {
             { flex: PANE_FLEX, paddingTop: 10 + insets.top },
           ]}
         >
-          <View style={styles.panelHeader}>
-            <Text style={styles.panelEyebrow} numberOfLines={1}>
-              {hubDisplayName}
-              {code ? ` · ${code}` : ''}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Leave hub"
-              hitSlop={12}
-              onPress={leaveExplicit}
-              style={({ pressed }) => [
-                styles.closeBtn,
-                pressed ? styles.pressed : null,
-              ]}
-            >
-              <Ionicons name="close" size={22} color={colors.ink} />
-            </Pressable>
-          </View>
-          <Text style={styles.panelStub}>Roster · Phase 9.0d</Text>
+          <HubRoster
+            rows={rosterRows}
+            headerRight={
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Leave hub"
+                hitSlop={12}
+                onPress={leaveExplicit}
+                style={({ pressed }) => [
+                  styles.closeBtn,
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <Ionicons name="close" size={22} color={colors.ink} />
+              </Pressable>
+            }
+          />
 
           <View style={styles.joystickDock} pointerEvents="box-none">
             <Joystick
@@ -606,26 +677,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: 10,
     paddingBottom: DOCK_PAD + JOYSTICK_SIZE + 8,
-  },
-  panelHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 6,
-  },
-  panelEyebrow: {
-    flex: 1,
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.muted,
-  },
-  panelStub: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
   },
   closeBtn: {
     width: 36,
