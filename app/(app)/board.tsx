@@ -42,6 +42,7 @@ import { useSession } from '@/hooks/useSession';
 import { notify } from '@/lib/notify';
 import { formatUsername } from '@/lib/formatUsername';
 import { buyToastTitle, countOwnedOfKind } from '@/lib/buyToast';
+import { buildBoardRemoteAvatars } from '@/lib/buildBoardRemoteAvatars';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -248,23 +249,18 @@ export default function BoardScreen() {
   }, [layout, presence.dcOpen, gameId]);
 
   const remoteAvatars = useMemo(() => {
-    const colorByUser = new Map<string, string>();
-    const resigned = new Set<string>();
-    for (const p of game?.players ?? []) {
-      if (p.pinColor) {
-        colorByUser.set(p.userId, p.pinColor);
-      }
-      if (p.resigned) {
-        resigned.add(p.userId);
-      }
+    if (!layout) {
+      return [];
     }
-    return Object.values(presence.remotes)
-      .filter((pose) => !resigned.has(pose.userId))
-      .map((pose) => ({
-        pose,
-        accent: colorByUser.get(pose.userId) ?? colors.muted,
-      }));
-  }, [presence.remotes, game?.players]);
+    return buildBoardRemoteAvatars({
+      layout,
+      locations,
+      players: game?.players ?? [],
+      remotes: presence.remotes,
+      localUserId,
+      fallbackAccent: colors.muted,
+    });
+  }, [layout, locations, game?.players, presence.remotes, localUserId]);
 
   /** Lobby/game seat color wins over random walk accent. */
   const displayAccent = localGamePinColor ?? walk.accent;

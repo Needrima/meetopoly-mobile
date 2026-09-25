@@ -172,6 +172,11 @@ type PresenceChannelOpts = {
   enabled?: boolean;
   /** Toast body for peer-joined (board vs hub). */
   joinToastMessage?: string;
+  /**
+   * When true, drop remotes on peer-left (hub).
+   * Board keeps false so avatars linger until resign / hubId synthetic (7.5 / 8.2).
+   */
+  clearRemoteOnPeerLeft?: boolean;
 };
 
 /**
@@ -182,6 +187,7 @@ function usePresenceChannel({
   roomPath,
   enabled = true,
   joinToastMessage = 'On the board with you',
+  clearRemoteOnPeerLeft = false,
 }: PresenceChannelOpts): PresenceChannelResult {
   const { token } = useSession();
   const path = roomPath?.trim() ?? '';
@@ -202,6 +208,8 @@ function usePresenceChannel({
   const disconnectRef = useRef<() => void>(() => {});
   const joinToastRef = useRef(joinToastMessage);
   joinToastRef.current = joinToastMessage;
+  const clearOnLeaveRef = useRef(clearRemoteOnPeerLeft);
+  clearOnLeaveRef.current = clearRemoteOnPeerLeft;
 
   const applyRemotePose = useCallback((pose: PresencePose) => {
     setRemotes((prev) => {
@@ -513,7 +521,20 @@ function usePresenceChannel({
           break;
         }
         case 'peer-left': {
-          // Board (7.5): linger avatar until resign. Hub (8.0): silent leave (no toast).
+          // Board: linger until resign / hubId synthetic. Hub: remove avatar immediately.
+          if (clearOnLeaveRef.current) {
+            const peer = msg as PeerLeftMessage;
+            if (peer.userId) {
+              setRemotes((prev) => {
+                if (!(peer.userId in prev)) {
+                  return prev;
+                }
+                const next = { ...prev };
+                delete next[peer.userId];
+                return next;
+              });
+            }
+          }
           break;
         }
         case 'error': {
@@ -630,5 +651,6 @@ export function useHubPresence(
     roomPath: id ? `hub/${encodeURIComponent(id)}` : null,
     enabled: Boolean(id),
     joinToastMessage: 'In this hub with you',
+    clearRemoteOnPeerLeft: true,
   });
 }

@@ -1,29 +1,39 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { resolveBoardIcon } from '@/components/board/iconRegistry';
+import { Joystick } from '@/components/board/Joystick';
 import { shortTileName } from '@/components/board/tileLabel';
+import { HubScene } from '@/components/hub/HubScene';
 import { Button } from '@/components/ui/Button';
+import { useMe } from '@/hooks/useAuth';
 import { useHubPresence } from '@/hooks/useBoardPresence';
-import { useLeaveHub } from '@/hooks/useGame';
+import { useGame, useLeaveHub } from '@/hooks/useGame';
+import { useHubWalk } from '@/hooks/useHubWalk';
 import { DEFAULT_WORLD_ID, useLocationBySlug } from '@/hooks/useLocations';
+import { useSession } from '@/hooks/useSession';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
+const JOYSTICK_SIZE = 96;
+const DOCK_PAD = 20;
+const HEADER_H = 52;
+
 /**
- * Hub placeholder (Phase 8.0–8.2): joins hub presence; blur/Leave clears game hubId
- * then returns to board (board presence reconnects via focus).
+ * Phase 8.1 hub: presence poses on a walkable surface + remotes; Leave clears hubId.
  */
 export default function HubScreen() {
   const insets = useSafeAreaInsets();
+  const { width: winW, height: winH } = useWindowDimensions();
   const params = useLocalSearchParams<{
     slug?: string;
     worldId?: string;
@@ -39,6 +49,10 @@ export default function HubScreen() {
       ? params.gameId.trim()
       : null;
 
+  const { token, user } = useSession();
+  const me = useMe(Boolean(token));
+  const username = me.data?.username ?? user?.username ?? null;
+
   const { data: location, isLoading, isError, error } = useLocationBySlug(
     worldId,
     slug,
@@ -49,8 +63,21 @@ export default function HubScreen() {
   const leaveHubMut = useLeaveHub(gameId);
   const leaveHubRef = useRef(leaveHubMut.mutate);
   leaveHubRef.current = leaveHubMut.mutate;
+  const gameQuery = useGame(gameId);
+  const game = gameQuery.data ?? null;
 
-  // Phase 8.2 — clear hubId on any leave path (button or system back).
+  const [surfaceBox, setSurfaceBox] = useState({ w: 0, h: 0 });
+  const surfaceSize = Math.max(
+    0,
+    Math.floor(Math.min(surfaceBox.w, surfaceBox.h)),
+  );
+
+  const walk = useHubWalk({
+    size: surfaceSize,
+    username,
+    enabled: surfaceSize > 0,
+  });
+
   useFocusEffect(
     useCallback(() => {
       return () => {
@@ -65,8 +92,48 @@ export default function HubScreen() {
     }, [gameId]),
   );
 
-  const Icon = resolveBoardIcon(location?.assets?.icon);
+  const getPoseRef = useRef(walk.getPose);
+  getPoseRef.current = walk.getPose;
+  const sendPoseRef = useRef(presence.sendPose);
+  sendPoseRef.current = presence.sendPose;
+
+  useEffect(() => {
+    if (!presence.dcOpen || surfaceSize <= 0) {
+      return;
+    }
+    const tick = () => {
+      const pose = getPoseRef.current();
+      sendPoseRef.current({
+        x: pose.x / surfaceSize,
+        y: pose.y / surfaceSize,
+      });
+    };
+    tick();
+    const id = setInterval(tick, 100);
+    return () => clearInterval(id);
+  }, [presence.dcOpen, surfaceSize]);
+
+  const remotes = useMemo(() => {
+    const colorByUser = new Map<string, string>();
+    for (const p of game?.players ?? []) {
+      if (p.pinColor) {
+        colorByUser.set(p.userId, p.pinColor);
+      }
+    }
+    return Object.values(presence.remotes).map((pose) => ({
+      pose,
+      accent: colorByUser.get(pose.userId) ?? colors.muted,
+    }));
+  }, [presence.remotes, game?.players]);
+
   const code = location ? shortTileName(location) : '';
+
+  const onSurfaceLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setSurfaceBox((prev) =>
+      prev.w === width && prev.h === height ? prev : { w: width, h: height },
+    );
+  };
 
   const leave = useCallback(() => {
     if (router.canGoBack()) {
@@ -76,36 +143,39 @@ export default function HubScreen() {
     }
   }, []);
 
-  const presenceLabel =
-    !hubId
-      ? 'No hub id'
-      : presence.status === 'connected' && presence.dcOpen
-        ? 'Presence connected'
-        : presence.status === 'connected'
-          ? 'Signaling up…'
-          : presence.status === 'connecting'
-            ? 'Joining hub…'
-            : presence.status === 'error'
-              ? 'Presence error'
-              : 'Presence idle';
+  const presenceHint =
+    presence.status === 'connected' && presence.dcOpen
+      ? 'Live'
+      : presence.status === 'connecting' || presence.status === 'connected'
+        ? 'Connecting…'
+        : '';
+
+  const maxScene = Math.min(winW - insets.left - insets.right - 32, winH * 0.62);
 
   return (
     <View
       style={[
         styles.root,
         {
-          paddingTop: insets.top + 16,
-          paddingBottom: insets.bottom + 16,
-          paddingLeft: insets.left + 24,
-          paddingRight: insets.right + 24,
+          paddingTop: insets.top + 8,
+          paddingBottom: insets.bottom + 8,
+          paddingLeft: insets.left + 16,
+          paddingRight: insets.right + 16,
         },
       ]}
     >
-      <Text style={styles.eyebrow}>Hub</Text>
-
-      {isLoading ? (
-        <ActivityIndicator color={colors.brand} style={styles.spinner} />
-      ) : null}
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.eyebrow}>Hub{code ? ` · ${code}` : ''}</Text>
+          <Text style={styles.title} numberOfLines={1}>
+            {location?.name ?? (isLoading ? '…' : slug || 'Hub')}
+          </Text>
+          {presenceHint ? (
+            <Text style={styles.presence}>{presenceHint}</Text>
+          ) : null}
+        </View>
+        <Button label="Leave" onPress={leave} />
+      </View>
 
       {isError ? (
         <Text style={styles.error}>
@@ -113,48 +183,41 @@ export default function HubScreen() {
         </Text>
       ) : null}
 
-      {!isLoading && !isError && location ? (
-        <View style={styles.card}>
-          {Icon ? (
-            <View style={styles.iconWrap}>
-              <Icon width={56} height={56} color={colors.ink} />
-            </View>
-          ) : null}
-          <Text style={styles.title}>{location.name}</Text>
-          <Text style={styles.code}>{code}</Text>
-          <Text style={styles.body}>
-            {location.aboutShort?.trim() ||
-              location.description?.trim() ||
-              'Social hub arrives in a later phase. For now this is a local placeholder.'}
-          </Text>
-          <Text style={styles.meta}>
-            {worldId} · {location.hubId}
-          </Text>
-          <Text style={styles.presence}>{presenceLabel}</Text>
-          {location.attribution?.trim() ? (
-            <Text style={styles.attribution}>
-              {location.attribution.trim()}
-            </Text>
+      {isLoading && !location ? (
+        <ActivityIndicator color={colors.brand} style={styles.spinner} />
+      ) : null}
+
+      <View style={[styles.stage, { maxHeight: maxScene }]} onLayout={onSurfaceLayout}>
+        <View style={styles.stageInner}>
+          {surfaceSize > 0 ? (
+            <HubScene
+              size={surfaceSize}
+              local={{
+                poseX: walk.poseX,
+                poseY: walk.poseY,
+                radius: walk.avatarRadius,
+                initials: walk.initials,
+                accent: walk.accent,
+              }}
+              remotes={remotes}
+              remoteRadius={walk.avatarRadius}
+            />
           ) : null}
         </View>
-      ) : null}
+      </View>
 
-      {!isLoading && !isError && !location && slug ? (
-        <Text style={styles.error}>No location for “{slug}”.</Text>
-      ) : null}
-
-      <View style={styles.footer}>
-        <Button label="Leave" onPress={leave} />
-        <Pressable
-          accessibilityRole="button"
-          onPress={leave}
-          style={({ pressed }) => [
-            styles.secondary,
-            pressed ? styles.pressed : null,
-          ]}
-        >
-          <Text style={styles.secondaryLabel}>Back to board</Text>
-        </Pressable>
+      <View
+        style={[
+          styles.stickDock,
+          { right: DOCK_PAD, bottom: DOCK_PAD + insets.bottom },
+        ]}
+        pointerEvents="box-none"
+      >
+        <Joystick
+          onStick={walk.setStick}
+          size={JOYSTICK_SIZE}
+          accent={walk.accent}
+        />
       </View>
     </View>
   );
@@ -165,81 +228,58 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+  header: {
+    minHeight: HEADER_H,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+  },
   eyebrow: {
-    fontFamily: fonts.display,
-    fontSize: 14,
-    letterSpacing: 2,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 1,
     textTransform: 'uppercase',
     color: colors.muted,
-    marginBottom: 12,
-  },
-  spinner: {
-    marginTop: 24,
-  },
-  card: {
-    flexGrow: 1,
-  },
-  iconWrap: {
-    marginBottom: 12,
   },
   title: {
-    fontFamily: fonts.display,
-    fontSize: 28,
-    color: colors.ink,
-    marginBottom: 4,
-  },
-  code: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.muted,
-    marginBottom: 12,
-  },
-  body: {
-    fontFamily: fonts.body,
-    fontSize: 16,
-    lineHeight: 24,
-    color: colors.ink,
-    marginBottom: 16,
-  },
-  meta: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
-    marginBottom: 6,
+    fontFamily: fonts.displayBold,
+    fontSize: 22,
+    color: colors.brand,
   },
   presence: {
     fontFamily: fonts.body,
-    fontSize: 13,
+    fontSize: 12,
     color: colors.brand,
-    marginBottom: 12,
+    marginTop: 2,
   },
-  attribution: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    color: colors.muted,
-    marginBottom: 8,
+  spinner: {
+    marginTop: 12,
   },
   error: {
     fontFamily: fonts.body,
-    fontSize: 15,
+    fontSize: 14,
     color: colors.danger,
-    marginTop: 16,
+    marginBottom: 8,
   },
-  footer: {
-    gap: 12,
-    marginTop: 'auto' as const,
-    paddingTop: 24,
-  },
-  secondary: {
+  stage: {
+    flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
+    justifyContent: 'center',
+    minHeight: 160,
   },
-  pressed: {
-    opacity: 0.7,
+  stageInner: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  secondaryLabel: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: colors.muted,
+  stickDock: {
+    position: 'absolute',
+    zIndex: 30,
   },
 });
