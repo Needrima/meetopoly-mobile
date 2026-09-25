@@ -11,20 +11,22 @@ const INTERP_MS = 100;
 
 /**
  * Phase 7.2 — board-pixel SharedValues that ease toward each new norm pose.
+ * `boardHeight` defaults to `boardWidth` for square surfaces (board); hub passes both.
  */
 export function useInterpolatedBoardPose(
   xNorm: number,
   yNorm: number,
-  boardSize: number,
+  boardWidth: number,
+  boardHeight = boardWidth,
 ): { poseX: SharedValue<number>; poseY: SharedValue<number> } {
-  const x = clamp01(xNorm) * Math.max(0, boardSize);
-  const y = clamp01(yNorm) * Math.max(0, boardSize);
+  const x = clamp01(xNorm) * Math.max(0, boardWidth);
+  const y = clamp01(yNorm) * Math.max(0, boardHeight);
   const poseX = useSharedValue(x);
   const poseY = useSharedValue(y);
 
   useEffect(() => {
-    const tx = clamp01(xNorm) * Math.max(0, boardSize);
-    const ty = clamp01(yNorm) * Math.max(0, boardSize);
+    const tx = clamp01(xNorm) * Math.max(0, boardWidth);
+    const ty = clamp01(yNorm) * Math.max(0, boardHeight);
     poseX.value = withTiming(tx, {
       duration: INTERP_MS,
       easing: Easing.linear,
@@ -33,7 +35,7 @@ export function useInterpolatedBoardPose(
       duration: INTERP_MS,
       easing: Easing.linear,
     });
-  }, [xNorm, yNorm, boardSize, poseX, poseY]);
+  }, [xNorm, yNorm, boardWidth, boardHeight, poseX, poseY]);
 
   return { poseX, poseY };
 }

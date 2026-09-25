@@ -4,11 +4,11 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,7 +16,9 @@ import type { GameBuyOffer } from '@/api/types';
 import { Joystick } from '@/components/board/Joystick';
 import { stripWorldNamePrefix } from '@/components/board/deedVisual';
 import { shortTileName } from '@/components/board/tileLabel';
+import { tileVisual } from '@/components/board/tileStyle';
 import { HubBuySheet } from '@/components/hub/HubBuySheet';
+import { HubLocationCopy } from '@/components/hub/HubLocationCopy';
 import { HubScene } from '@/components/hub/HubScene';
 import { HubTurnSheet } from '@/components/hub/HubTurnSheet';
 import { useMe } from '@/hooks/useAuth';
@@ -36,21 +38,24 @@ import { useSession } from '@/hooks/useSession';
 import { usePlayerTimeBanks } from '@/hooks/useTurnCountdown';
 import { formatUsername } from '@/lib/formatUsername';
 import { abortHubEnter } from '@/lib/hubEnterGuard';
+import { accentAgainstFloor } from '@/lib/hubFloorContrast';
 import { notify } from '@/lib/notify';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 const JOYSTICK_SIZE = 96;
-const DOCK_PAD = 20;
-const HEADER_H = 52;
+const DOCK_PAD = 16;
+const PANE_FLEX = 1;
+const CENTER_EDGE = 2;
 
 /**
- * Phase 8.1–8.3 hub: poses + turn sheet; X Leave clears hubId; Open board keeps it.
+ * Phase 9 hub chrome: equal 3-pane shell + floor copy (9.0c).
+ * Roster (9.0d) comes next. Keep-awake — board may not cover this route.
  */
 export default function HubScreen() {
   useBlockHardwareBack(true);
+  useKeepAwake('meetopoly-hub', { suppressDeactivateWarnings: true });
   const insets = useSafeAreaInsets();
-  const { width: winW, height: winH } = useWindowDimensions();
   const params = useLocalSearchParams<{
     slug?: string;
     worldId?: string;
@@ -71,10 +76,12 @@ export default function HubScreen() {
   const username = me.data?.username ?? user?.username ?? null;
   const sessionUserId = me.data?.id ?? user?.id ?? null;
 
-  const { data: location, isLoading, isError, error } = useLocationBySlug(
-    worldId,
-    slug,
-  );
+  const {
+    data: location,
+    isLoading,
+    isError,
+    error,
+  } = useLocationBySlug(worldId, slug);
 
   const hubId = location?.hubId?.trim() || null;
   const presence = useHubPresence(hubId);
@@ -116,16 +123,16 @@ export default function HubScreen() {
   );
   const [awaitingEndAfterBuy, setAwaitingEndAfterBuy] = useState(false);
   const buyOfferKeyRef = useRef<string | null>(null);
-  const surfaceSize = Math.max(
-    0,
-    Math.floor(Math.min(surfaceBox.w, surfaceBox.h)),
-  );
+  const surfaceW = Math.max(0, Math.floor(surfaceBox.w));
+  const surfaceH = Math.max(0, Math.floor(surfaceBox.h));
+  const surfaceReady = surfaceW > 0 && surfaceH > 0;
   const turnBusy = useHubTurnBusy(game);
 
   const walk = useHubWalk({
-    size: surfaceSize,
+    width: surfaceW,
+    height: surfaceH,
     username,
-    enabled: surfaceSize > 0,
+    enabled: surfaceReady,
   });
 
   /** When true, blur must not call leave-hub (Open board keeps hubId). */
@@ -185,20 +192,40 @@ export default function HubScreen() {
   sendPoseRef.current = presence.sendPose;
 
   useEffect(() => {
-    if (!presence.dcOpen || surfaceSize <= 0) {
+    if (!presence.dcOpen || !surfaceReady) {
       return;
     }
     const tick = () => {
       const pose = getPoseRef.current();
       sendPoseRef.current({
-        x: pose.x / surfaceSize,
-        y: pose.y / surfaceSize,
+        x: pose.x / surfaceW,
+        y: pose.y / surfaceH,
       });
     };
     tick();
     const id = setInterval(tick, 100);
     return () => clearInterval(id);
-  }, [presence.dcOpen, surfaceSize]);
+  }, [presence.dcOpen, surfaceReady, surfaceW, surfaceH]);
+
+  const code = location ? shortTileName(location) : '';
+  const hubDisplayName = location
+    ? stripWorldNamePrefix(location.name)
+    : isLoading
+      ? '…'
+      : slug || 'Hub';
+  const tile = tileVisual(location ?? undefined);
+  const floorColor = tile.bandColor ?? tile.fill;
+  const hubBlurb =
+    location?.about?.trim() ||
+    location?.aboutShort?.trim() ||
+    location?.description?.trim() ||
+    '';
+  const copyPadTop = 12 + insets.top;
+  /** Title (≤2 lines) + code + gaps ≈ 56; keep about inside remaining pane height. */
+  const blurbLines = Math.max(
+    2,
+    Math.floor((Math.max(0, surfaceBox.h) - copyPadTop - 16 - 56) / 18),
+  );
 
   const remotes = useMemo(() => {
     const colorByUser = new Map<string, string>();
@@ -207,19 +234,25 @@ export default function HubScreen() {
         colorByUser.set(p.userId, p.pinColor);
       }
     }
-    return Object.values(presence.remotes).map((pose) => ({
-      pose,
-      accent: colorByUser.get(pose.userId) ?? colors.muted,
-    }));
-  }, [presence.remotes, game?.players]);
+    return Object.values(presence.remotes).map((pose) => {
+      const preferred = colorByUser.get(pose.userId) ?? colors.muted;
+      return {
+        pose,
+        accent: accentAgainstFloor(preferred, floorColor, pose.userId),
+      };
+    });
+  }, [presence.remotes, game?.players, floorColor]);
 
-  const code = location ? shortTileName(location) : '';
-  const hubDisplayName = location
-    ? stripWorldNamePrefix(location.name)
-    : isLoading
-      ? '…'
-      : slug || 'Hub';
-  const bankLabel = localUserId ? bankLabels[localUserId] ?? '' : '';
+  const localAccent = useMemo(() => {
+    const preferred = localPlayer?.pinColor?.trim() || walk.accent;
+    return accentAgainstFloor(
+      preferred,
+      floorColor,
+      localUserId ?? username ?? 'local',
+    );
+  }, [localPlayer?.pinColor, walk.accent, floorColor, localUserId, username]);
+
+  const bankLabel = localUserId ? (bankLabels[localUserId] ?? '') : '';
   const canRoll = Boolean(isMyTurn && game?.canRoll);
   const canEnd = Boolean(isMyTurn && game?.canEndTurn);
   const buyOffer = game?.buyOffer ?? null;
@@ -372,97 +405,115 @@ export default function HubScreen() {
           ? 'Hub full or error'
           : '';
 
-  const maxScene = Math.min(winW - insets.left - insets.right - 32, winH * 0.62);
-
   return (
-    <View
-      style={[
-        styles.root,
-        {
-          paddingTop: insets.top + 8,
-          paddingBottom: insets.bottom + 8,
-          paddingLeft: insets.left + 16,
-          paddingRight: insets.right + 16,
-        },
-      ]}
-    >
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.eyebrow}>Hub{code ? ` · ${code}` : ''}</Text>
-          <Text style={styles.title} numberOfLines={1}>
-            {hubDisplayName}
-          </Text>
-          {bankLabel ? (
-            <Text style={styles.bankHeader}>Time · {bankLabel}</Text>
-          ) : null}
-          {presenceHint ? (
-            <Text style={styles.presence}>{presenceHint}</Text>
-          ) : null}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Leave hub"
-          hitSlop={12}
-          onPress={leaveExplicit}
-          style={({ pressed }) => [
-            styles.closeBtn,
-            pressed ? styles.pressed : null,
-          ]}
-        >
-          <Ionicons name="close" size={26} color={colors.ink} />
-        </Pressable>
-      </View>
-
-      {isError ? (
-        <Text style={styles.error}>
-          {error instanceof Error ? error.message : 'Failed to load hub'}
-        </Text>
-      ) : null}
-
-      {isLoading && !location ? (
-        <ActivityIndicator color={colors.brand} style={styles.spinner} />
-      ) : null}
-
-      <View
-        style={[styles.stage, { maxHeight: maxScene }]}
-        onLayout={onSurfaceLayout}
-      >
-        <View style={styles.stageInner}>
-          {surfaceSize > 0 ? (
-            <HubScene
-              size={surfaceSize}
-              local={{
-                poseX: walk.poseX,
-                poseY: walk.poseY,
-                radius: walk.avatarRadius,
-                initials: walk.initials,
-                accent: walk.accent,
-              }}
-              remotes={remotes}
-              remoteRadius={walk.avatarRadius}
-            />
-          ) : null}
-        </View>
-      </View>
-
+    <View style={styles.root}>
       <View
         style={[
-          styles.stickDock,
-          { right: DOCK_PAD, bottom: DOCK_PAD + insets.bottom },
+          styles.main,
+          { paddingLeft: insets.left, paddingRight: insets.right },
         ]}
-        pointerEvents="box-none"
       >
-        <Joystick
-          onStick={walk.setStick}
-          size={JOYSTICK_SIZE}
-          accent={walk.accent}
-        />
+        <View
+          style={[
+            styles.mediaRail,
+            { flex: PANE_FLEX, paddingTop: 12 + insets.top },
+          ]}
+        >
+          <Text style={styles.mediaEyebrow}>Media</Text>
+          <Text style={styles.mediaStub}>Cameras · Phase 10</Text>
+          {presenceHint ? (
+            <Text style={styles.mediaStatus}>{presenceHint}</Text>
+          ) : null}
+          {bankLabel ? (
+            <Text style={styles.mediaBank}>Time · {bankLabel}</Text>
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.centerRail,
+            {
+              flex: PANE_FLEX,
+              backgroundColor: floorColor,
+              borderLeftColor: colors.border,
+              borderRightColor: colors.border,
+            },
+          ]}
+          onLayout={onSurfaceLayout}
+        >
+          {isError ? (
+            <Text style={styles.error}>
+              {error instanceof Error ? error.message : 'Failed to load hub'}
+            </Text>
+          ) : null}
+          {isLoading && !location ? (
+            <ActivityIndicator color={colors.brand} />
+          ) : null}
+          <HubLocationCopy
+            floorColor={floorColor}
+            title={hubDisplayName}
+            shortName={code}
+            blurb={hubBlurb}
+            blurbLines={blurbLines}
+            paddingTop={copyPadTop}
+          />
+          {surfaceReady ? (
+            <View style={styles.avatarLayer} pointerEvents="box-none">
+              <HubScene
+                width={surfaceW}
+                height={surfaceH}
+                local={{
+                  poseX: walk.poseX,
+                  poseY: walk.poseY,
+                  radius: walk.avatarRadius,
+                  initials: walk.initials,
+                  accent: localAccent,
+                }}
+                remotes={remotes}
+                remoteRadius={walk.avatarRadius}
+              />
+            </View>
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.panelRail,
+            { flex: PANE_FLEX, paddingTop: 10 + insets.top },
+          ]}
+        >
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelEyebrow} numberOfLines={1}>
+              {hubDisplayName}
+              {code ? ` · ${code}` : ''}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Leave hub"
+              hitSlop={12}
+              onPress={leaveExplicit}
+              style={({ pressed }) => [
+                styles.closeBtn,
+                pressed ? styles.pressed : null,
+              ]}
+            >
+              <Ionicons name="close" size={22} color={colors.ink} />
+            </Pressable>
+          </View>
+          <Text style={styles.panelStub}>Roster · Phase 9.0d</Text>
+
+          <View style={styles.joystickDock} pointerEvents="box-none">
+            <Joystick
+              onStick={walk.setStick}
+              size={JOYSTICK_SIZE}
+              accent={localAccent}
+            />
+          </View>
+        </View>
       </View>
 
       <HubTurnSheet
-        visible={
-          turnSheetOpen && isMyTurn && inHubMarked && !showBuySheet
-        }
+        visible={turnSheetOpen && isMyTurn && inHubMarked && !showBuySheet}
         bankLabel={bankLabel}
         canRoll={canRoll}
         canEnd={canEnd}
@@ -501,77 +552,105 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  header: {
-    minHeight: HEADER_H,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  headerText: {
+  main: {
     flex: 1,
-    minWidth: 0,
+    flexDirection: 'row',
+    minHeight: 0,
   },
-  eyebrow: {
+  mediaRail: {
+    flexShrink: 0,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    gap: 6,
+  },
+  mediaEyebrow: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 11,
     letterSpacing: 1,
     textTransform: 'uppercase',
     color: colors.muted,
   },
-  title: {
-    fontFamily: fonts.displayBold,
-    fontSize: 22,
-    color: colors.brand,
-  },
-  bankHeader: {
+  mediaStub: {
     fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.ink,
-    marginTop: 2,
+    fontSize: 12,
+    color: colors.muted,
+    lineHeight: 16,
   },
-  presence: {
+  mediaStatus: {
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.brand,
-    marginTop: 2,
+    marginTop: 8,
+  },
+  mediaBank: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.ink,
+  },
+  centerRail: {
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 0,
+    overflow: 'hidden',
+    borderLeftWidth: CENTER_EDGE,
+    borderRightWidth: CENTER_EDGE,
+  },
+  avatarLayer: {
+    ...(StyleSheet.absoluteFill as object),
+    zIndex: 20,
+    elevation: 20,
+  },
+  panelRail: {
+    flexShrink: 0,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    paddingBottom: DOCK_PAD + JOYSTICK_SIZE + 8,
+  },
+  panelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 6,
+  },
+  panelEyebrow: {
+    flex: 1,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.muted,
+  },
+  panelStub: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
   },
   closeBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pressed: {
     opacity: 0.7,
   },
-  spinner: {
-    marginTop: 12,
-  },
   error: {
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.danger,
+    textAlign: 'center',
     marginBottom: 8,
   },
-  stage: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 160,
-  },
-  stageInner: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stickDock: {
+  joystickDock: {
     position: 'absolute',
+    right: DOCK_PAD,
+    bottom: DOCK_PAD,
     zIndex: 30,
   },
 });

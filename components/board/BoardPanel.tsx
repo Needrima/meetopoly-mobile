@@ -1,17 +1,17 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useMemo } from "react";
 
-import type { Location } from '@/api/types';
-import type { Game } from '@/api/types';
-import { Joystick } from '@/components/board/Joystick';
-import { shortTileName } from '@/components/board/tileLabel';
-import { Button } from '@/components/ui/Button';
-import { AnimatedMeetCoinAmount } from '@/components/ui/AnimatedMeetCoinAmount';
-import type { StickInput } from '@/hooks/useBoardWalk';
-import { usePlayerTimeBanks } from '@/hooks/useTurnCountdown';
-import { formatUsername } from '@/lib/formatUsername';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+import type { Location } from "@/api/types";
+import type { Game } from "@/api/types";
+import { Joystick } from "@/components/board/Joystick";
+import { shortTileName } from "@/components/board/tileLabel";
+import { Button } from "@/components/ui/Button";
+import { AnimatedMeetCoinAmount } from "@/components/ui/AnimatedMeetCoinAmount";
+import type { StickInput } from "@/hooks/useBoardWalk";
+import { usePlayerTimeBanks } from "@/hooks/useTurnCountdown";
+import { formatUsername } from "@/lib/formatUsername";
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 const JOYSTICK_SIZE = 96;
 /** Inset from panel edges so the stick thumb stays on-screen. */
@@ -24,14 +24,14 @@ function hubBadgeCode(
 ): string {
   const id = hubId?.trim();
   if (!id) {
-    return '';
+    return "";
   }
   const known = byHubId.get(id);
   if (known) {
     return known;
   }
-  const slug = id.split(':').pop() ?? '';
-  return slug.slice(0, 3).toUpperCase() || 'HUB';
+  const slug = id.split(":").pop() ?? "";
+  return slug.slice(0, 3).toUpperCase() || "HUB";
 }
 
 type BoardPanelProps = {
@@ -78,8 +78,8 @@ export function BoardPanel({
   endDisabled = false,
   endPending = false,
 }: BoardPanelProps) {
-  const code = nearby ? shortTileName(nearby) : '';
-  const enterLabel = code ? `Enter ${code}` : 'Enter';
+  const code = nearby ? shortTileName(nearby) : "";
+  const enterLabel = code ? `Enter ${code}` : "Enter";
   const showEnter = Boolean(nearby && onEnter);
   const hubCodeById = useMemo(() => {
     const map = new Map<string, string>();
@@ -98,14 +98,14 @@ export function BoardPanel({
         localNameKey.length > 0 &&
         formatUsername(p.username).toLowerCase() === localNameKey,
     );
-  const turnName = game?.currentUsername || '—';
+  const turnName = game?.currentUsername || "—";
   const isMyTurn = Boolean(
     game && localPlayer && game.currentUserId === localPlayer.userId,
   );
   const canRoll = Boolean(isMyTurn && game?.canRoll);
   const canEnd = Boolean(isMyTurn && game?.canEndTurn);
   const bankLabels = usePlayerTimeBanks(game);
-  const localBank = localPlayer ? bankLabels[localPlayer.userId] ?? '' : '';
+  const localBank = localPlayer ? (bankLabels[localPlayer.userId] ?? "") : "";
   const localPin = accent ?? localPlayer?.pinColor ?? colors.accent;
 
   const otherPlayers = (game?.players ?? []).filter((p) => {
@@ -125,12 +125,7 @@ export function BoardPanel({
   });
 
   return (
-    <View
-      style={[
-        styles.root,
-        { paddingBottom: DOCK_PAD + JOYSTICK_SIZE },
-      ]}
-    >
+    <View style={[styles.root, { paddingBottom: DOCK_PAD + JOYSTICK_SIZE }]}>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Panel</Text>
         {onMenuPress ? (
@@ -151,28 +146,32 @@ export function BoardPanel({
       {game ? (
         <View style={styles.gameHud}>
           <Text style={styles.turnLine} numberOfLines={1}>
-            {game.status === 'finished'
+            {game.status === "finished"
               ? game.winnerUsername
                 ? `${formatUsername(game.winnerUsername)} wins`
-                : 'Game over'
+                : "Game over"
               : isMyTurn
-                ? 'Your turn'
+                ? "Your turn"
                 : `${formatUsername(turnName)}'s turn`}
           </Text>
           {localPlayer ? (
             <View style={styles.cashRow}>
-              <View
-                style={[styles.pinDot, { backgroundColor: localPin }]}
-              />
+              <View style={[styles.pinDot, { backgroundColor: localPin }]} />
               <Text style={styles.cashLabel}>
-                You{isMyTurn ? ' · turn' : ''}
+                You{isMyTurn ? " · turn" : ""}
               </Text>
+              {typeof localPlayer.country === "string" &&
+              localPlayer.country.trim() ? (
+                <Text style={styles.countryLabel}>
+                  {localPlayer.country.trim().toUpperCase()}
+                </Text>
+              ) : null}
               {localBank ? (
                 <Text
                   style={[
                     styles.bankLabel,
                     isMyTurn ? styles.bankLabelActive : styles.bankLabelPaused,
-                    localBank === '0:00' ? styles.bankLabelExpired : null,
+                    localBank === "0:00" ? styles.bankLabelExpired : null,
                   ]}
                 >
                   {localBank}
@@ -183,17 +182,21 @@ export function BoardPanel({
           ) : null}
           <View style={styles.balances}>
             {otherPlayers.map((p) => {
-              const bank = bankLabels[p.userId] ?? '';
+              const bank = bankLabels[p.userId] ?? "";
               const isCurrent = p.userId === game.currentUserId && !p.resigned;
               const pinHex = p.pinColor;
               const hubCode = hubBadgeCode(p.hubId, hubCodeById);
               const name = formatUsername(p.username);
-              const hubSuffix = hubCode ? `(in ${hubCode})` : '';
+              const country =
+                typeof p.country === "string" && p.country.trim()
+                  ? p.country.trim().toUpperCase()
+                  : "";
+              const hubSuffix = hubCode ? `(in ${hubCode})` : "";
               const statusSuffix = p.resigned
-                ? ' · out'
+                ? " · out"
                 : isCurrent
-                  ? ' · turn'
-                  : '';
+                  ? " · turn"
+                  : "";
               return (
                 <View key={p.userId} style={styles.balanceRow}>
                   <View
@@ -214,12 +217,24 @@ export function BoardPanel({
                     {hubSuffix}
                     {statusSuffix}
                   </Text>
+                  {country ? (
+                    <Text
+                      style={[
+                        styles.countryLabel,
+                        p.resigned ? styles.balanceNameOut : null,
+                      ]}
+                    >
+                      {country}
+                    </Text>
+                  ) : null}
                   {bank ? (
                     <Text
                       style={[
                         styles.bankLabel,
-                        isCurrent ? styles.bankLabelActive : styles.bankLabelPaused,
-                        bank === '0:00' ? styles.bankLabelExpired : null,
+                        isCurrent
+                          ? styles.bankLabelActive
+                          : styles.bankLabelPaused,
+                        bank === "0:00" ? styles.bankLabelExpired : null,
                       ]}
                     >
                       {bank}
@@ -234,7 +249,7 @@ export function BoardPanel({
               );
             })}
           </View>
-          {game.status !== 'finished' && (onRoll || onEndTurn) ? (
+          {game.status !== "finished" && (onRoll || onEndTurn) ? (
             <View style={styles.actionRow}>
               {onRoll ? (
                 <View style={styles.actionBtn}>
@@ -281,11 +296,7 @@ export function BoardPanel({
       ) : null}
 
       <View style={styles.joystickDock}>
-        <Joystick
-          onStick={onStick}
-          size={JOYSTICK_SIZE}
-          accent={localPin}
-        />
+        <Joystick onStick={onStick} size={JOYSTICK_SIZE} accent={localPin} />
       </View>
     </View>
   );
@@ -298,15 +309,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   eyebrow: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 11,
     letterSpacing: 1,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     color: colors.muted,
   },
   menuBtn: {
@@ -316,8 +327,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 8,
   },
   menuLabel: {
@@ -338,8 +349,8 @@ const styles = StyleSheet.create({
     color: colors.brand,
   },
   cashRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   cashLabel: {
@@ -353,16 +364,16 @@ const styles = StyleSheet.create({
     maxHeight: 96,
   },
   balanceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   bankLabel: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 11,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
     minWidth: 40,
-    textAlign: 'right',
+    textAlign: "right",
   },
   bankLabelActive: {
     color: colors.brand,
@@ -388,14 +399,20 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   balanceNameOut: {
-    textDecorationLine: 'line-through',
+    textDecorationLine: "line-through",
     opacity: 0.65,
+  },
+  countryLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 0.4,
+    color: colors.muted,
   },
   rollBtn: {
     height: 40,
   },
   actionRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginTop: 4,
   },
@@ -410,7 +427,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   joystickDock: {
-    position: 'absolute',
+    position: "absolute",
     right: DOCK_PAD,
     bottom: DOCK_PAD,
   },

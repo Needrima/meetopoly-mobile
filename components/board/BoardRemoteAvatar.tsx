@@ -10,7 +10,10 @@ export type RemoteAvatarModel = {
   pose: PresencePose;
   accent: string;
   radius: number;
+  /** Pixel width of the walk surface (also used as height when square). */
   boardSize: number;
+  /** Pixel height when the surface is not square (hub rail). */
+  boardHeight?: number;
 };
 
 /**
@@ -22,8 +25,15 @@ export const BoardRemoteAvatar = memo(function BoardRemoteAvatar({
   accent,
   radius,
   boardSize,
+  boardHeight,
 }: RemoteAvatarModel) {
-  const { poseX, poseY } = useInterpolatedBoardPose(pose.x, pose.y, boardSize);
+  const h = boardHeight ?? boardSize;
+  const { poseX, poseY } = useInterpolatedBoardPose(
+    pose.x,
+    pose.y,
+    boardSize,
+    h,
+  );
   const initials = usernameInitials(formatUsername(pose.username));
 
   return (
@@ -46,6 +56,7 @@ function posePropsEqual(
     prev.accent === next.accent &&
     prev.radius === next.radius &&
     prev.boardSize === next.boardSize &&
+    prev.boardHeight === next.boardHeight &&
     prev.pose.userId === next.pose.userId &&
     prev.pose.x === next.pose.x &&
     prev.pose.y === next.pose.y &&

@@ -1,32 +1,29 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
-} from 'react-native';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useKeepAwake } from 'expo-keep-awake';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useKeepAwake } from "expo-keep-awake";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { Location } from '@/api/types';
-import { Board } from '@/components/board/Board';
-import { BoardOverflowMenu } from '@/components/board/BoardOverflowMenu';
-import { BoardPanel } from '@/components/board/BoardPanel';
-import { BuyPropertyOverlay } from '@/components/board/BuyPropertyOverlay';
-import { TileInfoOverlay } from '@/components/board/TileInfoOverlay';
-import { layoutBoardRing } from '@/components/board/boardLayout';
-import { DiceRollOverlay } from '@/components/board/DiceRollOverlay';
-import { InfoModal } from '@/components/ui/InfoModal';
-import { useLogout, useMe } from '@/hooks/useAuth';
-import { useBlockHardwareBack } from '@/hooks/useBlockHardwareBack';
-import { useBoardSession } from '@/hooks/useBoardSession';
-import {
-  useBoardWalk,
-  type AvatarColorKey,
-} from '@/hooks/useBoardWalk';
-import { useDiceRollMotion } from '@/hooks/useDiceRollMotion';
+import type { Location } from "@/api/types";
+import { Board } from "@/components/board/Board";
+import { BoardOverflowMenu } from "@/components/board/BoardOverflowMenu";
+import { BoardPanel } from "@/components/board/BoardPanel";
+import { BuyPropertyOverlay } from "@/components/board/BuyPropertyOverlay";
+import { TileInfoOverlay } from "@/components/board/TileInfoOverlay";
+import { layoutBoardRing } from "@/components/board/boardLayout";
+import { DiceRollOverlay } from "@/components/board/DiceRollOverlay";
+import { InfoModal } from "@/components/ui/InfoModal";
+import { useLogout, useMe } from "@/hooks/useAuth";
+import { useBlockHardwareBack } from "@/hooks/useBlockHardwareBack";
+import { useBoardSession } from "@/hooks/useBoardSession";
+import { useBoardWalk, type AvatarColorKey } from "@/hooks/useBoardWalk";
+import { useDiceRollMotion } from "@/hooks/useDiceRollMotion";
 import {
   useGame,
   useBuyProperty,
@@ -34,18 +31,18 @@ import {
   useEnterHub,
   useResignGame,
   useRollDice,
-} from '@/hooks/useGame';
-import { useBoardPresence } from '@/hooks/useBoardPresence';
-import { useGamePinMotion } from '@/hooks/useGamePinMotion';
-import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
-import { useSession } from '@/hooks/useSession';
-import { notify } from '@/lib/notify';
-import { formatUsername } from '@/lib/formatUsername';
-import { beginHubEnter } from '@/lib/hubEnterGuard';
-import { buyToastTitle, countOwnedOfKind } from '@/lib/buyToast';
-import { buildBoardRemoteAvatars } from '@/lib/buildBoardRemoteAvatars';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+} from "@/hooks/useGame";
+import { useBoardPresence } from "@/hooks/useBoardPresence";
+import { useGamePinMotion } from "@/hooks/useGamePinMotion";
+import { DEFAULT_WORLD_ID, useLocations } from "@/hooks/useLocations";
+import { useSession } from "@/hooks/useSession";
+import { notify } from "@/lib/notify";
+import { formatUsername } from "@/lib/formatUsername";
+import { beginHubEnter } from "@/lib/hubEnterGuard";
+import { buyToastTitle, countOwnedOfKind } from "@/lib/buyToast";
+import { buildBoardRemoteAvatars } from "@/lib/buildBoardRemoteAvatars";
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 const PANEL_MIN = 168;
 
@@ -62,16 +59,16 @@ const PANEL_MIN = 168;
  * does not drop game WS / presence WebRTC.
  */
 export default function BoardScreen() {
-  useKeepAwake('meetopoly-board', { suppressDeactivateWarnings: true });
+  useKeepAwake("meetopoly-board", { suppressDeactivateWarnings: true });
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ worldId?: string; gameId?: string }>();
   const worldId =
-    typeof params.worldId === 'string' && params.worldId.trim().length > 0
+    typeof params.worldId === "string" && params.worldId.trim().length > 0
       ? params.worldId.trim()
       : DEFAULT_WORLD_ID;
   const gameId =
-    typeof params.gameId === 'string' && params.gameId.trim().length > 0
+    typeof params.gameId === "string" && params.gameId.trim().length > 0
       ? params.gameId.trim()
       : null;
   const { token, user } = useSession();
@@ -103,7 +100,7 @@ export default function BoardScreen() {
   const passGoToastRef = useRef<string | null>(null);
   const passGoReadyRef = useRef(false);
   const finishedHandledRef = useRef(false);
-  const resignToastRef = useRef<string>('');
+  const resignToastRef = useRef<string>("");
   const localLeavingRef = useRef(false);
   const deedsSigRef = useRef<string | null>(null);
   const paymentSigRef = useRef<string | null>(null);
@@ -119,9 +116,8 @@ export default function BoardScreen() {
     }
     const key = formatUsername(username).toLowerCase();
     return (
-      game.players.find(
-        (p) => formatUsername(p.username).toLowerCase() === key,
-      )?.userId ?? null
+      game.players.find((p) => formatUsername(p.username).toLowerCase() === key)
+        ?.userId ?? null
     );
   }, [sessionUserId, game, username]);
 
@@ -140,9 +136,8 @@ export default function BoardScreen() {
     }
     const key = formatUsername(username).toLowerCase();
     return (
-      game.players.find(
-        (p) => formatUsername(p.username).toLowerCase() === key,
-      )?.pinColor ?? null
+      game.players.find((p) => formatUsername(p.username).toLowerCase() === key)
+        ?.pinColor ?? null
     );
   }, [game, localUserId, username]);
 
@@ -157,24 +152,24 @@ export default function BoardScreen() {
     deedsSigRef.current = (game.deeds ?? [])
       .map((d) => `${d.boardIndex}:${d.ownerUserId}`)
       .sort()
-      .join('|');
+      .join("|");
     if (game.lastPayment) {
       const p = game.lastPayment;
-      paymentSigRef.current = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ''}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
+      paymentSigRef.current = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ""}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
     }
     // Ignore historical lastRoll pass-GO from a prior session fetch.
     if (game.lastRoll?.passedGo) {
       passGoToastRef.current = `${game.lastRoll.userId}:${game.lastRoll.fromIndex}:${game.lastRoll.toIndex}:${game.lastRoll.total}`;
     }
     passGoReadyRef.current = true;
-    if (game.status === 'finished') {
+    if (game.status === "finished") {
       finishedHandledRef.current = true;
       setWinnerOpen(true);
       return;
     }
     notify({
-      type: 'success',
-      title: 'Game started',
+      type: "success",
+      title: "Game started",
       message: `${game.players.length} players · ${formatUsername(game.currentUsername)}'s turn`,
     });
   }, [game]);
@@ -266,11 +261,12 @@ export default function BoardScreen() {
   /** Lobby/game seat color wins over random walk accent. */
   const displayAccent = localGamePinColor ?? walk.accent;
 
-  const pinRadius = layout
-    ? Math.max(6, Math.round(layout.size * 0.018))
-    : 8;
-  const { rolling: diceRolling, holdPinWalk, overlay: diceOverlay } =
-    useDiceRollMotion(game);
+  const pinRadius = layout ? Math.max(6, Math.round(layout.size * 0.018)) : 8;
+  const {
+    rolling: diceRolling,
+    holdPinWalk,
+    overlay: diceOverlay,
+  } = useDiceRollMotion(game);
   const { pins: motionPins, animating: pinAnimating } = useGamePinMotion({
     layout,
     game,
@@ -296,8 +292,8 @@ export default function BoardScreen() {
     }
     passGoToastRef.current = key;
     notify({
-      type: 'success',
-      title: 'Passed GO',
+      type: "success",
+      title: "Passed GO",
       message: `${formatUsername(roll.username)} +${roll.passGoAmount} MeetCoin`,
     });
   }, [game?.lastRoll, turnBusy]);
@@ -311,10 +307,10 @@ export default function BoardScreen() {
       .filter((p) => p.resigned)
       .map((p) => p.userId)
       .sort()
-      .join(',');
+      .join(",");
     if (resignedSig && resignedSig !== resignToastRef.current) {
       const prev = new Set(
-        resignToastRef.current ? resignToastRef.current.split(',') : [],
+        resignToastRef.current ? resignToastRef.current.split(",") : [],
       );
       const newlyOut = game.players.filter(
         (p) => p.resigned && !prev.has(p.userId),
@@ -326,23 +322,23 @@ export default function BoardScreen() {
           continue;
         }
         notify({
-          type: 'info',
-          title: 'Player left',
+          type: "info",
+          title: "Player left",
           message: `${formatUsername(p.username)} resigned`,
         });
       }
     }
-    if (game.status === 'finished' && !finishedHandledRef.current) {
+    if (game.status === "finished" && !finishedHandledRef.current) {
       finishedHandledRef.current = true;
       setLeaveConfirmOpen(false);
       setWinnerOpen(true);
       const iWon = game.winnerUserId === localUserId;
       notify({
-        type: 'success',
-        title: iWon ? 'You win' : 'Game over',
+        type: "success",
+        title: iWon ? "You win" : "Game over",
         message: iWon
-          ? 'Last player standing'
-          : `${formatUsername(game.winnerUsername) || 'Someone'} wins`,
+          ? "Last player standing"
+          : `${formatUsername(game.winnerUsername) || "Someone"} wins`,
       });
     }
   }, [game, localUserId, presence.clearRemote]);
@@ -356,7 +352,7 @@ export default function BoardScreen() {
     const sig = deeds
       .map((d) => `${d.boardIndex}:${d.ownerUserId}`)
       .sort()
-      .join('|');
+      .join("|");
     if (deedsSigRef.current === null) {
       deedsSigRef.current = sig;
       return;
@@ -365,9 +361,7 @@ export default function BoardScreen() {
       return;
     }
     const prev = new Set(
-      deedsSigRef.current
-        ? deedsSigRef.current.split('|').filter(Boolean)
-        : [],
+      deedsSigRef.current ? deedsSigRef.current.split("|").filter(Boolean) : [],
     );
     deedsSigRef.current = sig;
     for (const d of deeds) {
@@ -385,7 +379,7 @@ export default function BoardScreen() {
         loc?.kind,
       );
       notify({
-        type: 'success',
+        type: "success",
         title: buyToastTitle({
           kind: loc?.kind,
           iBought,
@@ -406,7 +400,7 @@ export default function BoardScreen() {
     if (!p) {
       return;
     }
-    const sig = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ''}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
+    const sig = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ""}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
     if (paymentSigRef.current === null) {
       paymentSigRef.current = sig;
       return;
@@ -418,35 +412,31 @@ export default function BoardScreen() {
     const place = p.spaceName || `space ${p.boardIndex}`;
     const iPaid = Boolean(localUserId && p.fromUserId === localUserId);
     const received = Boolean(localUserId && p.toUserId === localUserId);
-    if (p.kind === 'tax') {
+    if (p.kind === "tax") {
       notify({
-        type: iPaid && !p.paidInFull ? 'error' : 'info',
-        title: iPaid ? 'Tax paid' : 'Tax collected',
+        type: iPaid && !p.paidInFull ? "error" : "info",
+        title: iPaid ? "Tax paid" : "Tax collected",
         message: iPaid
           ? `−${p.amount} MeetCoin · ${place}`
           : `${formatUsername(p.fromUsername)} paid ${p.amount} tax at ${place}`,
       });
     } else {
       notify({
-        type: iPaid && !p.paidInFull ? 'error' : 'success',
-        title: iPaid
-          ? 'Rent paid'
-          : received
-            ? 'Rent collected'
-            : 'Rent paid',
+        type: iPaid && !p.paidInFull ? "error" : "success",
+        title: iPaid ? "Rent paid" : received ? "Rent collected" : "Rent paid",
         message: iPaid
-          ? `−${p.amount} to ${formatUsername(p.toUsername) || 'owner'} · ${place}`
+          ? `−${p.amount} to ${formatUsername(p.toUsername) || "owner"} · ${place}`
           : received
             ? `+${p.amount} from ${formatUsername(p.fromUsername)} · ${place}`
-            : `${formatUsername(p.fromUsername)} → ${formatUsername(p.toUsername) || 'owner'} · ${p.amount} · ${place}`,
+            : `${formatUsername(p.fromUsername)} → ${formatUsername(p.toUsername) || "owner"} · ${p.amount} · ${place}`,
       });
     }
     if (iPaid && !p.paidInFull) {
       notify({
-        type: 'error',
-        title: 'Cannot afford full amount',
+        type: "error",
+        title: "Cannot afford full amount",
         message:
-          'End and Roll are blocked. Resign to leave (bankruptcy rules come later).',
+          "End and Roll are blocked. Resign to leave (bankruptcy rules come later).",
       });
     }
   }, [game, localUserId, turnBusy]);
@@ -480,16 +470,16 @@ export default function BoardScreen() {
           { hubId, hubRevision, signal },
           {
             onError: (err) => {
-              if (err?.name === 'AbortError') {
+              if (err?.name === "AbortError") {
                 return;
               }
-              console.warn('[hub] enter-hub failed', err);
+              console.warn("[hub] enter-hub failed", err);
             },
           },
         );
       }
       router.push({
-        pathname: '/(app)/hub/[slug]',
+        pathname: "/(app)/hub/[slug]",
         params: {
           slug: loc.slug,
           worldId,
@@ -512,12 +502,12 @@ export default function BoardScreen() {
 
   const leaveBoard = useCallback(() => {
     presence.disconnect();
-    router.replace('/(app)/worlds');
+    router.replace("/(app)/worlds");
   }, [presence.disconnect]);
 
   const requestLeave = useCallback(() => {
     setMenuOpen(false);
-    if (gameId && game && game.status === 'active') {
+    if (gameId && game && game.status === "active") {
       setLeaveConfirmOpen(true);
       return;
     }
@@ -532,29 +522,29 @@ export default function BoardScreen() {
     resignMut.mutate(undefined, {
       onSuccess: (next) => {
         setLeaveConfirmOpen(false);
-        if (next.status === 'finished') {
+        if (next.status === "finished") {
           finishedHandledRef.current = true;
           setWinnerOpen(true);
           notify({
-            type: 'info',
-            title: 'Game over',
-            message: `${formatUsername(next.winnerUsername) || 'Someone'} wins`,
+            type: "info",
+            title: "Game over",
+            message: `${formatUsername(next.winnerUsername) || "Someone"} wins`,
           });
           return;
         }
         notify({
-          type: 'info',
-          title: 'You resigned',
-          message: 'Left the game',
+          type: "info",
+          title: "You resigned",
+          message: "Left the game",
         });
         leaveBoard();
       },
       onError: (err: Error) => {
         localLeavingRef.current = false;
         notify({
-          type: 'error',
-          title: 'Could not leave',
-          message: err.message || 'Resign failed',
+          type: "error",
+          title: "Could not leave",
+          message: err.message || "Resign failed",
         });
       },
     });
@@ -572,9 +562,9 @@ export default function BoardScreen() {
     rollDice.mutate(undefined, {
       onError: (err: Error) => {
         notify({
-          type: 'error',
-          title: 'Roll failed',
-          message: err.message || 'Could not roll',
+          type: "error",
+          title: "Roll failed",
+          message: err.message || "Could not roll",
         });
       },
     });
@@ -587,9 +577,9 @@ export default function BoardScreen() {
     endTurnMut.mutate(undefined, {
       onError: (err: Error) => {
         notify({
-          type: 'error',
-          title: 'End turn failed',
-          message: err.message || 'Could not end turn',
+          type: "error",
+          title: "End turn failed",
+          message: err.message || "Could not end turn",
         });
       },
     });
@@ -602,9 +592,9 @@ export default function BoardScreen() {
     buyMut.mutate(undefined, {
       onError: (err: Error) => {
         notify({
-          type: 'error',
-          title: 'Buy failed',
-          message: err.message || 'Could not buy',
+          type: "error",
+          title: "Buy failed",
+          message: err.message || "Could not buy",
         });
       },
     });
@@ -617,10 +607,10 @@ export default function BoardScreen() {
   const buyOffer = game?.buyOffer ?? null;
   const showBuyModal = Boolean(
     buyOffer &&
-      isMyTurn &&
-      game?.status === 'active' &&
-      game.canBuy &&
-      !turnBusy,
+    isMyTurn &&
+    game?.status === "active" &&
+    game.canBuy &&
+    !turnBusy,
   );
 
   // Buyer must not open inspect while buy modal is up; clear if it appears.
@@ -638,8 +628,7 @@ export default function BoardScreen() {
     const pinByUser = new Map(
       game.players.map((p) => {
         const isLocal = Boolean(localUserId && p.userId === localUserId);
-        const color =
-          isLocal && displayAccent ? displayAccent : p.pinColor;
+        const color = isLocal && displayAccent ? displayAccent : p.pinColor;
         return [p.userId, color] as const;
       }),
     );
@@ -654,7 +643,7 @@ export default function BoardScreen() {
 
   const inspectLoc =
     inspectIndex != null
-      ? locations.find((l) => l.boardIndex === inspectIndex) ?? null
+      ? (locations.find((l) => l.boardIndex === inspectIndex) ?? null)
       : null;
   const inspectOwner = useMemo(() => {
     if (!game || inspectIndex == null) {
@@ -670,12 +659,12 @@ export default function BoardScreen() {
     );
     return {
       username: formatUsername(
-        deed.ownerUsername || player?.username || 'Player',
+        deed.ownerUsername || player?.username || "Player",
       ),
       pinColor:
         isLocalOwner && displayAccent
           ? displayAccent
-          : player?.pinColor ?? colors.muted,
+          : (player?.pinColor ?? colors.muted),
     };
   }, [game, inspectIndex, localUserId, displayAccent]);
 
@@ -690,13 +679,11 @@ export default function BoardScreen() {
   );
 
   const buyLoc = buyOffer
-    ? locations.find((l) => l.boardIndex === buyOffer.boardIndex) ?? null
+    ? (locations.find((l) => l.boardIndex === buyOffer.boardIndex) ?? null)
     : null;
   const localCash =
     game?.players.find((p) => p.userId === localUserId)?.cash ?? 0;
-  const canAffordBuy = Boolean(
-    buyOffer && localCash >= buyOffer.price,
-  );
+  const canAffordBuy = Boolean(buyOffer && localCash >= buyOffer.price);
 
   return (
     <View style={styles.root}>
@@ -713,7 +700,7 @@ export default function BoardScreen() {
             <View style={styles.boardState}>
               <ActivityIndicator color={colors.onBrand} />
               <Text style={styles.boardStateText}>
-                Loading {gameId ? 'game' : worldId}…
+                Loading {gameId ? "game" : worldId}…
               </Text>
             </View>
           ) : null}
@@ -725,7 +712,7 @@ export default function BoardScreen() {
                   ? error.message
                   : gameQuery.error instanceof Error
                     ? gameQuery.error.message
-                    : 'Failed to load board'}
+                    : "Failed to load board"}
               </Text>
             </View>
           ) : null}
@@ -826,13 +813,13 @@ export default function BoardScreen() {
         eyebrow="Game over"
         title={
           game?.winnerUserId === localUserId
-            ? 'You win'
-            : `${formatUsername(game?.winnerUsername) || 'Someone'} wins`
+            ? "You win"
+            : `${formatUsername(game?.winnerUsername) || "Someone"} wins`
         }
         body={
           game?.winnerUserId === localUserId
-            ? 'You are the last player standing.'
-            : 'The game has finished. Back to worlds when you are ready.'
+            ? "You are the last player standing."
+            : "The game has finished. Back to worlds when you are ready."
         }
         actionsLayout="row"
         primaryLabel="Back to worlds"
@@ -851,14 +838,14 @@ export default function BoardScreen() {
         onHealth={
           __DEV__
             ? () => {
-                router.push('/(app)/health');
+                router.push("/(app)/health");
               }
             : undefined
         }
         onLocations={
           __DEV__
             ? () => {
-                router.push('/(app)/locations');
+                router.push("/(app)/locations");
               }
             : undefined
         }
@@ -868,8 +855,8 @@ export default function BoardScreen() {
 }
 
 function usernameInitialSafe(username: string | null): string {
-  const raw = (username ?? '').trim();
-  return raw.length >= 1 ? raw.slice(0, 1).toUpperCase() : '?';
+  const raw = (username ?? "").trim();
+  return raw.length >= 1 ? raw.slice(0, 1).toUpperCase() : "?";
 }
 
 const styles = StyleSheet.create({
@@ -879,20 +866,20 @@ const styles = StyleSheet.create({
   },
   main: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.bg,
   },
   boardRail: {
-    position: 'relative',
+    position: "relative",
     flexShrink: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
     backgroundColor: colors.brandMuted,
   },
   boardState: {
     ...(StyleSheet.absoluteFill as object),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
     padding: 24,
   },
@@ -905,7 +892,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.danger,
-    textAlign: 'center',
+    textAlign: "center",
   },
   panelRail: {
     flex: 1,

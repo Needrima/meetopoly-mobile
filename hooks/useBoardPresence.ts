@@ -1,47 +1,57 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getWsBaseUrl } from '@/api/client';
-import { useSession } from '@/hooks/useSession';
-import { formatUsername } from '@/lib/formatUsername';
-import { notify } from '@/lib/notify';
+import { getWsBaseUrl } from "@/api/client";
+import { useSession } from "@/hooks/useSession";
+import { formatUsername } from "@/lib/formatUsername";
+import { notify } from "@/lib/notify";
 import {
   encodePresencePose,
   parsePresencePose,
   PRESENCE_POSE_TYPE,
   type PresencePose,
   type PresencePoseInput,
-} from '@/lib/presencePose';
+} from "@/lib/presencePose";
 
-const PRESENCE_DC_LABEL = 'presence';
+const PRESENCE_DC_LABEL = "presence";
 
 type PresencePeer = {
   userId: string;
   username: string;
+  country?: string;
+};
+
+/** Hub/board presence roster row (Phase 9.0a). */
+export type PresenceRosterEntry = {
+  userId: string;
+  username: string;
+  country?: string;
 };
 
 type WelcomeMessage = {
-  type: 'welcome';
+  type: "welcome";
   roomId: string;
   userId: string;
   username: string;
+  country?: string;
   peers?: PresencePeer[];
   iceServers?: { urls: string | string[] }[];
 };
 
 type PeerJoinedMessage = {
-  type: 'peer-joined';
+  type: "peer-joined";
   userId: string;
   username: string;
+  country?: string;
 };
 
 type PeerLeftMessage = {
-  type: 'peer-left';
+  type: "peer-left";
   userId: string;
   username: string;
 };
 
 type AnswerMessage = {
-  type: 'answer';
+  type: "answer";
   sdp: string;
 };
 
@@ -52,12 +62,12 @@ type IceCandidateInit = {
 };
 
 type IceMessage = {
-  type: 'ice';
+  type: "ice";
   candidate: IceCandidateInit | null;
 };
 
 type ErrorMessage = {
-  type: 'error';
+  type: "error";
   message?: string;
 };
 
@@ -68,33 +78,27 @@ type PresenceServerMessage =
   | AnswerMessage
   | IceMessage
   | ErrorMessage
-  | { type: 'pong' }
+  | { type: "pong" }
   | { type: string };
 
-export type BoardPresenceStatus =
-  | 'idle'
-  | 'connecting'
-  | 'connected'
-  | 'error';
+export type BoardPresenceStatus = "idle" | "connecting" | "connected" | "error";
 
 /** Minimal WebRTC surface (avoids hard Expo Go import crash). */
 type WebRTCModule = {
   RTCPeerConnection: new (config?: {
     iceServers?: { urls: string | string[] }[];
   }) => PeerConnectionLike;
-  RTCSessionDescription: new (init: {
+  RTCSessionDescription: new (init: { type: string; sdp: string }) => {
     type: string;
     sdp: string;
-  }) => { type: string; sdp: string };
+  };
   RTCIceCandidate: new (init: IceCandidateInit) => IceCandidateInit;
 };
 
 type PeerConnectionLike = {
   localDescription: { sdp?: string } | null;
   connectionState: string;
-  onicecandidate:
-    | ((ev: { candidate: IceCandidateInit | null }) => void)
-    | null;
+  onicecandidate: ((ev: { candidate: IceCandidateInit | null }) => void) | null;
   onconnectionstatechange: (() => void) | null;
   createDataChannel: (
     label: string,
@@ -120,18 +124,18 @@ function loadWebRTC(): WebRTCModule | null {
   try {
     // Dynamic require so Expo Go can still render the board without native WebRTC.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('react-native-webrtc') as WebRTCModule;
+    return require("react-native-webrtc") as WebRTCModule;
   } catch (err) {
-    console.warn('[presence] react-native-webrtc unavailable', err);
+    console.warn("[presence] react-native-webrtc unavailable", err);
     return null;
   }
 }
 
 function iceServersFromWelcome(
-  servers: WelcomeMessage['iceServers'],
+  servers: WelcomeMessage["iceServers"],
 ): { urls: string | string[] }[] {
   if (!servers || servers.length === 0) {
-    return [{ urls: 'stun:stun.l.google.com:19302' }];
+    return [{ urls: "stun:stun.l.google.com:19302" }];
   }
   return servers.map((s) => ({ urls: s.urls }));
 }
@@ -145,13 +149,13 @@ function candidatePayload(c: IceCandidateInit) {
 }
 
 function messageDataToString(data: string | ArrayBuffer): string {
-  if (typeof data === 'string') {
+  if (typeof data === "string") {
     return data;
   }
   try {
     return new TextDecoder().decode(data);
   } catch {
-    return '';
+    return "";
   }
 }
 
@@ -167,7 +171,7 @@ function seedPoseFromPeer(peer: PresencePeer): PresencePose {
   return {
     type: PRESENCE_POSE_TYPE,
     userId: peer.userId,
-    username: peer.username || 'Player',
+    username: peer.username || "Player",
     x: Math.min(0.72, Math.max(0.28, x)),
     y: Math.min(0.72, Math.max(0.28, y)),
   };
@@ -177,7 +181,7 @@ function isHubFullMessage(message?: string): boolean {
   if (!message) {
     return false;
   }
-  return message.toLowerCase().includes('hub full');
+  return message.toLowerCase().includes("hub full");
 }
 
 export type PresenceChannelResult = {
@@ -185,6 +189,8 @@ export type PresenceChannelResult = {
   roomId: string | null;
   dcOpen: boolean;
   remotes: Record<string, PresencePose>;
+  /** Peers currently in the room (welcome + peer-joined − peer-left). */
+  roster: PresenceRosterEntry[];
   sendPose: (pose: PresencePoseInput) => void;
   /** Drop a remote avatar (call when game marks them resigned — Phase 7.5). */
   clearRemote: (userId: string) => void;
@@ -216,17 +222,20 @@ type PresenceChannelOpts = {
 function usePresenceChannel({
   roomPath,
   enabled = true,
-  joinToastMessage = 'On the board with you',
+  joinToastMessage = "On the board with you",
   clearRemoteOnPeerLeft = false,
   seedWelcomePeers = false,
 }: PresenceChannelOpts): PresenceChannelResult {
   const { token } = useSession();
-  const path = roomPath?.trim() ?? '';
+  const path = roomPath?.trim() ?? "";
   const active = Boolean(token && path && enabled);
-  const [status, setStatus] = useState<BoardPresenceStatus>('idle');
+  const [status, setStatus] = useState<BoardPresenceStatus>("idle");
   const [roomId, setRoomId] = useState<string | null>(null);
   const [dcOpen, setDcOpen] = useState(false);
   const [remotes, setRemotes] = useState<Record<string, PresencePose>>({});
+  const [rosterMap, setRosterMap] = useState<
+    Record<string, PresenceRosterEntry>
+  >({});
 
   const pcRef = useRef<PeerConnectionLike | null>(null);
   const dcRef = useRef<DataChannelLike | null>(null);
@@ -235,7 +244,7 @@ function usePresenceChannel({
   const remoteSetRef = useRef(false);
   const toastedLeftRef = useRef<Set<string>>(new Set());
   const identityRef = useRef<{ userId: string; username: string } | null>(null);
-  const iceServersRef = useRef<WelcomeMessage['iceServers']>(undefined);
+  const iceServersRef = useRef<WelcomeMessage["iceServers"]>(undefined);
   const disconnectRef = useRef<() => void>(() => {});
   const joinToastRef = useRef(joinToastMessage);
   joinToastRef.current = joinToastMessage;
@@ -276,7 +285,7 @@ function usePresenceChannel({
     if (!dc || !identity) {
       return;
     }
-    if (dc.readyState && dc.readyState !== 'open') {
+    if (dc.readyState && dc.readyState !== "open") {
       return;
     }
     try {
@@ -287,7 +296,7 @@ function usePresenceChannel({
         }),
       );
     } catch (err) {
-      console.warn('[presence] sendPose failed', err);
+      console.warn("[presence] sendPose failed", err);
     }
   }, []);
 
@@ -297,7 +306,7 @@ function usePresenceChannel({
 
   useEffect(() => {
     if (!active) {
-      setStatus('idle');
+      setStatus("idle");
       setRoomId(null);
       setDcOpen(false);
       setRemotes({});
@@ -315,7 +324,7 @@ function usePresenceChannel({
     let renegotiating = false;
     const webrtc = loadWebRTC();
 
-    const stopFatal = (nextStatus: BoardPresenceStatus = 'error') => {
+    const stopFatal = (nextStatus: BoardPresenceStatus = "error") => {
       stopReconnect = true;
       if (retryTimer) {
         clearTimeout(retryTimer);
@@ -393,7 +402,7 @@ function usePresenceChannel({
       }
       const delay = Math.min(4_000, 400 * 2 ** recoverAttempt);
       recoverAttempt += 1;
-      console.warn('[presence] schedule WebRTC recover', reason, delay);
+      console.warn("[presence] schedule WebRTC recover", reason, delay);
       recoverTimer = setTimeout(() => {
         recoverTimer = undefined;
         if (cancelled) {
@@ -404,7 +413,7 @@ function usePresenceChannel({
           return;
         }
         void startWebRTC(openWs, iceServersRef.current).catch((err) => {
-          console.warn('[presence] recover failed', err);
+          console.warn("[presence] recover failed", err);
         });
       }, delay);
     };
@@ -415,7 +424,7 @@ function usePresenceChannel({
         if (!cancelled) {
           recoverAttempt = 0;
           setDcOpen(true);
-          setStatus('connected');
+          setStatus("connected");
         }
       };
       dc.onclose = () => {
@@ -426,7 +435,7 @@ function usePresenceChannel({
           setDcOpen(false);
         }
         if (!cancelled && !renegotiating) {
-          scheduleRecover('dc-close');
+          scheduleRecover("dc-close");
         }
       };
       dc.onmessage = (ev) => {
@@ -444,10 +453,10 @@ function usePresenceChannel({
 
     const startWebRTC = async (
       ws: WebSocket,
-      iceServers: WelcomeMessage['iceServers'],
+      iceServers: WelcomeMessage["iceServers"],
     ) => {
       if (!webrtc) {
-        setStatus('connected');
+        setStatus("connected");
         return;
       }
       renegotiating = true;
@@ -465,7 +474,7 @@ function usePresenceChannel({
           }
           ws.send(
             JSON.stringify({
-              type: 'ice',
+              type: "ice",
               candidate: candidatePayload(candidate),
             }),
           );
@@ -475,11 +484,11 @@ function usePresenceChannel({
           if (cancelled || pcRef.current !== pc) {
             return;
           }
-          if (pc.connectionState === 'connected') {
-            setStatus('connected');
+          if (pc.connectionState === "connected") {
+            setStatus("connected");
           } else if (
-            pc.connectionState === 'failed' ||
-            pc.connectionState === 'closed'
+            pc.connectionState === "failed" ||
+            pc.connectionState === "closed"
           ) {
             setDcOpen(false);
             if (!renegotiating) {
@@ -500,7 +509,7 @@ function usePresenceChannel({
         if (!local?.sdp) {
           return;
         }
-        ws.send(JSON.stringify({ type: 'offer', sdp: local.sdp }));
+        ws.send(JSON.stringify({ type: "offer", sdp: local.sdp }));
       } finally {
         renegotiating = false;
       }
@@ -514,7 +523,7 @@ function usePresenceChannel({
         return;
       }
       switch (msg.type) {
-        case 'welcome': {
+        case "welcome": {
           const welcome = msg as WelcomeMessage;
           identityRef.current = {
             userId: welcome.userId,
@@ -522,7 +531,36 @@ function usePresenceChannel({
           };
           iceServersRef.current = welcome.iceServers;
           setRoomId(welcome.roomId);
-          setStatus('connecting');
+          setStatus("connecting");
+          {
+            const nextRoster: Record<string, PresenceRosterEntry> = {};
+            const localCountry =
+              typeof welcome.country === "string"
+                ? welcome.country.trim().toUpperCase()
+                : "";
+            if (welcome.userId) {
+              nextRoster[welcome.userId] = {
+                userId: welcome.userId,
+                username: welcome.username || "Player",
+                ...(localCountry ? { country: localCountry } : {}),
+              };
+            }
+            for (const peer of welcome.peers ?? []) {
+              if (!peer.userId || peer.userId === welcome.userId) {
+                continue;
+              }
+              const peerCountry =
+                typeof peer.country === "string"
+                  ? peer.country.trim().toUpperCase()
+                  : "";
+              nextRoster[peer.userId] = {
+                userId: peer.userId,
+                username: peer.username || "Player",
+                ...(peerCountry ? { country: peerCountry } : {}),
+              };
+            }
+            setRosterMap(nextRoster);
+          }
           if (seedWelcomeRef.current) {
             const seeded: Record<string, PresencePose> = {};
             for (const peer of welcome.peers ?? []) {
@@ -536,12 +574,12 @@ function usePresenceChannel({
           try {
             await startWebRTC(ws, welcome.iceServers);
           } catch (err) {
-            console.warn('[presence] WebRTC start failed', err);
-            setStatus('connected');
+            console.warn("[presence] WebRTC start failed", err);
+            setStatus("connected");
           }
           break;
         }
-        case 'answer': {
+        case "answer": {
           const answer = msg as AnswerMessage;
           const pc = pcRef.current;
           if (!pc || !webrtc || !answer.sdp) {
@@ -550,18 +588,18 @@ function usePresenceChannel({
           try {
             await pc.setRemoteDescription(
               new webrtc.RTCSessionDescription({
-                type: 'answer',
+                type: "answer",
                 sdp: answer.sdp,
               }),
             );
             remoteSetRef.current = true;
             await flushPendingIce(pc);
           } catch (err) {
-            console.warn('[presence] setRemoteDescription failed', err);
+            console.warn("[presence] setRemoteDescription failed", err);
           }
           break;
         }
-        case 'ice': {
+        case "ice": {
           const ice = msg as IceMessage;
           if (!ice.candidate?.candidate || !webrtc) {
             break;
@@ -578,12 +616,26 @@ function usePresenceChannel({
           }
           break;
         }
-        case 'peer-joined': {
+        case "peer-joined": {
           const peer = msg as PeerJoinedMessage;
           toastedLeftRef.current.delete(peer.userId);
-          const name = formatUsername(peer.username) || 'Player';
+          const name = formatUsername(peer.username) || "Player";
+          const peerCountry =
+            typeof peer.country === "string"
+              ? peer.country.trim().toUpperCase()
+              : "";
+          if (peer.userId) {
+            setRosterMap((prev) => ({
+              ...prev,
+              [peer.userId]: {
+                userId: peer.userId,
+                username: peer.username || "Player",
+                ...(peerCountry ? { country: peerCountry } : {}),
+              },
+            }));
+          }
           notify({
-            type: 'info',
+            type: "info",
             title: `${name} joined`,
             message: joinToastRef.current,
             visibilityTime: 2800,
@@ -598,16 +650,27 @@ function usePresenceChannel({
                 [peer.userId]: seedPoseFromPeer({
                   userId: peer.userId,
                   username: peer.username,
+                  country: peerCountry || undefined,
                 }),
               };
             });
           }
           break;
         }
-        case 'peer-left': {
+        case "peer-left": {
           // Board: linger until resign / hubId synthetic. Hub: remove avatar immediately.
+          const peer = msg as PeerLeftMessage;
+          if (peer.userId) {
+            setRosterMap((prev) => {
+              if (!(peer.userId in prev)) {
+                return prev;
+              }
+              const next = { ...prev };
+              delete next[peer.userId];
+              return next;
+            });
+          }
           if (clearOnLeaveRef.current) {
-            const peer = msg as PeerLeftMessage;
             if (peer.userId) {
               setRemotes((prev) => {
                 if (!(peer.userId in prev)) {
@@ -621,17 +684,17 @@ function usePresenceChannel({
           }
           break;
         }
-        case 'error': {
+        case "error": {
           const err = msg as ErrorMessage;
-          console.warn('[presence] server error', err.message);
+          console.warn("[presence] server error", err.message);
           if (seedWelcomeRef.current && isHubFullMessage(err.message)) {
             notify({
-              type: 'error',
-              title: 'Hub full',
-              message: 'This hub already has 16 players',
+              type: "error",
+              title: "Hub full",
+              message: "This hub already has 16 players",
               visibilityTime: 3600,
             });
-            stopFatal('error');
+            stopFatal("error");
           }
           break;
         }
@@ -644,7 +707,7 @@ function usePresenceChannel({
       if (cancelled) {
         return;
       }
-      setStatus('connecting');
+      setStatus("connecting");
       toastedLeftRef.current.clear();
       const ws = new WebSocket(
         `${getWsBaseUrl()}/ws/presence/${path}?token=${encodeURIComponent(token!)}`,
@@ -674,7 +737,7 @@ function usePresenceChannel({
         if (cancelled || stopReconnect) {
           return;
         }
-        setStatus('connecting');
+        setStatus("connecting");
         const delay = Math.min(8_000, 500 * 2 ** attempt);
         attempt += 1;
         retryTimer = setTimeout(connect, delay);
@@ -704,10 +767,11 @@ function usePresenceChannel({
       ) {
         ws.close();
       }
-      setStatus('idle');
+      setStatus("idle");
       setRoomId(null);
       setDcOpen(false);
       setRemotes({});
+      setRosterMap({});
     };
 
     disconnectRef.current = hardDisconnect;
@@ -719,7 +783,16 @@ function usePresenceChannel({
     };
   }, [active, token, path, applyRemotePose]);
 
-  return { status, roomId, dcOpen, remotes, sendPose, clearRemote, disconnect };
+  return {
+    status,
+    roomId,
+    dcOpen,
+    remotes,
+    roster: Object.values(rosterMap),
+    sendPose,
+    clearRemote,
+    disconnect,
+  };
 }
 
 /**
@@ -730,11 +803,11 @@ export function useBoardPresence(
   gameId: string | null | undefined,
   enabled = true,
 ): PresenceChannelResult {
-  const id = gameId?.trim() ?? '';
+  const id = gameId?.trim() ?? "";
   return usePresenceChannel({
     roomPath: id ? `board/${encodeURIComponent(id)}` : null,
     enabled: enabled && Boolean(id),
-    joinToastMessage: 'On the board with you',
+    joinToastMessage: "On the board with you",
   });
 }
 
@@ -744,11 +817,11 @@ export function useBoardPresence(
 export function useHubPresence(
   hubId: string | null | undefined,
 ): PresenceChannelResult {
-  const id = hubId?.trim() ?? '';
+  const id = hubId?.trim() ?? "";
   return usePresenceChannel({
     roomPath: id ? `hub/${encodeURIComponent(id)}` : null,
     enabled: Boolean(id),
-    joinToastMessage: 'In this hub with you',
+    joinToastMessage: "In this hub with you",
     clearRemoteOnPeerLeft: true,
     seedWelcomePeers: true,
   });

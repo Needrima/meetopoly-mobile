@@ -24,17 +24,20 @@ export type HubWalkState = {
 };
 
 type UseHubWalkOpts = {
-  /** Walk surface side in px (square). 0 = not ready. */
-  size: number;
+  /** Walk surface width in px. 0 = not ready. */
+  width: number;
+  /** Walk surface height in px. 0 = not ready. */
+  height: number;
   username?: string | null;
   enabled?: boolean;
 };
 
 /**
- * Phase 8.1 — hub-local walk: stick → clamped pose on a square surface (no board collisions).
+ * Hub-local walk on the full center rail (rect) so avatars can cross the heading.
  */
 export function useHubWalk({
-  size,
+  width,
+  height,
   username,
   enabled = true,
 }: UseHubWalkOpts): HubWalkState {
@@ -44,10 +47,13 @@ export function useHubWalk({
   const poseRef = useRef<Vec2>({ x: 0, y: 0 });
   const poseX = useSharedValue(0);
   const poseY = useSharedValue(0);
-  const spawnedForSize = useRef(0);
+  const spawnedKey = useRef('');
 
+  const minSide = Math.min(width, height);
   const avatarRadius =
-    size > 0 ? Math.max(10, Math.round(size * BOARD_WALK.avatarRadiusFrac * 1.35)) : 12;
+    minSide > 0
+      ? Math.max(10, Math.round(minSide * BOARD_WALK.avatarRadiusFrac * 1.35))
+      : 12;
 
   const applyPose = (next: Vec2) => {
     poseRef.current = next;
@@ -55,34 +61,44 @@ export function useHubWalk({
     poseY.value = next.y;
   };
 
-  const clampPose = (p: Vec2, side: number, radius: number): Vec2 => {
-    const lo = radius;
-    const hi = Math.max(lo, side - radius);
+  const clampPose = (
+    p: Vec2,
+    w: number,
+    h: number,
+    radius: number,
+  ): Vec2 => {
+    const loX = radius;
+    const hiX = Math.max(loX, w - radius);
+    const loY = radius;
+    const hiY = Math.max(loY, h - radius);
     return {
-      x: Math.min(hi, Math.max(lo, p.x)),
-      y: Math.min(hi, Math.max(lo, p.y)),
+      x: Math.min(hiX, Math.max(loX, p.x)),
+      y: Math.min(hiY, Math.max(loY, p.y)),
     };
   };
 
   useEffect(() => {
-    if (!enabled || size <= 0) {
+    if (!enabled || width <= 0 || height <= 0) {
       return;
     }
-    if (spawnedForSize.current === size) {
+    const key = `${width}x${height}`;
+    if (spawnedKey.current === key) {
       return;
     }
-    applyPose(clampPose({ x: size / 2, y: size / 2 }, size, avatarRadius));
-    spawnedForSize.current = size;
-  }, [size, enabled, avatarRadius, poseX, poseY]);
+    applyPose(
+      clampPose({ x: width / 2, y: height / 2 }, width, height, avatarRadius),
+    );
+    spawnedKey.current = key;
+  }, [width, height, enabled, avatarRadius, poseX, poseY]);
 
   useEffect(() => {
-    if (!enabled || size <= 0) {
+    if (!enabled || width <= 0 || height <= 0) {
       return;
     }
 
     let raf = 0;
     let last = performance.now();
-    const speed = size * BOARD_WALK.speedFrac;
+    const speed = minSide * BOARD_WALK.speedFrac;
 
     const tick = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -97,7 +113,8 @@ export function useHubWalk({
             x: poseRef.current.x + nx * speed * dt,
             y: poseRef.current.y + ny * speed * dt,
           },
-          size,
+          width,
+          height,
           avatarRadius,
         );
         applyPose(next);
@@ -106,7 +123,7 @@ export function useHubWalk({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [size, enabled, avatarRadius, poseX, poseY]);
+  }, [width, height, minSide, enabled, avatarRadius, poseX, poseY]);
 
   const setStick = (stick: StickInput) => {
     stickRef.current = stick;

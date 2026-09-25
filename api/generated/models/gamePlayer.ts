@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.14.0
+ * OpenAPI spec version: 0.15.0
  */
 
 export interface GamePlayer {
@@ -26,6 +26,10 @@ For the current player this is live (bank minus elapsed on this turn).
 For others it is the paused remainder. Starts at 45 minutes.
  */
   timeRemainingMs: number;
+  /**
+   * Phase 9.0a — ISO 3166-1 alpha-2 from the user profile (enriched on read).
+   */
+  country?: string | null;
   /**
    * Phase 8.2 — set while the player is inside a location hub
    * (e.g. `hub:africa-1:lagos`); null/omitted when on the board.
