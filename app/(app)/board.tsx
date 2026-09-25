@@ -658,9 +658,11 @@ export default function BoardScreen() {
       localUserId && deed.ownerUserId === localUserId,
     );
     return {
-      username: formatUsername(
-        deed.ownerUsername || player?.username || "Player",
-      ),
+      username: isLocalOwner
+        ? "You"
+        : formatUsername(
+            deed.ownerUsername || player?.username || "Player",
+          ),
       pinColor:
         isLocalOwner && displayAccent
           ? displayAccent

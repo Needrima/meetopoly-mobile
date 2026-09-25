@@ -2,13 +2,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MotiView } from 'moti';
 
 import type { Location } from '@/api/types';
-import {
-  isBuyableKind,
-  isLightHex,
-  kindFallbackLabel,
-  rentRowsFor,
-  stripColorFor,
-} from '@/components/board/deedVisual';
+import { DeedCard } from '@/components/board/DeedCard';
+import { isBuyableKind } from '@/components/board/deedVisual';
 import { resolveBoardIcon } from '@/components/board/iconRegistry';
 import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
 import { colors } from '@/theme/colors';
@@ -49,8 +44,8 @@ function specialTitle(loc: Location): string {
 }
 
 /**
- * Tap-to-inspect sheet for any board square (Phase 6.4 polish).
- * Buyable: deed card + Available / Owned by. Specials: icon + label (+ tax amount).
+ * Tap-to-inspect sheet for any board square (Phase 9.1 branded deed).
+ * Buyable: DeedCard + Available / Owned by. Specials: icon + label (+ tax).
  */
 export function TileInfoOverlay({
   visible,
@@ -74,12 +69,14 @@ export function TileInfoOverlay({
       />
       <View style={styles.center} pointerEvents="box-none">
         <MotiView
-          from={{ opacity: 0, scale: 0.94, translateY: 12 }}
+          key={location.boardIndex}
+          from={{ opacity: 0, scale: 0.92, translateY: 16 }}
           animate={{ opacity: 1, scale: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 220 }}
+          transition={{ type: 'timing', duration: 240 }}
           style={styles.sheetWrap}
+          pointerEvents="box-none"
         >
-          <View style={styles.sheet}>
+          <View style={styles.sheet} pointerEvents="box-none">
             {buyable ? (
               <BuyableBody location={location} owner={owner} Icon={Icon} />
             ) : (
@@ -101,69 +98,49 @@ function BuyableBody({
   owner: TileOwnerInfo | null;
   Icon: ReturnType<typeof resolveBoardIcon>;
 }) {
-  const strip = stripColorFor(location, location.kind);
-  const onStrip = isLightHex(strip) ? colors.ink : colors.onBrand;
-  const rows = rentRowsFor(location.kind, location);
   const price = location.price ?? 0;
 
   return (
     <>
       <Text style={styles.eyebrow}>Tile info</Text>
-      <View style={styles.deed}>
-        <View style={[styles.deedHeader, { backgroundColor: strip }]}>
-          {Icon ? (
-            <View style={styles.deedIconWrap}>
-              <Icon width={26} height={26} color={onStrip} />
-            </View>
-          ) : null}
-          <Text style={[styles.deedName, { color: onStrip }]} numberOfLines={1}>
-            {location.name}
-          </Text>
-        </View>
-        <View style={styles.deedBody}>
-          {rows.length > 0 ? (
-            <View style={styles.rentGrid}>
-              {rows.map((row) => (
-                <View key={row.label} style={styles.rentCell}>
-                  <Text style={styles.rentLabel} numberOfLines={1}>
-                    {row.label}
-                  </Text>
-                  <Text style={styles.rentValue}>{row.value}</Text>
-                </View>
-              ))}
+      <DeedCard
+        name={location.name}
+        kind={location.kind}
+        location={location}
+        Icon={Icon}
+      />
+
+      <MotiView
+        from={{ opacity: 0, translateY: 8 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: 220, delay: 110 }}
+        pointerEvents="box-none"
+      >
+        <View style={styles.metaRow}>
+          <View style={styles.priceBlock}>
+            <Text style={styles.priceLabel}>Price</Text>
+            <MeetCoinAmount amount={price} size={18} />
+          </View>
+          {owner ? (
+            <View style={styles.ownerBlock}>
+              <Text style={styles.priceLabel}>Owned by</Text>
+              <View style={styles.ownerRow}>
+                <View
+                  style={[styles.ownerDot, { backgroundColor: owner.pinColor }]}
+                />
+                <Text style={styles.ownerName} numberOfLines={1}>
+                  {owner.username}
+                </Text>
+              </View>
             </View>
           ) : (
-            <Text style={styles.kindFallback}>
-              {kindFallbackLabel(location.kind)}
-            </Text>
+            <View style={styles.ownerBlock}>
+              <Text style={styles.priceLabel}>Status</Text>
+              <Text style={styles.available}>Available</Text>
+            </View>
           )}
         </View>
-      </View>
-
-      <View style={styles.metaRow}>
-        <View style={styles.priceBlock}>
-          <Text style={styles.priceLabel}>Price</Text>
-          <MeetCoinAmount amount={price} size={18} />
-        </View>
-        {owner ? (
-          <View style={styles.ownerBlock}>
-            <Text style={styles.priceLabel}>Owned by</Text>
-            <View style={styles.ownerRow}>
-              <View
-                style={[styles.ownerDot, { backgroundColor: owner.pinColor }]}
-              />
-              <Text style={styles.ownerName} numberOfLines={1}>
-                {owner.username}
-              </Text>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.ownerBlock}>
-            <Text style={styles.priceLabel}>Status</Text>
-            <Text style={styles.available}>Available</Text>
-          </View>
-        )}
-      </View>
+      </MotiView>
     </>
   );
 }
@@ -182,8 +159,13 @@ function SpecialBody({
       : null;
 
   return (
-    <View style={styles.specialBody}>
-      {Icon ? <Icon width={56} height={56} color={colors.ink} /> : null}
+    <MotiView
+      from={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: 'timing', duration: 220 }}
+      style={styles.specialBody}
+    >
+      {Icon ? <Icon width={56} height={56} color={colors.brand} /> : null}
       <Text style={styles.specialTitle}>{title}</Text>
       {tax != null ? (
         <View style={styles.taxRow}>
@@ -191,7 +173,7 @@ function SpecialBody({
           <MeetCoinAmount amount={tax} size={20} />
         </View>
       ) : null}
-    </View>
+    </MotiView>
   );
 }
 
@@ -216,12 +198,12 @@ const styles = StyleSheet.create({
     maxWidth: 360,
   },
   sheet: {
-    borderRadius: 16,
+    borderRadius: 18,
     backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.brand,
-    padding: 12,
-    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    gap: 12,
   },
   eyebrow: {
     fontFamily: fonts.bodySemiBold,
@@ -230,77 +212,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: colors.brand,
     textAlign: 'center',
-  },
-  deed: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  deedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 48,
-  },
-  deedIconWrap: {
-    width: 26,
-    height: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deedName: {
-    fontFamily: fonts.displayBold,
-    fontSize: 18,
-    lineHeight: 26,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-    flexShrink: 1,
-  },
-  deedBody: {
-    backgroundColor: colors.bg,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  rentGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  rentCell: {
-    width: '48%',
-    flexGrow: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rentLabel: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    color: colors.muted,
-    flexShrink: 1,
-    marginRight: 6,
-  },
-  rentValue: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    color: colors.ink,
-  },
-  kindFallback: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.muted,
-    textAlign: 'center',
-    paddingVertical: 4,
   },
   metaRow: {
     flexDirection: 'row',
