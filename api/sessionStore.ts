@@ -5,7 +5,9 @@ export type SecureStoreKey =
   | 'signupToken'
   | 'signupEmail'
   | 'resetToken'
-  | 'resetEmail';
+  | 'resetEmail'
+  /** Phase 9.2 — mic muted when voice ships (Phase 10). `'1'` = muted. */
+  | 'muteMic';
 
 const KEY_PREFIX = 'meetopoly.';
 

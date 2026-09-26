@@ -1,12 +1,19 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useMuteMic } from '@/hooks/useMuteMic';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
-/** Phase 4.8 stub — real settings later. */
+/**
+ * Phase 9.2 — home Settings. Mute persists for Phase 10 voice.
+ * RN Switch (not @expo/ui) — Compose Host+Switch wraps label vertically on Android.
+ * Leave stays board ⋯ only; report deferred until player picker + API.
+ */
 export default function SettingsScreen() {
+  const { muted, ready, setMuted } = useMuteMic();
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
       <View style={styles.header}>
@@ -25,9 +32,26 @@ export default function SettingsScreen() {
         </Pressable>
         <Text style={styles.title}>Settings</Text>
       </View>
-      <Text style={styles.body}>
-        Coming soon — profile photo, notifications, and more.
-      </Text>
+
+      <View style={styles.card}>
+        <Text style={styles.section}>Voice</Text>
+        <View style={styles.row}>
+          <Text style={styles.label}>Mute microphone</Text>
+          <Switch
+            value={muted}
+            onValueChange={setMuted}
+            disabled={!ready}
+            trackColor={{ false: colors.border, true: colors.brandMuted }}
+            thumbColor={muted ? colors.onBrand : colors.surface}
+            ios_backgroundColor={colors.border}
+            accessibilityLabel="Mute microphone"
+          />
+        </View>
+        <Text style={styles.hint}>
+          Applies when voice is available in hubs and at the table. No effect
+          until then.
+        </Text>
+      </View>
     </SafeAreaView>
   );
 }
@@ -62,13 +86,43 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: colors.brand,
   },
-  body: {
+  card: {
     marginTop: 8,
-    fontFamily: fonts.body,
-    fontSize: 16,
-    lineHeight: 24,
-    color: colors.muted,
     maxWidth: 480,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  section: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    color: colors.muted,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    minHeight: 44,
+  },
+  label: {
+    flex: 1,
+    flexShrink: 1,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  hint: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.muted,
   },
   pressed: {
     opacity: 0.75,
