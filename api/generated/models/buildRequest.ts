@@ -7,8 +7,12 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.17.0
  */
-import type { Location } from './location';
 
-export interface LocationsResponse {
-  locations: Location[];
+export interface BuildRequest {
+  /**
+   * Board space to build one house/hotel step on (must be an owned city)
+   * @minimum 0
+   * @maximum 39
+   */
+  boardIndex: number;
 }

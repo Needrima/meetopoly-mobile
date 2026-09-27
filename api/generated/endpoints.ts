@@ -5,10 +5,11 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.16.0
+ * OpenAPI spec version: 0.17.0
  */
 import type {
   AuthSessionResponse,
+  BuildRequest,
   EnterHubRequest,
   Game,
   GetLocationBySlugParams,
@@ -644,6 +645,37 @@ export const buyProperty = async (gameId: string, options?: RequestInit): Promis
     method: 'POST'
     
     
+  }
+);}
+
+
+
+/**
+ * Phase 11.1 — current player only (awaiting_roll or awaiting_end). Body selects the
+deed (`boardIndex`). Requires full color group, even-build, cash ≥ seed `houseCost`,
+and no mortgaged deed in the set. One step per call (`houses` 0→1…→5; 5 = hotel).
+Fans out updated game via WebSocket `state`.
+
+ * @summary Buy one house or hotel step on an owned city
+ */
+export const getBuildOnDeedUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/build`
+}
+
+export const buildOnDeed = async (gameId: string,
+    buildRequest: BuildRequest, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getBuildOnDeedUrl(gameId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      buildRequest,)
   }
 );}
 
