@@ -7,9 +7,12 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.18.0
  */
-import type { GameBuyOffer } from './gameBuyOffer';
 
-/**
- * @nullable
- */
-export type GameBuyOfferProperty = GameBuyOffer | null;
+export interface SellBuildingRequest {
+  /**
+   * Board space to sell one house/hotel step from (must be an owned city with buildings)
+   * @minimum 0
+   * @maximum 39
+   */
+  boardIndex: number;
+}

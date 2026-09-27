@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.17.0
+ * OpenAPI spec version: 0.18.0
  */
 import type {
   AuthSessionResponse,
@@ -25,6 +25,7 @@ import type {
   PasswordResetStartResponse,
   PasswordResetVerifyRequest,
   PasswordResetVerifyResponse,
+  SellBuildingRequest,
   SetPinColorRequest,
   SetTableReadyRequest,
   SignupPasswordRequest,
@@ -676,6 +677,38 @@ export const buildOnDeed = async (gameId: string,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       buildRequest,)
+  }
+);}
+
+
+
+/**
+ * Phase 11.2 — current player only. Body selects the deed (`boardIndex`).
+Refund = floor(houseCost / 2). Requires houses ≥ 1, full color group, and
+even-sell (sell from the tallest deed first). **Allowed during pendingPayment**
+so the player can raise funds; refund is applied toward the outstanding debt.
+One step per call. Fans out via WebSocket `state`.
+
+ * @summary Sell one house or hotel step back to the bank
+ */
+export const getSellBuildingUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/sell-building`
+}
+
+export const sellBuilding = async (gameId: string,
+    sellBuildingRequest: SellBuildingRequest, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getSellBuildingUrl(gameId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      sellBuildingRequest,)
   }
 );}
 
