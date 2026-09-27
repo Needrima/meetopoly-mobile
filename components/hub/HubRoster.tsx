@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View, type ReactNode } from 'react-native';
+import type { ReactNode } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { PresenceRosterEntry } from '@/hooks/useBoardPresence';
 import { formatUsername } from '@/lib/formatUsername';

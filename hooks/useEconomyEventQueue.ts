@@ -5,29 +5,34 @@ import {
   type EconomyEvent,
 } from '@/lib/economyFeedback';
 
+type QueuedEconomyEvent = {
+  id: number;
+  event: EconomyEvent;
+};
+
 /**
  * Phase 9.3 — queue economy celebration modals (`ECONOMY_MODAL_MS` each, no overlap).
+ * Each item gets a unique id so identical toast copy still advances the timer.
  */
 export function useEconomyEventQueue(): {
   current: EconomyEvent | null;
   enqueue: (event: EconomyEvent) => void;
 } {
-  const [queue, setQueue] = useState<EconomyEvent[]>([]);
+  const [queue, setQueue] = useState<QueuedEconomyEvent[]>([]);
+  const seqRef = useRef(0);
   const current = queue[0] ?? null;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const enqueue = useCallback((event: EconomyEvent) => {
-    setQueue((prev) => [...prev, event]);
+    seqRef.current += 1;
+    const id = seqRef.current;
+    setQueue((prev) => [...prev, { id, event }]);
   }, []);
 
-  // Key by toastMessage+kind so enqueue of a *next* item does not reset the
-  // active item's timer (queue[0] reference stays stable anyway).
-  const currentKey = current
-    ? `${current.kind}:${current.toastTitle}:${current.toastMessage}`
-    : null;
+  const currentId = current?.id ?? null;
 
   useEffect(() => {
-    if (!currentKey) {
+    if (currentId == null) {
       return;
     }
     if (timerRef.current) {
@@ -43,7 +48,7 @@ export function useEconomyEventQueue(): {
         timerRef.current = null;
       }
     };
-  }, [currentKey]);
+  }, [currentId]);
 
-  return { current, enqueue };
+  return { current: current?.event ?? null, enqueue };
 }
