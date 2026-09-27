@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.18.0
+ * OpenAPI spec version: 0.19.0
  */
 
 export interface GameDeed {
@@ -20,7 +20,8 @@ export interface GameDeed {
    * @maximum 5
    */
   houses: number;
-  /** Whether this deed is mortgaged (Phase 11.0 field; always false until 11.3).
+  /** Whether this deed is mortgaged (Phase 11.3). Mortgaged deeds collect no rent.
+Building on a color set is blocked if any deed in the set is mortgaged.
  */
   mortgaged: boolean;
 }

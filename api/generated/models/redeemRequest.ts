@@ -8,11 +8,11 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.19.0
  */
 
-export type GameStatus = typeof GameStatus[keyof typeof GameStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const GameStatus = {
-  active: 'active',
-  finished: 'finished',
-} as const;
+export interface RedeemRequest {
+  /**
+   * Owned mortgaged space to redeem (mortgage value + 10%)
+   * @minimum 0
+   * @maximum 39
+   */
+  boardIndex: number;
+}

@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.18.0
+ * OpenAPI spec version: 0.19.0
  */
 import type {
   AuthSessionResponse,
@@ -20,11 +20,13 @@ import type {
   LocationsResponse,
   LoginRequest,
   LoginResponse,
+  MortgageRequest,
   PasswordResetConfirmRequest,
   PasswordResetStartRequest,
   PasswordResetStartResponse,
   PasswordResetVerifyRequest,
   PasswordResetVerifyResponse,
+  RedeemRequest,
   SellBuildingRequest,
   SetPinColorRequest,
   SetTableReadyRequest,
@@ -709,6 +711,67 @@ export const sellBuilding = async (gameId: string,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       sellBuildingRequest,)
+  }
+);}
+
+
+
+/**
+ * Phase 11.3 — current player only. Body selects the deed (`boardIndex`).
+Payout = floor(listPrice / 2). Cities require all buildings on the color group
+sold first. Allowed during pendingPayment (raise funds; payout applies to debt).
+Mortgaged deeds collect no rent. Fans out via WebSocket `state`.
+
+ * @summary Mortgage an owned deed for half list price
+ */
+export const getMortgageDeedUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/mortgage`
+}
+
+export const mortgageDeed = async (gameId: string,
+    mortgageRequest: MortgageRequest, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getMortgageDeedUrl(gameId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      mortgageRequest,)
+  }
+);}
+
+
+
+/**
+ * Phase 11.3 — current player only. Cost = floor(listPrice/2) + 10% of that
+mortgage value. Blocked while pendingPayment (settle debt first).
+Fans out via WebSocket `state`.
+
+ * @summary Unmortgage a deed (mortgage value + 10%)
+ */
+export const getRedeemDeedUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/redeem`
+}
+
+export const redeemDeed = async (gameId: string,
+    redeemRequest: RedeemRequest, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getRedeemDeedUrl(gameId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      redeemRequest,)
   }
 );}
 
