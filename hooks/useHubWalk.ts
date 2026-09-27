@@ -114,7 +114,9 @@ export function useHubWalk({
 
     let raf = 0;
     let last = performance.now();
-    const speed = minSide * BOARD_WALK.speedFrac;
+    // Match board feel: board uses full square side; hub rail is tall/narrow so
+    // use max(width, height) as the speed base (not minSide).
+    const speed = Math.max(width, height) * BOARD_WALK.speedFrac;
 
     const tick = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -139,7 +141,7 @@ export function useHubWalk({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [width, height, minSide, enabled, avatarRadius, poseX, poseY]);
+  }, [width, height, enabled, avatarRadius, poseX, poseY]);
 
   const setStick = (stick: StickInput) => {
     stickRef.current = stick;
