@@ -4,6 +4,7 @@ import { getWsBaseUrl } from "@/api/client";
 import { useMuteMic } from "@/hooks/useMuteMic";
 import { useSession } from "@/hooks/useSession";
 import { formatUsername } from "@/lib/formatUsername";
+import { startHubSpeaker, stopHubSpeaker } from "@/lib/hubAudioRoute";
 import { notify } from "@/lib/notify";
 import {
   encodePresencePose,
@@ -609,6 +610,7 @@ function usePresenceChannel({
 
         // Phase 10.2 — hub remote audio. Holding the stream keeps playout alive on RN.
         if (publishAudioRef.current) {
+          startHubSpeaker();
           pc.ontrack = (ev) => {
             if (cancelled || pcRef.current !== pc) {
               return;
@@ -973,6 +975,9 @@ function usePresenceChannel({
       const ws = wsRef.current;
       wsRef.current = null;
       teardownPeer();
+      if (publishAudioRef.current) {
+        stopHubSpeaker();
+      }
       identityRef.current = null;
       iceServersRef.current = undefined;
       if (
