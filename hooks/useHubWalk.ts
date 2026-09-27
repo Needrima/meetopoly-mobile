@@ -77,6 +77,24 @@ export function useHubWalk({
     };
   };
 
+  /** Random spawn in the walk rect (same idea as board `randomCenterSpawn`). */
+  const randomHubSpawn = (w: number, h: number, radius: number): Vec2 => {
+    const pad = radius + 6;
+    const minX = pad;
+    const maxX = Math.max(minX, w - pad);
+    const minY = pad;
+    const maxY = Math.max(minY, h - pad);
+    return clampPose(
+      {
+        x: minX + Math.random() * Math.max(0, maxX - minX),
+        y: minY + Math.random() * Math.max(0, maxY - minY),
+      },
+      w,
+      h,
+      radius,
+    );
+  };
+
   useEffect(() => {
     if (!enabled || width <= 0 || height <= 0) {
       return;
@@ -85,9 +103,7 @@ export function useHubWalk({
     if (spawnedKey.current === key) {
       return;
     }
-    applyPose(
-      clampPose({ x: width / 2, y: height / 2 }, width, height, avatarRadius),
-    );
+    applyPose(randomHubSpawn(width, height, avatarRadius));
     spawnedKey.current = key;
   }, [width, height, enabled, avatarRadius, poseX, poseY]);
 

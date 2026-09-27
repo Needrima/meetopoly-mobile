@@ -51,7 +51,8 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 const JOYSTICK_SIZE = 96;
-const DOCK_PAD = 16;
+/** Match board `BoardPanel` dock offset. */
+const DOCK_PAD = 36;
 const PANE_FLEX = 1;
 const CENTER_EDGE = 2;
 
@@ -557,7 +558,11 @@ export default function HubScreen() {
         <View
           style={[
             styles.panelRail,
-            { flex: PANE_FLEX, paddingTop: 10 + insets.top },
+            {
+              flex: PANE_FLEX,
+              paddingTop: 10 + insets.top,
+              paddingBottom: DOCK_PAD + JOYSTICK_SIZE,
+            },
           ]}
         >
           <HubRoster
@@ -578,7 +583,16 @@ export default function HubScreen() {
             }
           />
 
-          <View style={styles.joystickDock} pointerEvents="box-none">
+          <View
+            style={[
+              styles.joystickDock,
+              {
+                right: DOCK_PAD,
+                bottom: DOCK_PAD,
+              },
+            ]}
+            pointerEvents="box-none"
+          >
             <Joystick
               onStick={walk.setStick}
               size={JOYSTICK_SIZE}
@@ -657,7 +671,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     backgroundColor: colors.surface,
     paddingHorizontal: 10,
-    paddingBottom: DOCK_PAD + JOYSTICK_SIZE + 8,
   },
   closeBtn: {
     width: 36,
@@ -681,8 +694,6 @@ const styles = StyleSheet.create({
   },
   joystickDock: {
     position: 'absolute',
-    right: DOCK_PAD,
-    bottom: DOCK_PAD,
     zIndex: 30,
   },
 });
