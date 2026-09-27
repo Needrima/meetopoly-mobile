@@ -1018,23 +1018,26 @@ function usePresenceChannel({
 /**
  * Phase 7 board presence. Pass `enabled=false` when the board is blurred (e.g. hub
  * stacked) so Enter leaves the board room without dropping the game WS.
+ * Phase 10.4 — publishes/plays mic like hub (`muteMic` SoT).
  */
 export function useBoardPresence(
   gameId: string | null | undefined,
   enabled = true,
 ): PresenceChannelResult {
   const id = gameId?.trim() ?? "";
+  const { muted, ready } = useMuteMic();
   return usePresenceChannel({
     roomPath: id ? `board/${encodeURIComponent(id)}` : null,
-    enabled: enabled && Boolean(id),
+    enabled: enabled && Boolean(id) && ready,
     joinToastMessage: "On the board with you",
+    publishLocalAudio: true,
+    micMuted: muted,
   });
 }
 
 /**
  * Phase 8.0 hub presence — any logged-in user; room `hub:{hubId}` on the server.
- * Phase 10.1 — publishes local mic (muteMic). Phase 10.2 — plays remote hub audio
- * and answers SFU renegotiation offers.
+ * Phase 10.1–10.2 — publishes local mic; plays remote audio; answers SFU offers.
  */
 export function useHubPresence(
   hubId: string | null | undefined,

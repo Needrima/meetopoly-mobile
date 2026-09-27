@@ -48,8 +48,8 @@ export default function SettingsScreen() {
           />
         </View>
         <Text style={styles.hint}>
-          Also available from the hub Voice rail. Muted mic stays off until you
-          unmute.
+          Also available from the hub Voice rail and board mute button. Muted
+          mic stays off until you unmute.
         </Text>
       </View>
     </SafeAreaView>

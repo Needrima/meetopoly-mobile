@@ -5,6 +5,7 @@ import type { Location } from "@/api/types";
 import type { Game } from "@/api/types";
 import { Joystick } from "@/components/board/Joystick";
 import { shortTileName } from "@/components/board/tileLabel";
+import { MuteMicButton } from "@/components/voice/MuteMicButton";
 import { Button } from "@/components/ui/Button";
 import { AnimatedMeetCoinAmount } from "@/components/ui/AnimatedMeetCoinAmount";
 import type { StickInput } from "@/hooks/useBoardWalk";
@@ -125,7 +126,7 @@ export function BoardPanel({
   });
 
   return (
-    <View style={[styles.root, { paddingBottom: DOCK_PAD + JOYSTICK_SIZE }]}>
+    <View style={[styles.root, { paddingBottom: DOCK_PAD + JOYSTICK_SIZE + 52 }]}>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Panel</Text>
         {onMenuPress ? (
@@ -296,6 +297,7 @@ export function BoardPanel({
       ) : null}
 
       <View style={styles.joystickDock}>
+        <MuteMicButton />
         <Joystick onStick={onStick} size={JOYSTICK_SIZE} accent={localPin} />
       </View>
     </View>
@@ -430,6 +432,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: DOCK_PAD,
     bottom: DOCK_PAD,
+    alignItems: "flex-end",
+    gap: 10,
   },
   pressed: {
     opacity: 0.75,

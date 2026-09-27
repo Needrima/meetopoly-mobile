@@ -1,8 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { BoardPresenceStatus } from '@/hooks/useBoardPresence';
-import { useMuteMic } from '@/hooks/useMuteMic';
+import { MuteMicButton } from '@/components/voice/MuteMicButton';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -38,7 +37,6 @@ export function HubMediaRail({
   dcOpen,
   bankLabel,
 }: HubMediaRailProps) {
-  const { muted, ready, setMuted } = useMuteMic();
   const live = presenceLabel(presenceStatus, dcOpen);
 
   return (
@@ -55,26 +53,7 @@ export function HubMediaRail({
         </Text>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={muted ? 'Unmute microphone' : 'Mute microphone'}
-        accessibilityState={{ disabled: !ready, checked: muted }}
-        disabled={!ready}
-        hitSlop={8}
-        onPress={() => setMuted(!muted)}
-        style={({ pressed }) => [
-          styles.muteBtn,
-          muted ? styles.muteBtnMuted : styles.muteBtnLive,
-          pressed ? styles.pressed : null,
-          !ready ? styles.muteDisabled : null,
-        ]}
-      >
-        <FontAwesome
-          name={muted ? 'microphone-slash' : 'microphone'}
-          size={22}
-          color={muted ? colors.danger : colors.brand}
-        />
-      </Pressable>
+      <MuteMicButton style={styles.mute} />
 
       {bankLabel ? (
         <Text style={styles.bank}>Time · {bankLabel}</Text>
@@ -102,31 +81,9 @@ const styles = StyleSheet.create({
   statusError: {
     color: colors.danger,
   },
-  muteBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  mute: {
     alignSelf: 'flex-start',
     marginTop: 4,
-    borderRadius: 10,
-    borderWidth: 2,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  /** Mic open — cream fill + brand ring so it reads on white rail. */
-  muteBtnLive: {
-    borderColor: colors.brand,
-    backgroundColor: colors.bg,
-  },
-  /** Mic muted — cream fill + danger ring; never use white (blends into rail). */
-  muteBtnMuted: {
-    borderColor: colors.danger,
-    backgroundColor: colors.bg,
-  },
-  muteDisabled: {
-    opacity: 0.5,
-  },
-  pressed: {
-    opacity: 0.75,
   },
   bank: {
     fontFamily: fonts.body,

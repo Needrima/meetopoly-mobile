@@ -1,5 +1,5 @@
 /**
- * Phase 10 — route hub WebRTC audio to the device loudspeaker.
+ * Phase 10 — route presence WebRTC audio to the device loudspeaker (hub + board).
  * Dynamic require so Expo Go / missing native module does not crash the app.
  */
 
@@ -24,7 +24,7 @@ function loadInCallManager(): InCallManagerLike | null {
   }
 }
 
-/** Start an audio session and force loudspeaker (hub voice). */
+/** Start an audio session and force loudspeaker (hub / board voice). */
 export function startHubSpeaker(): void {
   const mgr = loadInCallManager();
   if (!mgr) {
@@ -42,7 +42,7 @@ export function startHubSpeaker(): void {
   }
 }
 
-/** Restore default audio routing when leaving the hub. */
+/** Restore default audio routing when leaving hub / board presence. */
 export function stopHubSpeaker(): void {
   if (!sessionActive) {
     return;
