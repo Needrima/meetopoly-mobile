@@ -32,9 +32,14 @@ import {
   useLeaveHub,
   useRollDice,
 } from '@/hooks/useGame';
+import { useEconomyFeedback } from '@/hooks/useEconomyFeedback';
 import { useHubTurnBusy } from '@/hooks/useHubTurnBusy';
 import { useHubWalk } from '@/hooks/useHubWalk';
-import { DEFAULT_WORLD_ID, useLocationBySlug } from '@/hooks/useLocations';
+import {
+  DEFAULT_WORLD_ID,
+  useLocationBySlug,
+  useLocations,
+} from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
 import { usePlayerTimeBanks } from '@/hooks/useTurnCountdown';
 import { formatUsername } from '@/lib/formatUsername';
@@ -83,6 +88,8 @@ export default function HubScreen() {
     isError,
     error,
   } = useLocationBySlug(worldId, slug);
+  const worldLocations = useLocations(worldId);
+  const boardLocations = worldLocations.data?.locations ?? [];
 
   const hubId = location?.hubId?.trim() || null;
   const presence = useHubPresence(hubId);
@@ -128,6 +135,15 @@ export default function HubScreen() {
   const surfaceH = Math.max(0, Math.floor(surfaceBox.h));
   const surfaceReady = surfaceW > 0 && surfaceH > 0;
   const turnBusy = useHubTurnBusy(game);
+
+  // Phase 9.3 — board economy events as hub toasts only.
+  useEconomyFeedback({
+    game,
+    locations: boardLocations,
+    localUserId,
+    waitIdle: turnBusy,
+    surface: 'hub',
+  });
 
   const walk = useHubWalk({
     width: surfaceW,

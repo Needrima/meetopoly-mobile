@@ -15,6 +15,7 @@ import { Board } from "@/components/board/Board";
 import { BoardOverflowMenu } from "@/components/board/BoardOverflowMenu";
 import { BoardPanel } from "@/components/board/BoardPanel";
 import { BuyPropertyOverlay } from "@/components/board/BuyPropertyOverlay";
+import { EconomyEventOverlay } from "@/components/board/EconomyEventOverlay";
 import { TileInfoOverlay } from "@/components/board/TileInfoOverlay";
 import { layoutBoardRing } from "@/components/board/boardLayout";
 import { DiceRollOverlay } from "@/components/board/DiceRollOverlay";
@@ -24,6 +25,8 @@ import { useBlockHardwareBack } from "@/hooks/useBlockHardwareBack";
 import { useBoardSession } from "@/hooks/useBoardSession";
 import { useBoardWalk, type AvatarColorKey } from "@/hooks/useBoardWalk";
 import { useDiceRollMotion } from "@/hooks/useDiceRollMotion";
+import { useEconomyEventQueue } from "@/hooks/useEconomyEventQueue";
+import { useEconomyFeedback } from "@/hooks/useEconomyFeedback";
 import {
   useGame,
   useBuyProperty,
@@ -39,7 +42,6 @@ import { useSession } from "@/hooks/useSession";
 import { notify } from "@/lib/notify";
 import { formatUsername } from "@/lib/formatUsername";
 import { beginHubEnter } from "@/lib/hubEnterGuard";
-import { buyToastTitle, countOwnedOfKind } from "@/lib/buyToast";
 import { buildBoardRemoteAvatars } from "@/lib/buildBoardRemoteAvatars";
 import { colors } from "@/theme/colors";
 import { fonts } from "@/theme/fonts";
@@ -79,10 +81,16 @@ export default function BoardScreen() {
   const gameQuery = useGame(gameId);
   /** Leave board SFU room while hub is stacked; reconnect on Leave hub. */
   const [boardPresenceOn, setBoardPresenceOn] = useState(true);
+  /** Economy modals only while board focused (hub stack owns toasts). */
+  const [boardFocused, setBoardFocused] = useState(true);
   useFocusEffect(
     useCallback(() => {
       setBoardPresenceOn(true);
-      return () => setBoardPresenceOn(false);
+      setBoardFocused(true);
+      return () => {
+        setBoardPresenceOn(false);
+        setBoardFocused(false);
+      };
     }, []),
   );
   const presence = useBoardPresence(gameId, boardPresenceOn);
@@ -97,13 +105,11 @@ export default function BoardScreen() {
   const [winnerOpen, setWinnerOpen] = useState(false);
   const [inspectIndex, setInspectIndex] = useState<number | null>(null);
   const startedToastRef = useRef(false);
-  const passGoToastRef = useRef<string | null>(null);
-  const passGoReadyRef = useRef(false);
   const finishedHandledRef = useRef(false);
   const resignToastRef = useRef<string>("");
   const localLeavingRef = useRef(false);
-  const deedsSigRef = useRef<string | null>(null);
-  const paymentSigRef = useRef<string | null>(null);
+  const { current: economyEvent, enqueue: enqueueEconomy } =
+    useEconomyEventQueue();
 
   const username = me.data?.username ?? user?.username ?? null;
   const sessionUserId = me.data?.id ?? user?.id ?? null;
@@ -148,20 +154,6 @@ export default function BoardScreen() {
       return;
     }
     startedToastRef.current = true;
-    // Seed deed signature so reconnect / first paint does not toast history.
-    deedsSigRef.current = (game.deeds ?? [])
-      .map((d) => `${d.boardIndex}:${d.ownerUserId}`)
-      .sort()
-      .join("|");
-    if (game.lastPayment) {
-      const p = game.lastPayment;
-      paymentSigRef.current = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ""}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
-    }
-    // Ignore historical lastRoll pass-GO from a prior session fetch.
-    if (game.lastRoll?.passedGo) {
-      passGoToastRef.current = `${game.lastRoll.userId}:${game.lastRoll.fromIndex}:${game.lastRoll.toIndex}:${game.lastRoll.total}`;
-    }
-    passGoReadyRef.current = true;
     if (game.status === "finished") {
       finishedHandledRef.current = true;
       setWinnerOpen(true);
@@ -277,26 +269,17 @@ export default function BoardScreen() {
   });
   const turnBusy = holdPinWalk || pinAnimating;
 
-  // Pass-GO toast after pin finishes walking (not when WS arrives).
-  useEffect(() => {
-    if (!passGoReadyRef.current || turnBusy) {
-      return;
-    }
-    const roll = game?.lastRoll;
-    if (!roll?.passedGo || roll.passGoAmount <= 0) {
-      return;
-    }
-    const key = `${roll.userId}:${roll.fromIndex}:${roll.toIndex}:${roll.total}`;
-    if (passGoToastRef.current === key) {
-      return;
-    }
-    passGoToastRef.current = key;
-    notify({
-      type: "success",
-      title: "Passed GO",
-      message: `${formatUsername(roll.username)} +${roll.passGoAmount} MeetCoin`,
-    });
-  }, [game?.lastRoll, turnBusy]);
+  // Phase 9.3 — economy modals (involved) / toasts (spectators).
+  useEconomyFeedback({
+    game,
+    locations,
+    localUserId,
+    waitIdle: turnBusy,
+    displayAccent,
+    surface: "board",
+    enqueueModal: enqueueEconomy,
+    enabled: boardFocused,
+  });
 
   // Phase 6.2c — resign + finished via game WS.
   useEffect(() => {
@@ -342,104 +325,6 @@ export default function BoardScreen() {
       });
     }
   }, [game, localUserId, presence.clearRemote]);
-
-  // Phase 6.4 — toast everyone when a deed is added (WS).
-  useEffect(() => {
-    if (!game || !startedToastRef.current) {
-      return;
-    }
-    const deeds = game.deeds ?? [];
-    const sig = deeds
-      .map((d) => `${d.boardIndex}:${d.ownerUserId}`)
-      .sort()
-      .join("|");
-    if (deedsSigRef.current === null) {
-      deedsSigRef.current = sig;
-      return;
-    }
-    if (sig === deedsSigRef.current) {
-      return;
-    }
-    const prev = new Set(
-      deedsSigRef.current ? deedsSigRef.current.split("|").filter(Boolean) : [],
-    );
-    deedsSigRef.current = sig;
-    for (const d of deeds) {
-      const key = `${d.boardIndex}:${d.ownerUserId}`;
-      if (prev.has(key)) {
-        continue;
-      }
-      const loc = locations.find((l) => l.boardIndex === d.boardIndex);
-      const place = loc?.name ?? `space ${d.boardIndex}`;
-      const iBought = Boolean(localUserId && d.ownerUserId === localUserId);
-      const ownedOfKind = countOwnedOfKind(
-        deeds,
-        locations,
-        d.ownerUserId,
-        loc?.kind,
-      );
-      notify({
-        type: "success",
-        title: buyToastTitle({
-          kind: loc?.kind,
-          iBought,
-          ownerUsername: d.ownerUsername,
-          ownedOfKind,
-        }),
-        message: place,
-      });
-    }
-  }, [game, localUserId, locations]);
-
-  // Phase 6.5 — rent/tax toast after pin settles.
-  useEffect(() => {
-    if (!game || !startedToastRef.current || turnBusy) {
-      return;
-    }
-    const p = game.lastPayment;
-    if (!p) {
-      return;
-    }
-    const sig = `${p.kind}:${p.fromUserId}:${p.toUserId ?? ""}:${p.amount}:${p.boardIndex}:${p.paidInFull}`;
-    if (paymentSigRef.current === null) {
-      paymentSigRef.current = sig;
-      return;
-    }
-    if (sig === paymentSigRef.current) {
-      return;
-    }
-    paymentSigRef.current = sig;
-    const place = p.spaceName || `space ${p.boardIndex}`;
-    const iPaid = Boolean(localUserId && p.fromUserId === localUserId);
-    const received = Boolean(localUserId && p.toUserId === localUserId);
-    if (p.kind === "tax") {
-      notify({
-        type: iPaid && !p.paidInFull ? "error" : "info",
-        title: iPaid ? "Tax paid" : "Tax collected",
-        message: iPaid
-          ? `−${p.amount} MeetCoin · ${place}`
-          : `${formatUsername(p.fromUsername)} paid ${p.amount} tax at ${place}`,
-      });
-    } else {
-      notify({
-        type: iPaid && !p.paidInFull ? "error" : "success",
-        title: iPaid ? "Rent paid" : received ? "Rent collected" : "Rent paid",
-        message: iPaid
-          ? `−${p.amount} to ${formatUsername(p.toUsername) || "owner"} · ${place}`
-          : received
-            ? `+${p.amount} from ${formatUsername(p.fromUsername)} · ${place}`
-            : `${formatUsername(p.fromUsername)} → ${formatUsername(p.toUsername) || "owner"} · ${p.amount} · ${place}`,
-      });
-    }
-    if (iPaid && !p.paidInFull) {
-      notify({
-        type: "error",
-        title: "Cannot afford full amount",
-        message:
-          "End and Roll are blocked. Resign to leave (bankruptcy rules come later).",
-      });
-    }
-  }, [game, localUserId, turnBusy]);
 
   const persistAndEnter = useCallback(
     (loc: Location) => {
@@ -768,6 +653,7 @@ export default function BoardScreen() {
             owner={inspectOwner}
             onClose={() => setInspectIndex(null)}
           />
+          <EconomyEventOverlay event={economyEvent} />
         </View>
 
         <View style={[styles.panelRail, { height: boardSide }]}>

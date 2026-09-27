@@ -3,6 +3,10 @@ import { MotiView } from 'moti';
 
 import type { GameBuyOffer, Location } from '@/api/types';
 import { DeedCard } from '@/components/board/DeedCard';
+import {
+  isLightHex,
+  stripColorFor,
+} from '@/components/board/deedVisual';
 import { resolveBoardIcon } from '@/components/board/iconRegistry';
 import { Button } from '@/components/ui/Button';
 import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
@@ -21,7 +25,7 @@ type BuyPropertyOverlayProps = {
 
 /**
  * Center-board buy modal (Phase 9.1 branded deed).
- * DeedCard + price / Buy row.
+ * Header uses location strip color; DeedCard + price / Buy row.
  */
 export function BuyPropertyOverlay({
   visible,
@@ -37,6 +41,8 @@ export function BuyPropertyOverlay({
   }
 
   const Icon = resolveBoardIcon(location?.assets?.icon);
+  const strip = stripColorFor(location, offer.kind);
+  const onStrip = isLightHex(strip) ? colors.ink : colors.onBrand;
 
   return (
     <View style={styles.host} pointerEvents="box-none">
@@ -54,41 +60,50 @@ export function BuyPropertyOverlay({
           style={styles.sheetWrap}
           pointerEvents="box-none"
         >
-          <View style={styles.sheet} pointerEvents="box-none">
-            <Text style={styles.eyebrow}>Land available</Text>
+          <View
+            style={[styles.sheet, { borderColor: strip }]}
+            pointerEvents="box-none"
+          >
+            <View style={[styles.header, { backgroundColor: strip }]}>
+              <Text style={[styles.headerText, { color: onStrip }]}>
+                Land available
+              </Text>
+            </View>
 
-            <DeedCard
-              name={offer.name}
-              kind={offer.kind}
-              location={location}
-              Icon={Icon}
-            />
+            <View style={styles.body}>
+              <DeedCard
+                name={offer.name}
+                kind={offer.kind}
+                location={location}
+                Icon={Icon}
+              />
 
-            <MotiView
-              from={{ opacity: 0, translateY: 8 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ type: 'timing', duration: 220, delay: 110 }}
-              style={styles.footerAnim}
-              pointerEvents="box-none"
-            >
-              <View style={styles.footer}>
-                <View style={styles.priceBlock}>
-                  <Text style={styles.priceLabel}>Price</Text>
-                  <MeetCoinAmount amount={offer.price} size={20} />
-                  {!canAfford ? (
-                    <Text style={styles.cannot}>Not enough MeetCoin</Text>
-                  ) : null}
+              <MotiView
+                from={{ opacity: 0, translateY: 8 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ type: 'timing', duration: 220, delay: 110 }}
+                style={styles.footerAnim}
+                pointerEvents="box-none"
+              >
+                <View style={styles.footer}>
+                  <View style={styles.priceBlock}>
+                    <Text style={styles.priceLabel}>Price</Text>
+                    <MeetCoinAmount amount={offer.price} size={20} />
+                    {!canAfford ? (
+                      <Text style={styles.cannot}>Not enough MeetCoin</Text>
+                    ) : null}
+                  </View>
+                  <Button
+                    label={`Buy · ${offer.price}`}
+                    onPress={onBuy}
+                    disabled={!canAfford || buyPending}
+                    loading={buyPending}
+                    style={styles.buyBtn}
+                  />
                 </View>
-                <Button
-                  label={`Buy · ${offer.price}`}
-                  onPress={onBuy}
-                  disabled={!canAfford || buyPending}
-                  loading={buyPending}
-                  style={styles.buyBtn}
-                />
-              </View>
-              <Text style={styles.skipHint}>Or End turn to skip</Text>
-            </MotiView>
+                <Text style={styles.skipHint}>Or End turn to skip</Text>
+              </MotiView>
+            </View>
           </View>
         </MotiView>
       </View>
@@ -119,18 +134,24 @@ const styles = StyleSheet.create({
   sheet: {
     borderRadius: 18,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
-    gap: 12,
+    borderWidth: 2,
+    overflow: 'hidden',
   },
-  eyebrow: {
+  header: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+  },
+  headerText: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: colors.brand,
     textAlign: 'center',
+  },
+  body: {
+    padding: 14,
+    gap: 12,
   },
   footer: {
     flexDirection: 'row',
