@@ -48,8 +48,8 @@ export default function SettingsScreen() {
           />
         </View>
         <Text style={styles.hint}>
-          Applies when voice is available in hubs and at the table. No effect
-          until then.
+          Also available from the hub Voice rail. Muted mic stays off until you
+          unmute.
         </Text>
       </View>
     </SafeAreaView>

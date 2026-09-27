@@ -19,6 +19,7 @@ import { shortTileName } from '@/components/board/tileLabel';
 import { tileVisual } from '@/components/board/tileStyle';
 import { HubBuySheet } from '@/components/hub/HubBuySheet';
 import { HubLocationCopy } from '@/components/hub/HubLocationCopy';
+import { HubMediaRail } from '@/components/hub/HubMediaRail';
 import { HubRoster, type HubRosterRow } from '@/components/hub/HubRoster';
 import { HubScene } from '@/components/hub/HubScene';
 import { HubTurnSheet } from '@/components/hub/HubTurnSheet';
@@ -485,15 +486,6 @@ export default function HubScreen() {
     });
   }, [gameId, buyMut, turnBusy]);
 
-  const presenceHint =
-    presence.status === 'connected' && presence.dcOpen
-      ? 'Live'
-      : presence.status === 'connecting' || presence.status === 'connected'
-        ? 'Connecting…'
-        : presence.status === 'error'
-          ? 'Hub full or error'
-          : '';
-
   return (
     <View style={styles.root}>
       <View
@@ -508,14 +500,11 @@ export default function HubScreen() {
             { flex: PANE_FLEX, paddingTop: 12 + insets.top },
           ]}
         >
-          <Text style={styles.mediaEyebrow}>Media</Text>
-          <Text style={styles.mediaStub}>Cameras · Phase 10</Text>
-          {presenceHint ? (
-            <Text style={styles.mediaStatus}>{presenceHint}</Text>
-          ) : null}
-          {bankLabel ? (
-            <Text style={styles.mediaBank}>Time · {bankLabel}</Text>
-          ) : null}
+          <HubMediaRail
+            presenceStatus={presence.status}
+            dcOpen={presence.dcOpen}
+            bankLabel={bankLabel}
+          />
         </View>
 
         <View
@@ -649,30 +638,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: 10,
     gap: 6,
-  },
-  mediaEyebrow: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.muted,
-  },
-  mediaStub: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
-    lineHeight: 16,
-  },
-  mediaStatus: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.brand,
-    marginTop: 8,
-  },
-  mediaBank: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.ink,
   },
   centerRail: {
     flexShrink: 0,
