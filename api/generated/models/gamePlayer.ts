@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.15.0
+ * OpenAPI spec version: 0.16.0
  */
 
 export interface GamePlayer {
@@ -21,22 +21,24 @@ export interface GamePlayer {
   pinColor: string;
   /** Left mid-game or time-bank eliminated; skipped for turns */
   resigned: boolean;
-  /** Personal time remaining in milliseconds (Phase 6.3b).
+  /** Personal time bank remaining in milliseconds (Phase 6.3b).
 For the current player this is live (bank minus elapsed on this turn).
 For others it is the paused remainder. Starts at 45 minutes.
  */
   timeRemainingMs: number;
-  /**
-   * Phase 9.0a — ISO 3166-1 alpha-2 from the user profile (enriched on read).
-   */
-  country?: string | null;
+  /** Phase 9.0a — ISO 3166-1 alpha-2 from the user profile (enriched on read;
+not stored on the game document).
+ */
+  country?: string;
   /**
    * Phase 8.2 — set while the player is inside a location hub
-   * (e.g. `hub:africa-1:lagos`); null/omitted when on the board.
+(e.g. `hub:africa-1:lagos`); null/omitted when on the board.
+
+   * @nullable
    */
   hubId?: string | null;
-  /**
-   * Phase 8.4 — bumps on leave-hub / resign. Pass on enter-hub to ignore stale enters.
-   */
+  /** Phase 8.4 — monotonic counter bumped on leave-hub / resign.
+Clients pass the observed value on enter-hub so a late enter cannot restick hubId.
+ */
   hubRevision?: number;
 }

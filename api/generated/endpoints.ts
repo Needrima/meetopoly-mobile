@@ -5,10 +5,11 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.14.0
+ * OpenAPI spec version: 0.16.0
  */
 import type {
   AuthSessionResponse,
+  EnterHubRequest,
   Game,
   GetLocationBySlugParams,
   HealthResponse,
@@ -490,11 +491,28 @@ export const leaveTable = async (tableId: string, options?: RequestInit): Promis
  * Authoritative game state (players, MeetCoin balances, pin boardIndex, whose turn).
 Created when a lobby reaches all-Ready (Phase 6.0).
 Live updates: connect to `GET /ws/games/{gameId}?token=` (same auth as table lobby WS);
-server pushes `{ "type": "state", "game": Game }` after roll / end-turn.
-Board presence (Phase 7.0): `GET /ws/presence/board/{gameId}?token=` — WebRTC signaling +
-Pion SFU PeerConnection; room id `board:{gameId}`; STUN `stun:stun.l.google.com:19302`.
+server pushes `{ "type": "state", "game": Game }` after roll / end-turn / resign / buy.
+Phase 7.5: if the game WS closes, the server starts a silent disconnect hold
+(`GAME_DISCONNECT_HOLD`, default `3m`); reconnect cancels; expire → same Resign as Leave.
+Presence WS / WebRTC drops do **not** resign.
+Board presence (Phase 7.0–7.4): `GET /ws/presence/board/{gameId}?token=` — WebRTC signaling +
+Pion SFU PeerConnection; room id `board:{gameId}`;
+STUN `stun:stun.l.google.com:19302`.
+Hub presence (Phase 8.0): `GET /ws/presence/hub/{hubId}?token=` — same signaling/SFU/DC family;
+`hubId` is URL-encoded (e.g. `hub%3Aafrica-1%3Alagos`); room id from `HubRoomID` → `hub:{…}`.
+Auth: any logged-in user (not required to be seated in a game — cross-table meet).
+Enter hub: client leaves board presence room and joins hub; Leave hub: reverse. Game WS stays up.
+Phase 8.2: `POST /games/{gameId}/enter-hub` `{hubId, hubRevision?}` / `leave-hub` sets `GamePlayer.hubId`
+(leave bumps `hubRevision`; enter with an older revision is ignored — Phase 8.4). Board peers show `Name(in CODE)`.
+fans out on game WS so board peers can show `Name(in CODE)` (presence linger unchanged).
+Phase 8.1: same pose JSON on hub rooms; clients publish ~10 Hz hub-local 0..1 and interpolate remotes.
 Messages: client `{type:offer|ice|ping}`, server `{type:welcome|answer|ice|peer-joined|peer-left|pong|error}`.
-Idle DataChannel label `presence` (pose fan-out in 7.1).
+Phase 9.0a: `welcome` / `peer-joined` / roster peers include optional `country` (ISO 3166-1 alpha-2).
+DataChannel label `presence`. Pose fan-out: client sends JSON
+`{type:"pose",userId?,username?,x,y,rot?,t?}` (board-normalized 0..1); SFU stamps
+`userId`/`username`, rate-limits ~20 Hz/peer, and forwards to other peers' open DCs.
+Collision stays client-side (7.3 skipped). Pins stay on game WS only (dual presence).
+Clients interpolate remotes and draw presence avatars separately from game pins.
 
  * @summary Get M1 game snapshot
  */
@@ -656,6 +674,63 @@ export const setPinColor = async (gameId: string,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       setPinColorRequest,)
+  }
+);}
+
+
+
+/**
+ * Phase 8.2 — sets the caller's `hubId` so board peers can show an in-hub badge
+(e.g. `Needrima(in LOS)`). Presence room switch remains on the client (8.0);
+this only fans out via game WS state. Idempotent when already in the same hub.
+
+ * @summary Mark player as inside a location hub
+ */
+export const getEnterHubUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/enter-hub`
+}
+
+export const enterHub = async (gameId: string,
+    enterHubRequest: EnterHubRequest, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getEnterHubUrl(gameId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      enterHubRequest,)
+  }
+);}
+
+
+
+/**
+ * Phase 8.2 — clears the caller's `hubId` so board peers see them back on the board.
+Idempotent when already clear. Does not resign or drop the game WS.
+
+ * @summary Clear in-hub marker
+ */
+export const getLeaveHubUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/leave-hub`
+}
+
+export const leaveHub = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getLeaveHubUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
   }
 );}
 

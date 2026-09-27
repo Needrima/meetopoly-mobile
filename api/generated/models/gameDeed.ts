@@ -5,11 +5,22 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.14.0
+ * OpenAPI spec version: 0.16.0
  */
 
 export interface GameDeed {
   boardIndex: number;
   ownerUserId: string;
   ownerUsername: string;
+  /**
+   * Building count on this deed (Phase 11.0).
+0 = undeveloped; 1–4 = houses; 5 = hotel. Always 0 until build (11.1).
+
+   * @minimum 0
+   * @maximum 5
+   */
+  houses: number;
+  /** Whether this deed is mortgaged (Phase 11.0 field; always false until 11.3).
+ */
+  mortgaged: boolean;
 }
