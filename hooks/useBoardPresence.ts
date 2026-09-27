@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getWsBaseUrl } from "@/api/client";
+import { useMuteMic } from "@/hooks/useMuteMic";
 import { useSession } from "@/hooks/useSession";
 import { formatUsername } from "@/lib/formatUsername";
 import { notify } from "@/lib/notify";
@@ -83,6 +84,19 @@ type PresenceServerMessage =
 
 export type BoardPresenceStatus = "idle" | "connecting" | "connected" | "error";
 
+/** Minimal local mic track/stream surface (Phase 10.1). */
+type MediaStreamTrackLike = {
+  kind: string;
+  enabled: boolean;
+  stop: () => void;
+};
+
+type MediaStreamLike = {
+  getAudioTracks: () => MediaStreamTrackLike[];
+  getTracks: () => MediaStreamTrackLike[];
+  release?: (releaseTracks?: boolean) => void;
+};
+
 /** Minimal WebRTC surface (avoids hard Expo Go import crash). */
 type WebRTCModule = {
   RTCPeerConnection: new (config?: {
@@ -93,6 +107,12 @@ type WebRTCModule = {
     sdp: string;
   };
   RTCIceCandidate: new (init: IceCandidateInit) => IceCandidateInit;
+  mediaDevices: {
+    getUserMedia: (constraints: {
+      audio?: boolean;
+      video?: boolean;
+    }) => Promise<MediaStreamLike>;
+  };
 };
 
 type PeerConnectionLike = {
@@ -104,6 +124,10 @@ type PeerConnectionLike = {
     label: string,
     init?: { ordered?: boolean },
   ) => DataChannelLike;
+  addTrack: (
+    track: MediaStreamTrackLike,
+    ...streams: MediaStreamLike[]
+  ) => unknown;
   createOffer: (opts?: object) => Promise<{ type: string; sdp: string }>;
   setLocalDescription: (desc: { type: string; sdp: string }) => Promise<void>;
   setRemoteDescription: (desc: { type: string; sdp: string }) => Promise<void>;
@@ -213,6 +237,13 @@ type PresenceChannelOpts = {
    * When true (hub), seed remotes from welcome.peers and stop reconnect on hub-full.
    */
   seedWelcomePeers?: boolean;
+  /**
+   * Phase 10.1 — hub only: publish local mic into the SFU PC.
+   * Board presence must leave this false (pose-only).
+   */
+  publishLocalAudio?: boolean;
+  /** When true, local mic tracks stay `enabled=false` (Settings muteMic). */
+  micMuted?: boolean;
 };
 
 /**
@@ -225,6 +256,8 @@ function usePresenceChannel({
   joinToastMessage = "On the board with you",
   clearRemoteOnPeerLeft = false,
   seedWelcomePeers = false,
+  publishLocalAudio = false,
+  micMuted = false,
 }: PresenceChannelOpts): PresenceChannelResult {
   const { token } = useSession();
   const path = roomPath?.trim() ?? "";
@@ -246,12 +279,25 @@ function usePresenceChannel({
   const identityRef = useRef<{ userId: string; username: string } | null>(null);
   const iceServersRef = useRef<WelcomeMessage["iceServers"]>(undefined);
   const disconnectRef = useRef<() => void>(() => {});
+  const localStreamRef = useRef<MediaStreamLike | null>(null);
+  const localAudioTracksRef = useRef<MediaStreamTrackLike[]>([]);
   const joinToastRef = useRef(joinToastMessage);
   joinToastRef.current = joinToastMessage;
   const clearOnLeaveRef = useRef(clearRemoteOnPeerLeft);
   clearOnLeaveRef.current = clearRemoteOnPeerLeft;
   const seedWelcomeRef = useRef(seedWelcomePeers);
   seedWelcomeRef.current = seedWelcomePeers;
+  const publishAudioRef = useRef(publishLocalAudio);
+  publishAudioRef.current = publishLocalAudio;
+  const micMutedRef = useRef(micMuted);
+  micMutedRef.current = micMuted;
+
+  // Keep muteMic → track.enabled in sync without renegotiating.
+  useEffect(() => {
+    for (const track of localAudioTracksRef.current) {
+      track.enabled = !micMuted;
+    }
+  }, [micMuted]);
 
   const applyRemotePose = useCallback((pose: PresencePose) => {
     setRemotes((prev) => {
@@ -350,9 +396,31 @@ function usePresenceChannel({
       }
     };
 
+    const stopLocalAudio = () => {
+      const tracks = localAudioTracksRef.current;
+      localAudioTracksRef.current = [];
+      for (const track of tracks) {
+        try {
+          track.stop();
+        } catch {
+          // ignore
+        }
+      }
+      const stream = localStreamRef.current;
+      localStreamRef.current = null;
+      if (stream?.release) {
+        try {
+          stream.release(true);
+        } catch {
+          // ignore
+        }
+      }
+    };
+
     const teardownPeer = () => {
       remoteSetRef.current = false;
       pendingIceRef.current = [];
+      stopLocalAudio();
       const dc = dcRef.current;
       dcRef.current = null;
       if (dc?.close) {
@@ -499,6 +567,38 @@ function usePresenceChannel({
 
         const dc = pc.createDataChannel(PRESENCE_DC_LABEL, { ordered: true });
         bindDataChannel(dc);
+
+        // Phase 10.1 — hub mic publish before createOffer so SDP includes audio.
+        if (publishAudioRef.current && webrtc.mediaDevices?.getUserMedia) {
+          try {
+            const stream = await webrtc.mediaDevices.getUserMedia({
+              audio: true,
+              video: false,
+            });
+            if (cancelled || pcRef.current !== pc) {
+              for (const track of stream.getTracks()) {
+                try {
+                  track.stop();
+                } catch {
+                  // ignore
+                }
+              }
+              stream.release?.(true);
+              return;
+            }
+            localStreamRef.current = stream;
+            const audioTracks = stream.getAudioTracks();
+            localAudioTracksRef.current = audioTracks;
+            const unmuted = !micMutedRef.current;
+            for (const track of audioTracks) {
+              track.enabled = unmuted;
+              pc.addTrack(track, stream);
+            }
+          } catch (err) {
+            console.warn("[presence] hub mic getUserMedia failed", err);
+            // Pose DC still works without mic.
+          }
+        }
 
         const offer = await pc.createOffer({});
         await pc.setLocalDescription(offer);
@@ -813,16 +913,21 @@ export function useBoardPresence(
 
 /**
  * Phase 8.0 hub presence — any logged-in user; room `hub:{hubId}` on the server.
+ * Phase 10.1 — publishes local mic (muteMic) into the same PC; remote playback = 10.2.
  */
 export function useHubPresence(
   hubId: string | null | undefined,
 ): PresenceChannelResult {
   const id = hubId?.trim() ?? "";
+  const { muted, ready } = useMuteMic();
   return usePresenceChannel({
     roomPath: id ? `hub/${encodeURIComponent(id)}` : null,
-    enabled: Boolean(id),
+    // Wait for muteMic SecureStore so the first offer does not briefly unmute.
+    enabled: Boolean(id) && ready,
     joinToastMessage: "In this hub with you",
     clearRemoteOnPeerLeft: true,
     seedWelcomePeers: true,
+    publishLocalAudio: true,
+    micMuted: muted,
   });
 }
