@@ -56,6 +56,11 @@ type AnswerMessage = {
   sdp: string;
 };
 
+type OfferMessage = {
+  type: "offer";
+  sdp: string;
+};
+
 type IceCandidateInit = {
   candidate?: string;
   sdpMid?: string | null;
@@ -77,6 +82,7 @@ type PresenceServerMessage =
   | PeerJoinedMessage
   | PeerLeftMessage
   | AnswerMessage
+  | OfferMessage
   | IceMessage
   | ErrorMessage
   | { type: "pong" }
@@ -84,17 +90,25 @@ type PresenceServerMessage =
 
 export type BoardPresenceStatus = "idle" | "connecting" | "connected" | "error";
 
-/** Minimal local mic track/stream surface (Phase 10.1). */
+/** Minimal local/remote mic track/stream surface (Phase 10.1–10.2). */
 type MediaStreamTrackLike = {
+  id?: string;
   kind: string;
   enabled: boolean;
   stop: () => void;
 };
 
 type MediaStreamLike = {
+  id?: string;
   getAudioTracks: () => MediaStreamTrackLike[];
   getTracks: () => MediaStreamTrackLike[];
+  addTrack?: (track: MediaStreamTrackLike) => void;
   release?: (releaseTracks?: boolean) => void;
+};
+
+type TrackEventLike = {
+  track?: MediaStreamTrackLike | null;
+  streams?: MediaStreamLike[];
 };
 
 /** Minimal WebRTC surface (avoids hard Expo Go import crash). */
@@ -107,6 +121,7 @@ type WebRTCModule = {
     sdp: string;
   };
   RTCIceCandidate: new (init: IceCandidateInit) => IceCandidateInit;
+  MediaStream: new (tracks?: MediaStreamTrackLike[]) => MediaStreamLike;
   mediaDevices: {
     getUserMedia: (constraints: {
       audio?: boolean;
@@ -120,6 +135,7 @@ type PeerConnectionLike = {
   connectionState: string;
   onicecandidate: ((ev: { candidate: IceCandidateInit | null }) => void) | null;
   onconnectionstatechange: (() => void) | null;
+  ontrack: ((ev: TrackEventLike) => void) | null;
   createDataChannel: (
     label: string,
     init?: { ordered?: boolean },
@@ -129,6 +145,7 @@ type PeerConnectionLike = {
     ...streams: MediaStreamLike[]
   ) => unknown;
   createOffer: (opts?: object) => Promise<{ type: string; sdp: string }>;
+  createAnswer: (opts?: object) => Promise<{ type: string; sdp: string }>;
   setLocalDescription: (desc: { type: string; sdp: string }) => Promise<void>;
   setRemoteDescription: (desc: { type: string; sdp: string }) => Promise<void>;
   addIceCandidate: (c: IceCandidateInit) => Promise<void>;
@@ -281,6 +298,8 @@ function usePresenceChannel({
   const disconnectRef = useRef<() => void>(() => {});
   const localStreamRef = useRef<MediaStreamLike | null>(null);
   const localAudioTracksRef = useRef<MediaStreamTrackLike[]>([]);
+  const remoteStreamsRef = useRef<Map<string, MediaStreamLike>>(new Map());
+  const remoteAudioTracksRef = useRef<MediaStreamTrackLike[]>([]);
   const joinToastRef = useRef(joinToastMessage);
   joinToastRef.current = joinToastMessage;
   const clearOnLeaveRef = useRef(clearRemoteOnPeerLeft);
@@ -417,10 +436,33 @@ function usePresenceChannel({
       }
     };
 
+    const stopRemoteAudio = () => {
+      const tracks = remoteAudioTracksRef.current;
+      remoteAudioTracksRef.current = [];
+      for (const track of tracks) {
+        try {
+          track.stop();
+        } catch {
+          // ignore
+        }
+      }
+      for (const stream of remoteStreamsRef.current.values()) {
+        if (stream.release) {
+          try {
+            stream.release(false);
+          } catch {
+            // ignore
+          }
+        }
+      }
+      remoteStreamsRef.current.clear();
+    };
+
     const teardownPeer = () => {
       remoteSetRef.current = false;
       pendingIceRef.current = [];
       stopLocalAudio();
+      stopRemoteAudio();
       const dc = dcRef.current;
       dcRef.current = null;
       if (dc?.close) {
@@ -565,6 +607,36 @@ function usePresenceChannel({
           }
         };
 
+        // Phase 10.2 — hub remote audio. Holding the stream keeps playout alive on RN.
+        if (publishAudioRef.current) {
+          pc.ontrack = (ev) => {
+            if (cancelled || pcRef.current !== pc) {
+              return;
+            }
+            const track = ev.track;
+            if (!track || track.kind !== "audio") {
+              return;
+            }
+            track.enabled = true;
+            remoteAudioTracksRef.current = [
+              ...remoteAudioTracksRef.current.filter((t) => t.id !== track.id),
+              track,
+            ];
+            let stream = ev.streams?.[0];
+            if (!stream && webrtc.MediaStream) {
+              try {
+                stream = new webrtc.MediaStream([track]);
+              } catch (err) {
+                console.warn("[presence] remote MediaStream wrap failed", err);
+              }
+            }
+            if (stream) {
+              const key = stream.id || track.id || `audio-${Date.now()}`;
+              remoteStreamsRef.current.set(key, stream);
+            }
+          };
+        }
+
         const dc = pc.createDataChannel(PRESENCE_DC_LABEL, { ordered: true });
         bindDataChannel(dc);
 
@@ -696,6 +768,49 @@ function usePresenceChannel({
             await flushPendingIce(pc);
           } catch (err) {
             console.warn("[presence] setRemoteDescription failed", err);
+          }
+          break;
+        }
+        case "offer": {
+          // Phase 10.2 — SFU renegotiation when another hub peer publishes audio.
+          const offer = msg as OfferMessage;
+          const pc = pcRef.current;
+          const openWs = wsRef.current;
+          if (
+            !pc ||
+            !webrtc ||
+            !offer.sdp ||
+            !publishAudioRef.current ||
+            !openWs ||
+            openWs.readyState !== WebSocket.OPEN
+          ) {
+            break;
+          }
+          if (renegotiating) {
+            console.warn("[presence] skip SFU offer during local renegotiate");
+            break;
+          }
+          try {
+            await pc.setRemoteDescription(
+              new webrtc.RTCSessionDescription({
+                type: "offer",
+                sdp: offer.sdp,
+              }),
+            );
+            remoteSetRef.current = true;
+            await flushPendingIce(pc);
+            const answer = await pc.createAnswer({});
+            await pc.setLocalDescription(answer);
+            if (cancelled || openWs.readyState !== WebSocket.OPEN) {
+              break;
+            }
+            const local = pc.localDescription;
+            if (!local?.sdp) {
+              break;
+            }
+            openWs.send(JSON.stringify({ type: "answer", sdp: local.sdp }));
+          } catch (err) {
+            console.warn("[presence] SFU offer answer failed", err);
           }
           break;
         }
@@ -913,7 +1028,8 @@ export function useBoardPresence(
 
 /**
  * Phase 8.0 hub presence — any logged-in user; room `hub:{hubId}` on the server.
- * Phase 10.1 — publishes local mic (muteMic) into the same PC; remote playback = 10.2.
+ * Phase 10.1 — publishes local mic (muteMic). Phase 10.2 — plays remote hub audio
+ * and answers SFU renegotiation offers.
  */
 export function useHubPresence(
   hubId: string | null | undefined,
