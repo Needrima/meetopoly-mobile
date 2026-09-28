@@ -95,18 +95,29 @@ export type GamePinPlayer = {
   userId: string;
   boardIndex: number;
   pinColor: string;
+  /** Phase 12.4 — in Jail (center) vs Just Visiting (edges). */
+  inJail?: boolean;
 };
 
 /**
- * Fan pins for all game players on their boardIndex tile (6.0: all on GO).
+ * Fan pins for all game players on their boardIndex tile.
+ * Jail tile: in-jail pins near center; Just Visiting along outer edges.
  */
 export function buildGamePins(opts: {
   layout: BoardLayout;
   players: GamePinPlayer[];
   localUserId: string | null;
   pinRadius: number;
+  /** Prefer seed jail index; defaults to classic 10. */
+  jailBoardIndex?: number;
 }): BoardPinModel[] {
-  const { layout, players, localUserId, pinRadius } = opts;
+  const {
+    layout,
+    players,
+    localUserId,
+    pinRadius,
+    jailBoardIndex = 10,
+  } = opts;
   if (!players.length) {
     return [];
   }
@@ -122,6 +133,17 @@ export function buildGamePins(opts: {
   for (const [boardIndex, group] of byIndex) {
     const tile = layout.tiles.find((t) => t.boardIndex === boardIndex);
     if (!tile) {
+      continue;
+    }
+    if (boardIndex === jailBoardIndex) {
+      out.push(
+        ...buildJailTilePins({
+          tile,
+          group,
+          localUserId,
+          pinRadius,
+        }),
+      );
       continue;
     }
     const cx = tile.x + tile.width / 2;
@@ -144,4 +166,84 @@ export function buildGamePins(opts: {
     });
   }
   return out;
+}
+
+/**
+ * Jail (bottom-left corner): inmates toward tile center; visitors along
+ * the outer L (bottom + left edges) so players can tell them apart.
+ */
+function buildJailTilePins(opts: {
+  tile: TileLayout;
+  group: GamePinPlayer[];
+  localUserId: string | null;
+  pinRadius: number;
+}): BoardPinModel[] {
+  const { tile, group, localUserId, pinRadius } = opts;
+  const inmates = group.filter((p) => p.inJail);
+  const visitors = group.filter((p) => !p.inJail);
+  const pad = Math.max(pinRadius * 1.2, Math.min(tile.width, tile.height) * 0.18);
+  const cx = tile.x + tile.width / 2;
+  const cy = tile.y + tile.height / 2;
+  const spacing = Math.max(
+    pinRadius * 1.05,
+    Math.min(tile.width, tile.height) * 0.12,
+  );
+  const out: BoardPinModel[] = [];
+
+  const inmateOffsets = pinFanOffsets(inmates.length, spacing * 0.85);
+  inmates.forEach((p, i) => {
+    const off = inmateOffsets[i] ?? { x: 0, y: 0 };
+    out.push({
+      id: p.userId,
+      x: cx + off.x,
+      y: cy + off.y,
+      radius: pinRadius,
+      accent: p.pinColor,
+      isLocal: Boolean(localUserId && p.userId === localUserId),
+    });
+  });
+
+  visitors.forEach((p, i) => {
+    const pos = visitingPinPosition(tile, pad, i, visitors.length);
+    out.push({
+      id: p.userId,
+      x: pos.x,
+      y: pos.y,
+      radius: pinRadius,
+      accent: p.pinColor,
+      isLocal: Boolean(localUserId && p.userId === localUserId),
+    });
+  });
+
+  return out;
+}
+
+/** Place visitors along bottom then left edges of the Jail corner tile. */
+function visitingPinPosition(
+  tile: TileLayout,
+  pad: number,
+  index: number,
+  count: number,
+): Vec2 {
+  if (count <= 1) {
+    return {
+      x: tile.x + pad,
+      y: tile.y + tile.height - pad,
+    };
+  }
+  // Alternate bottom edge / left edge slots.
+  const onBottom = index % 2 === 0;
+  const slot = Math.floor(index / 2);
+  const slots = Math.ceil(count / 2);
+  const t = slots <= 1 ? 0.5 : (slot + 1) / (slots + 1);
+  if (onBottom) {
+    return {
+      x: tile.x + pad + (tile.width - pad * 2) * t,
+      y: tile.y + tile.height - pad,
+    };
+  }
+  return {
+    x: tile.x + pad,
+    y: tile.y + pad + (tile.height - pad * 2) * t,
+  };
 }

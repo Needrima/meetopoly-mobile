@@ -312,3 +312,37 @@ export function useRedeemDeed(gameId: string | null | undefined) {
     onSuccess,
   });
 }
+
+/** POST /games/{id}/pay-jail-fine — Phase 12.1/12.4 leave Jail for 100 MeetCoin. */
+export function usePayJailFine(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/pay-jail-fine`,
+        { method: "POST" },
+      );
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/use-jail-card — Phase 12.1/12.4 spend one GOOJF. */
+export function useUseJailCard(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/use-jail-card`,
+        { method: "POST" },
+      );
+    },
+    onSuccess,
+  });
+}

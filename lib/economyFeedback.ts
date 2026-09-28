@@ -1,4 +1,11 @@
-import type { Game, GameDeed, GameLastPayment, GamePlayer, Location } from '@/api/types';
+import type {
+  Game,
+  GameDeed,
+  GameLastCard,
+  GameLastPayment,
+  GamePlayer,
+  Location,
+} from '@/api/types';
 import { buyToastTitle, countOwnedOfKind } from '@/lib/buyToast';
 import { formatUsername } from '@/lib/formatUsername';
 import { usernameInitials } from '@/hooks/useBoardWalk';
@@ -7,6 +14,9 @@ import { colors } from '@/theme/colors';
 
 /** Board economy celebration duration — longer in __DEV__ for playtesting. */
 export const ECONOMY_MODAL_MS = __DEV__ ? 5000 : 3000;
+
+/** Classic Jail / Just Visiting index (seed `specialType: jail`). */
+export const JAIL_BOARD_INDEX = 10;
 
 export type EconomyBuyEvent = {
   kind: 'buy';
@@ -57,11 +67,46 @@ export type EconomySalaryEvent = {
   toastMessage: string;
 };
 
+/** Phase 12.4 — Chance / Community Chest reveal. */
+export type EconomyCardEvent = {
+  kind: 'card';
+  deck: 'chance' | 'community_chest';
+  cardId: string;
+  title: string;
+  drawerUsername: string;
+  drawerInitials: string;
+  drawerPinColor: string;
+  toastTitle: string;
+  toastMessage: string;
+};
+
+/** Phase 12.4 — landed on Jail as Just Visiting. */
+export type EconomyJustVisitingEvent = {
+  kind: 'just_visiting';
+  visitorUsername: string;
+  visitorInitials: string;
+  visitorPinColor: string;
+  toastTitle: string;
+  toastMessage: string;
+};
+
+/** Phase 12.4 — left Jail (toast for others; actor used the jail sheet). */
+export type EconomyJailExitEvent = {
+  kind: 'jail_exit';
+  reason: 'fine' | 'card' | 'doubles';
+  actorUsername: string;
+  toastTitle: string;
+  toastMessage: string;
+};
+
 export type EconomyEvent =
   | EconomyBuyEvent
   | EconomyRentEvent
   | EconomyTaxEvent
-  | EconomySalaryEvent;
+  | EconomySalaryEvent
+  | EconomyCardEvent
+  | EconomyJustVisitingEvent
+  | EconomyJailExitEvent;
 
 export function buyModalTitle(
   locKind: Location['kind'] | undefined,
@@ -160,7 +205,7 @@ export function buildPaymentEvent(args: {
   displayAccent?: string | null;
 }): EconomyRentEvent | EconomyTaxEvent | null {
   const { payment: p, localUserId, players, displayAccent } = args;
-  // Jail fine / card cash toast/modal → Phase 12.4; do not mis-label as rent.
+  // Jail fine / card cash: handled as card / jail_exit events (Phase 12.4).
   if (p.kind === 'jail_fine' || p.kind === 'card') {
     return null;
   }
@@ -270,6 +315,141 @@ export function isSalaryInvolved(
   passerUserId: string,
 ): boolean {
   return Boolean(localUserId && localUserId === passerUserId);
+}
+
+/** Board: every seated player sees the card face. Hub: toast only. */
+export function isCardInvolvedOnBoard(surface: 'board' | 'hub'): boolean {
+  return surface === 'board';
+}
+
+export function isJustVisitingInvolved(
+  localUserId: string | null,
+  visitorUserId: string,
+): boolean {
+  return Boolean(localUserId && localUserId === visitorUserId);
+}
+
+export function buildCardEvent(args: {
+  card: GameLastCard;
+  localUserId: string | null;
+  players: GamePlayer[] | undefined;
+  displayAccent?: string | null;
+}): EconomyCardEvent {
+  const { card, localUserId, players, displayAccent } = args;
+  const iDrew = Boolean(localUserId && card.userId === localUserId);
+  const name = formatUsername(card.username) || 'Someone';
+  const deckLabel =
+    card.deck === 'chance' ? 'Chance' : 'Community Chest';
+  return {
+    kind: 'card',
+    deck: card.deck,
+    cardId: card.cardId,
+    title: card.title,
+    drawerUsername: iDrew ? 'You' : name,
+    drawerInitials: usernameInitials(name),
+    drawerPinColor: pinColorForPlayer(
+      players,
+      card.userId,
+      localUserId,
+      displayAccent,
+    ),
+    toastTitle: deckLabel,
+    toastMessage: iDrew ? card.title : `${name}: ${card.title}`,
+  };
+}
+
+export function buildJustVisitingEvent(args: {
+  username: string;
+  userId: string;
+  localUserId: string | null;
+  players: GamePlayer[] | undefined;
+  displayAccent?: string | null;
+}): EconomyJustVisitingEvent {
+  const iVisit = Boolean(args.localUserId && args.userId === args.localUserId);
+  const name = formatUsername(args.username) || 'Someone';
+  return {
+    kind: 'just_visiting',
+    visitorUsername: iVisit ? 'You' : name,
+    visitorInitials: usernameInitials(name),
+    visitorPinColor: pinColorForPlayer(
+      args.players,
+      args.userId,
+      args.localUserId,
+      args.displayAccent,
+    ),
+    toastTitle: 'Just Visiting',
+    toastMessage: iVisit ? 'Jail — Just Visiting' : `${name} is Just Visiting`,
+  };
+}
+
+export function buildJailExitEvent(args: {
+  reason: EconomyJailExitEvent['reason'];
+  username: string;
+  localUserId: string | null;
+  userId: string;
+}): EconomyJailExitEvent {
+  const iActed = Boolean(args.localUserId && args.userId === args.localUserId);
+  const name = formatUsername(args.username) || 'Someone';
+  const who = iActed ? 'You' : name;
+  if (args.reason === 'fine') {
+    return {
+      kind: 'jail_exit',
+      reason: 'fine',
+      actorUsername: who,
+      toastTitle: 'Left Jail',
+      toastMessage: iActed
+        ? 'Paid 100 MeetCoin fine'
+        : `${name} paid 100 to leave Jail`,
+    };
+  }
+  if (args.reason === 'card') {
+    return {
+      kind: 'jail_exit',
+      reason: 'card',
+      actorUsername: who,
+      toastTitle: 'Left Jail',
+      toastMessage: iActed
+        ? 'Used Get Out of Jail Free'
+        : `${name} used Get Out of Jail Free`,
+    };
+  }
+  return {
+    kind: 'jail_exit',
+    reason: 'doubles',
+    actorUsername: who,
+    toastTitle: 'Left Jail',
+    toastMessage: iActed
+      ? 'Rolled doubles — free!'
+      : `${name} rolled doubles out of Jail`,
+  };
+}
+
+export function jailBoardIndex(locations: Location[]): number {
+  const jail = locations.find(
+    (l) => l.kind === 'special' && l.specialType === 'jail',
+  );
+  return jail?.boardIndex ?? JAIL_BOARD_INDEX;
+}
+
+/**
+ * Stable id for a Chance/Chest draw.
+ *
+ * Key off card fields only. `lastCard` persists until the next draw — do NOT
+ * mix in `currentTurn` or `lastRoll` (turn advance / next roll would re-fire
+ * the same sticky card). Card move effects rewrite `toIndex` only.
+ *
+ * Same deck+cardId+userId drawn twice in a row (reshuffle) is an accepted
+ * rare miss until the server adds a draw sequence.
+ */
+export function lastCardSignature(card: GameLastCard): string {
+  return `${card.deck}:${card.cardId}:${card.userId}`;
+}
+
+export function jailStatusSignature(players: GamePlayer[]): string {
+  return players
+    .map((p) => `${p.userId}:${p.inJail ? 1 : 0}:${p.getOutOfJailFree}`)
+    .sort()
+    .join('|');
 }
 
 export function deedsSignature(game: Game | null): string {

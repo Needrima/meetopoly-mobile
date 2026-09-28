@@ -38,6 +38,10 @@ export function EconomyEventOverlay({ event }: EconomyEventOverlayProps) {
           {event.kind === 'rent' ? <RentBody event={event} /> : null}
           {event.kind === 'tax' ? <TaxBody event={event} /> : null}
           {event.kind === 'salary' ? <SalaryBody event={event} /> : null}
+          {event.kind === 'card' ? <CardBody event={event} /> : null}
+          {event.kind === 'just_visiting' ? (
+            <JustVisitingBody event={event} />
+          ) : null}
         </MotiView>
       </View>
     </View>
@@ -143,6 +147,59 @@ function SalaryBody({
       <Text style={styles.salaryEyebrow}>Passed GO</Text>
       <Text style={styles.salaryTitle}>SALARY</Text>
       <MeetCoinAmount amount={event.amount} size={36} color={colors.onBrand} />
+    </View>
+  );
+}
+
+function CardBody({ event }: { event: Extract<EconomyEvent, { kind: 'card' }> }) {
+  const isChance = event.deck === 'chance';
+  const headerBg = isChance ? colors.danger : colors.info;
+  const deckLabel = isChance ? 'CHANCE' : 'COMMUNITY CHEST';
+  return (
+    <View style={[styles.sheet, { borderColor: headerBg }]}>
+      <View style={[styles.header, styles.cardHeader, { backgroundColor: headerBg }]}>
+        <Text style={[styles.headerText, styles.cardHeaderText, styles.brandHeaderText]}>
+          {deckLabel}
+        </Text>
+      </View>
+      <View style={styles.cardBody}>
+        <AvatarPod
+          initials={event.drawerInitials}
+          accent={event.drawerPinColor}
+          radius={14}
+        />
+        <Text style={styles.cardDrawer} numberOfLines={1}>
+          {event.drawerUsername}
+        </Text>
+        <Text style={styles.cardTitle}>{event.title}</Text>
+      </View>
+    </View>
+  );
+}
+
+function JustVisitingBody({
+  event,
+}: {
+  event: Extract<EconomyEvent, { kind: 'just_visiting' }>;
+}) {
+  return (
+    <View style={styles.sheet}>
+      <View style={[styles.header, styles.brandHeader]}>
+        <Text style={[styles.headerText, styles.brandHeaderText]}>
+          JUST VISITING
+        </Text>
+      </View>
+      <View style={styles.cardBody}>
+        <AvatarPod
+          initials={event.visitorInitials}
+          accent={event.visitorPinColor}
+          radius={22}
+        />
+        <Text style={styles.cardDrawer} numberOfLines={1}>
+          {event.visitorUsername}
+        </Text>
+        <Text style={styles.cardTitle}>Passing through Jail</Text>
+      </View>
     </View>
   );
 }
@@ -311,5 +368,32 @@ const styles = StyleSheet.create({
     fontSize: 32,
     color: colors.onBrand,
     letterSpacing: 2,
+  },
+  cardBody: {
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  cardHeader: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  cardHeaderText: {
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  cardDrawer: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    color: colors.muted,
+    textAlign: 'center',
+  },
+  cardTitle: {
+    fontFamily: fonts.displayBold,
+    fontSize: 15,
+    color: colors.ink,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

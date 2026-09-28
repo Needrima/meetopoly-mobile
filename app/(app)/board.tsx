@@ -17,6 +17,7 @@ import { BoardPanel } from "@/components/board/BoardPanel";
 import { BuyPropertyOverlay } from "@/components/board/BuyPropertyOverlay";
 import { EconomyEventOverlay } from "@/components/board/EconomyEventOverlay";
 import { EconomyModeSheet } from "@/components/board/EconomyModeSheet";
+import { JailActionSheet } from "@/components/board/JailActionSheet";
 import { TileInfoOverlay } from "@/components/board/TileInfoOverlay";
 import { layoutBoardRing } from "@/components/board/boardLayout";
 import { DiceRollOverlay } from "@/components/board/DiceRollOverlay";
@@ -35,10 +36,12 @@ import {
   useEndTurn,
   useEnterHub,
   useMortgageDeed,
+  usePayJailFine,
   useRedeemDeed,
   useResignGame,
   useRollDice,
   useSellBuilding,
+  useUseJailCard,
 } from "@/hooks/useGame";
 import {
   useClearEconomyWhenOffTurn,
@@ -112,6 +115,8 @@ export default function BoardScreen() {
   const mortgageMut = useMortgageDeed(gameId);
   const redeemMut = useRedeemDeed(gameId);
   const resignMut = useResignGame(gameId);
+  const payJailMut = usePayJailFine(gameId);
+  const useJailCardMut = useUseJailCard(gameId);
   const economy = useEconomyMode();
   const enterHubMut = useEnterHub(gameId);
   const game = gameQuery.data ?? null;
@@ -119,12 +124,17 @@ export default function BoardScreen() {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [winnerOpen, setWinnerOpen] = useState(false);
   const [inspectIndex, setInspectIndex] = useState<number | null>(null);
+  /** 12.4b — after "Roll a Double", modal closes and dock Roll unlocks. */
+  const [jailAttemptArmed, setJailAttemptArmed] = useState(false);
   const startedToastRef = useRef(false);
   const finishedHandledRef = useRef(false);
   const resignToastRef = useRef<string>("");
   const localLeavingRef = useRef(false);
-  const { current: economyEvent, enqueue: enqueueEconomy } =
-    useEconomyEventQueue();
+  const {
+    current: economyEvent,
+    hasCard: economyHasCard,
+    enqueue: enqueueEconomy,
+  } = useEconomyEventQueue();
 
   const username = me.data?.username ?? user?.username ?? null;
   const sessionUserId = me.data?.id ?? user?.id ?? null;
@@ -274,22 +284,26 @@ export default function BoardScreen() {
     holdPinWalk,
     overlay: diceOverlay,
   } = useDiceRollMotion(game);
-  const { pins: motionPins, animating: pinAnimating } = useGamePinMotion({
-    layout,
-    game,
-    localUserId,
-    pinRadius,
-    holdWalk: holdPinWalk,
-    localAccent: displayAccent,
-  });
+  const { pins: motionPins, animating: pinAnimating, cardHold } =
+    useGamePinMotion({
+      layout,
+      game,
+      localUserId,
+      pinRadius,
+      holdWalk: holdPinWalk,
+      localAccent: displayAccent,
+    });
   const turnBusy = holdPinWalk || pinAnimating;
+  // During Chance/Chest reveal hold, pin is still "busy" for End/Roll but
+  // economy feedback must present the card modal (not wait for full settle).
+  const economyWaitIdle = holdPinWalk || (pinAnimating && !cardHold);
 
-  // Phase 9.3 — economy modals (involved) / toasts (spectators).
+  // Phase 9.3 / 12.4 — economy modals (involved) / toasts (spectators).
   useEconomyFeedback({
     game,
     locations,
     localUserId,
-    waitIdle: turnBusy,
+    waitIdle: economyWaitIdle,
     displayAccent,
     surface: "board",
     enqueueModal: enqueueEconomy,
@@ -500,17 +514,75 @@ export default function BoardScreen() {
     });
   }, [gameId, buyMut, turnBusy]);
 
+  const onPayJailFine = useCallback(() => {
+    if (!gameId || payJailMut.isPending || turnBusy) {
+      return;
+    }
+    payJailMut.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: "error",
+          title: "Jail fine failed",
+          message: err.message || "Could not pay fine",
+        });
+      },
+    });
+  }, [gameId, payJailMut, turnBusy]);
+
+  const onUseJailCard = useCallback(() => {
+    if (!gameId || useJailCardMut.isPending || turnBusy) {
+      return;
+    }
+    useJailCardMut.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: "error",
+          title: "Jail card failed",
+          message: err.message || "Could not use card",
+        });
+      },
+    });
+  }, [gameId, useJailCardMut, turnBusy]);
+
+  const onJailRollDoubles = useCallback(() => {
+    setJailAttemptArmed(true);
+  }, []);
+
   const boardPins = game ? motionPins : walk.pins;
   const isMyTurn = Boolean(
     game && localUserId && game.currentUserId === localUserId,
   );
   const buyOffer = game?.buyOffer ?? null;
+  // Chance/Chest reveal (hold or anywhere in the economy queue) must finish
+  // before buy — lock A opens buyOffer on the server during the card modal.
+  const cardRevealBlocking = cardHold || economyHasCard;
   const showBuyModal = Boolean(
     buyOffer &&
     isMyTurn &&
     game?.status === "active" &&
     game.canBuy &&
-    !turnBusy,
+    !turnBusy &&
+    !cardRevealBlocking,
+  );
+  const localGamePlayer = game?.players.find((p) => p.userId === localUserId);
+
+  // Clear armed doubles try when leave jail or leave awaiting_roll (after roll / end).
+  useEffect(() => {
+    if (!localGamePlayer?.inJail || game?.turnPhase !== "awaiting_roll") {
+      setJailAttemptArmed(false);
+    }
+  }, [localGamePlayer?.inJail, game?.turnPhase]);
+
+  const showJailSheet = Boolean(
+    game &&
+      game.status === "active" &&
+      isMyTurn &&
+      localGamePlayer?.inJail &&
+      game.turnPhase === "awaiting_roll" &&
+      !jailAttemptArmed &&
+      !turnBusy &&
+      !showBuyModal &&
+      (game.canPayJailFine || game.canUseJailCard || game.canRoll),
   );
 
   useClearEconomyWhenOffTurn(
@@ -758,6 +830,23 @@ export default function BoardScreen() {
             }
             onClose={economy.clearMode}
           />
+          <JailActionSheet
+            visible={showJailSheet}
+            jailTurns={localGamePlayer?.jailTurns ?? 0}
+            getOutOfJailFree={localGamePlayer?.getOutOfJailFree ?? 0}
+            canPayFine={Boolean(game?.canPayJailFine)}
+            canUseCard={Boolean(game?.canUseJailCard)}
+            canRollDoubles={Boolean(game?.canRoll)}
+            avatarInitials={usernameInitialSafe(
+              localGamePlayer?.username ?? username,
+            )}
+            avatarAccent={displayAccent ?? localGamePlayer?.pinColor ?? colors.accent}
+            payPending={payJailMut.isPending}
+            cardPending={useJailCardMut.isPending}
+            onPayFine={onPayJailFine}
+            onUseCard={onUseJailCard}
+            onRollDoubles={onJailRollDoubles}
+          />
           <EconomyEventOverlay event={economyEvent} />
         </View>
 
@@ -773,7 +862,12 @@ export default function BoardScreen() {
             localUserId={localUserId}
             localUsername={username}
             onRoll={game ? onRoll : undefined}
-            rollDisabled={!isMyTurn || !game?.canRoll || turnBusy}
+            rollDisabled={
+              !isMyTurn ||
+              !game?.canRoll ||
+              turnBusy ||
+              showJailSheet
+            }
             rollPending={rollDice.isPending}
             onEndTurn={game ? onEndTurn : undefined}
             endDisabled={

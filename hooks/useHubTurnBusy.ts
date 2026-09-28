@@ -33,7 +33,9 @@ export function useHubTurnBusy(game: Game | null): boolean {
       roll &&
       game
     ) {
-      const ms = pinMotionDurationMs(planPinMotion(roll, game.players));
+      const ms = pinMotionDurationMs(
+        planPinMotion(roll, game.players, game.lastCard),
+      );
       if (ms <= 0) {
         pendingPinKeyRef.current = null;
         setPinBusy(false);
@@ -50,7 +52,7 @@ export function useHubTurnBusy(game: Game | null): boolean {
     if (!holdPinWalk && !pendingPinKeyRef.current) {
       setPinBusy(false);
     }
-  }, [holdPinWalk, game?.lastRoll, game?.players]);
+  }, [holdPinWalk, game?.lastRoll, game?.players, game?.lastCard]);
 
   return holdPinWalk || pinBusy;
 }

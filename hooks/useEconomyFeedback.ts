@@ -1,15 +1,23 @@
 import { useEffect, useRef } from 'react';
 
 import type { Game, Location } from '@/api/types';
+import { gameRollKey } from '@/hooks/gameRollKey';
 import {
   buildBuyEvent,
+  buildCardEvent,
+  buildJailExitEvent,
+  buildJustVisitingEvent,
   buildPaymentEvent,
   buildSalaryEvent,
   deedsSignature,
   isBuyInvolved,
+  isJustVisitingInvolved,
   isRentInvolved,
   isSalaryInvolved,
   isTaxInvolved,
+  jailBoardIndex,
+  jailStatusSignature,
+  lastCardSignature,
   passGoSignature,
   paymentSignature,
   type EconomyEvent,
@@ -25,6 +33,7 @@ type UseEconomyFeedbackArgs = {
   displayAccent?: string | null;
   /**
    * `board` — involved → modal, others toast.
+   * Cards: every seated board player gets the modal.
    * `hub` — always toast.
    */
   surface: 'board' | 'hub';
@@ -38,8 +47,8 @@ type UseEconomyFeedbackArgs = {
 };
 
 /**
- * Phase 9.3 — detect buy / rent / tax / salary from game WS and route to
- * modal (board involved) or toast (spectators + hub).
+ * Phase 9.3 / 12.4 — detect buy / rent / tax / salary / card / just-visiting /
+ * jail-exit from game WS and route to modal or toast.
  */
 export function useEconomyFeedback({
   game,
@@ -56,6 +65,9 @@ export function useEconomyFeedback({
   const paymentSigRef = useRef<string | null>(null);
   const passGoSigRef = useRef<string | null>(null);
   const passGoReadyRef = useRef(false);
+  const cardSigRef = useRef<string | null>(null);
+  const visitSigRef = useRef<string | null>(null);
+  const jailStatusRef = useRef<string | null>(null);
 
   // Seed signatures on first game snapshot (no historical replay).
   // Also advance sigs while disabled so reuniting focus does not replay.
@@ -69,13 +81,23 @@ export function useEconomyFeedback({
     const goSig = game.lastRoll?.passedGo
       ? passGoSignature(game.lastRoll)
       : '';
+    const cardSig = game.lastCard ? lastCardSignature(game.lastCard) : '';
+    const visitKey =
+      game.lastRoll &&
+      game.lastRoll.toIndex === jailBoardIndex(locations)
+        ? gameRollKey(game.lastRoll)
+        : '';
+    const jailSig = jailStatusSignature(game.players);
+
     if (!readyRef.current) {
       readyRef.current = true;
       deedsSigRef.current = deedsSignature(game);
-      // '' = "no payment yet" so the first real payment is not swallowed.
       paymentSigRef.current = paySig;
       passGoSigRef.current = goSig || null;
       passGoReadyRef.current = true;
+      cardSigRef.current = cardSig || null;
+      visitSigRef.current = visitKey || null;
+      jailStatusRef.current = jailSig;
       return;
     }
     if (!enabled) {
@@ -84,17 +106,39 @@ export function useEconomyFeedback({
       if (goSig) {
         passGoSigRef.current = goSig;
       }
+      if (cardSig) {
+        cardSigRef.current = cardSig;
+      }
+      if (visitKey) {
+        visitSigRef.current = visitKey;
+      }
+      jailStatusRef.current = jailSig;
     }
-  }, [game, enabled]);
+  }, [game, enabled, locations]);
 
   const present = (event: EconomyEvent, involved: boolean) => {
-    if (surface === 'hub' || !involved || !enqueueModal) {
+    // Jail exit decisions → toast for everyone (actor already used the sheet).
+    if (event.kind === 'jail_exit') {
+      notify({
+        type: 'info',
+        title: event.toastTitle,
+        message: event.toastMessage,
+        visibilityTime: 3200,
+      });
+      return;
+    }
+    // Board Chance/Chest: every seated player sees the card face.
+    const forceModal =
+      event.kind === 'card' && surface === 'board' && Boolean(enqueueModal);
+    if (surface === 'hub' || (!involved && !forceModal) || !enqueueModal) {
       const unpaid =
         (event.kind === 'rent' || event.kind === 'tax') && !event.paidInFull;
       notify({
         type: unpaid
           ? 'error'
-          : event.kind === 'salary' || event.kind === 'buy'
+          : event.kind === 'salary' ||
+              event.kind === 'buy' ||
+              event.kind === 'card'
             ? 'success'
             : 'info',
         title: event.toastTitle,
@@ -108,7 +152,6 @@ export function useEconomyFeedback({
 
   // Pass-GO / salary after idle.
   useEffect(() => {
-    // Wait for localUserId so buyer/passer get a modal, not a mis-routed toast.
     if (!enabled || !localUserId || !passGoReadyRef.current || waitIdle) {
       return;
     }
@@ -193,7 +236,6 @@ export function useEconomyFeedback({
       return;
     }
     const sig = paymentSignature(p);
-    // paymentSigRef is '' after seed with no history — first payment must present.
     if (paymentSigRef.current === null) {
       paymentSigRef.current = sig;
       return;
@@ -227,4 +269,144 @@ export function useEconomyFeedback({
       });
     }
   }, [enabled, game, localUserId, waitIdle, surface, enqueueModal, displayAccent]);
+
+  // Chance / Chest draw after idle (pin settle / cardHold).
+  // Dedupe by stable draw id — lastCard persists on the game for the whole table.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current || waitIdle) {
+      return;
+    }
+    const card = game.lastCard;
+    if (!card) {
+      return;
+    }
+    const sig = lastCardSignature(card);
+    if (sig === cardSigRef.current) {
+      return;
+    }
+    cardSigRef.current = sig;
+    const event = buildCardEvent({
+      card,
+      localUserId,
+      players: game.players,
+      displayAccent,
+    });
+    // Board → modal for everyone; hub → toast via present().
+    present(event, surface === 'board');
+  }, [
+    enabled,
+    game,
+    localUserId,
+    waitIdle,
+    surface,
+    enqueueModal,
+    displayAccent,
+  ]);
+
+  // Just Visiting after idle.
+  // Consume jail-bound rolls while `inJail` so a later pay/card leave (same
+  // lastRoll) does not falsely fire Just Visiting.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current || waitIdle) {
+      return;
+    }
+    const roll = game.lastRoll;
+    if (!roll) {
+      return;
+    }
+    const jailIdx = jailBoardIndex(locations);
+    if (roll.toIndex !== jailIdx) {
+      return;
+    }
+    const key = gameRollKey(roll);
+    if (visitSigRef.current === key) {
+      return;
+    }
+    if (roll.thirdDoubles) {
+      visitSigRef.current = key;
+      return;
+    }
+    const mover = game.players.find((p) => p.userId === roll.userId);
+    if (!mover) {
+      return;
+    }
+    if (mover.inJail) {
+      // Go to Jail / card jail / third doubles — not Just Visiting.
+      visitSigRef.current = key;
+      return;
+    }
+    visitSigRef.current = key;
+    const event = buildJustVisitingEvent({
+      username: roll.username,
+      userId: roll.userId,
+      localUserId,
+      players: game.players,
+      displayAccent,
+    });
+    present(event, isJustVisitingInvolved(localUserId, roll.userId));
+  }, [
+    enabled,
+    game,
+    localUserId,
+    waitIdle,
+    locations,
+    surface,
+    enqueueModal,
+    displayAccent,
+  ]);
+
+  // Jail exit (fine / card / doubles) → toast for table.
+  // Reason priority: GOOJF spent → card; doubles roll from Jail → doubles;
+  // otherwise fine (pay or forced 3rd-fail). Do not trust stale lastPayment.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current) {
+      return;
+    }
+    const sig = jailStatusSignature(game.players);
+    if (jailStatusRef.current === null) {
+      jailStatusRef.current = sig;
+      return;
+    }
+    if (sig === jailStatusRef.current) {
+      return;
+    }
+    const prevMap = new Map<string, { inJail: boolean; goojf: number }>();
+    for (const part of jailStatusRef.current.split('|')) {
+      if (!part) {
+        continue;
+      }
+      const [uid, inj, go] = part.split(':');
+      if (uid) {
+        prevMap.set(uid, { inJail: inj === '1', goojf: Number(go) || 0 });
+      }
+    }
+    jailStatusRef.current = sig;
+    const jailIdx = jailBoardIndex(locations);
+
+    for (const p of game.players) {
+      const prev = prevMap.get(p.userId);
+      if (!prev?.inJail || p.inJail) {
+        continue;
+      }
+      let reason: 'fine' | 'card' | 'doubles' = 'fine';
+      if (p.getOutOfJailFree < prev.goojf) {
+        reason = 'card';
+      } else if (
+        game.lastRoll &&
+        game.lastRoll.userId === p.userId &&
+        game.lastRoll.isDoubles &&
+        !game.lastRoll.thirdDoubles &&
+        game.lastRoll.fromIndex === jailIdx
+      ) {
+        reason = 'doubles';
+      }
+      const event = buildJailExitEvent({
+        reason,
+        username: p.username,
+        localUserId,
+        userId: p.userId,
+      });
+      present(event, false);
+    }
+  }, [enabled, game, localUserId, locations, surface, enqueueModal]);
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { Game, GameLastRoll, GamePlayer } from '@/api/types';
+import type { Game, GameLastCard, GameLastRoll, GamePlayer } from '@/api/types';
 import type { BoardLayout } from '@/components/board/boardLayout';
 import {
   buildGamePins,
@@ -8,6 +8,7 @@ import {
   type GamePinPlayer,
 } from '@/components/board/boardPins';
 import { gameRollKey } from '@/hooks/gameRollKey';
+import { ECONOMY_MODAL_MS, JAIL_BOARD_INDEX } from '@/lib/economyFeedback';
 
 const BOARD_SPACES = 40;
 /** ms between tile hops — ~2s for a typical 7. */
@@ -20,8 +21,8 @@ type PendingWalk = {
   roll: GameLastRoll;
   startPlayers: GamePinPlayer[];
   finalPlayers: GamePinPlayer[];
-  /** Authoritative players at roll settle (for jail-teleport detection). */
   settledPlayers: GamePlayer[];
+  lastCard: GameLastCard | null;
 };
 
 type WalkTimers = {
@@ -34,15 +35,25 @@ export type PinMotionPlan =
   | { kind: 'snap' }
   | { kind: 'jump' }
   | { kind: 'walk'; steps: number }
-  | { kind: 'walkThenJump'; walkSteps: number };
+  | { kind: 'walkThenJump'; walkSteps: number }
+  /** Land on Chance/Chest, hold for card modal, then jump to final. */
+  | { kind: 'walkThenHoldThenJump'; walkSteps: number; holdMs: number }
+  /** Land on Chance/Chest, hold for card modal, then walk onward. */
+  | {
+      kind: 'walkThenHoldThenWalk';
+      walkSteps: number;
+      holdMs: number;
+      resumeSteps: number;
+    };
 
 /**
- * Jail teleports must not walk the long way past GO — players read that as
- * collecting salary. Detect when dice/card land ≠ final jail index.
+ * Jail teleports: walk dice path then jump (no ring past GO).
+ * Card teleports: walk to Chance/Chest, hold for reveal modal, then move.
  */
 export function planPinMotion(
   roll: GameLastRoll,
   players: GamePlayer[],
+  lastCard?: GameLastCard | null,
 ): PinMotionPlan {
   const mover = players.find((p) => p.userId === roll.userId);
   const diceLand = (roll.fromIndex + roll.total) % BOARD_SPACES;
@@ -51,11 +62,60 @@ export function planPinMotion(
     (roll.thirdDoubles || diceLand !== roll.toIndex);
 
   if (jailTeleport) {
+    // Card "Go to Jail" also sets inJail — prefer card hold when lastCard matches.
+    const cardJail =
+      lastCard &&
+      lastCard.userId === roll.userId &&
+      diceLand !== roll.toIndex &&
+      !roll.thirdDoubles;
+    if (cardJail) {
+      const walkSteps = Math.max(1, Math.min(BOARD_SPACES - 1, roll.total));
+      return {
+        kind: 'walkThenHoldThenJump',
+        walkSteps,
+        holdMs: ECONOMY_MODAL_MS,
+      };
+    }
     if (roll.thirdDoubles || roll.total <= 0) {
       return { kind: 'jump' };
     }
     const walkSteps = Math.max(1, Math.min(BOARD_SPACES - 1, roll.total));
     return { kind: 'walkThenJump', walkSteps };
+  }
+
+  const cardMoved =
+    Boolean(lastCard) &&
+    lastCard!.userId === roll.userId &&
+    diceLand !== roll.toIndex;
+
+  if (cardMoved) {
+    const walkSteps = Math.max(1, Math.min(BOARD_SPACES - 1, roll.total));
+    const resumeSteps =
+      (roll.toIndex - diceLand + BOARD_SPACES) % BOARD_SPACES;
+    // Go back / long reverse path → jump; otherwise walk onward (may pass GO).
+    if (resumeSteps === 0) {
+      return {
+        kind: 'walkThenHoldThenJump',
+        walkSteps,
+        holdMs: ECONOMY_MODAL_MS,
+      };
+    }
+    const wentBack =
+      (diceLand - roll.toIndex + BOARD_SPACES) % BOARD_SPACES <= 6 &&
+      resumeSteps > 6;
+    if (wentBack) {
+      return {
+        kind: 'walkThenHoldThenJump',
+        walkSteps,
+        holdMs: ECONOMY_MODAL_MS,
+      };
+    }
+    return {
+      kind: 'walkThenHoldThenWalk',
+      walkSteps,
+      holdMs: ECONOMY_MODAL_MS,
+      resumeSteps,
+    };
   }
 
   const delta = (roll.toIndex - roll.fromIndex + BOARD_SPACES) % BOARD_SPACES;
@@ -77,8 +137,21 @@ export function pinMotionDurationMs(plan: PinMotionPlan): number {
     case 'walk':
       return plan.steps * PIN_STEP_MS;
     case 'walkThenJump':
-      // Last hop settle, then straight jump to Jail.
       return plan.walkSteps * PIN_STEP_MS + PIN_STEP_MS + PIN_JUMP_MS;
+    case 'walkThenHoldThenJump':
+      return (
+        plan.walkSteps * PIN_STEP_MS +
+        PIN_STEP_MS +
+        plan.holdMs +
+        PIN_JUMP_MS
+      );
+    case 'walkThenHoldThenWalk':
+      return (
+        plan.walkSteps * PIN_STEP_MS +
+        PIN_STEP_MS +
+        plan.holdMs +
+        plan.resumeSteps * PIN_STEP_MS
+      );
   }
 }
 
@@ -92,6 +165,7 @@ function asPins(
     .map((p) => ({
       userId: p.userId,
       boardIndex: p.boardIndex,
+      inJail: p.inJail,
       pinColor:
         localUserId && p.userId === localUserId && localAccent
           ? localAccent
@@ -104,6 +178,7 @@ function buildPending(
   players: GamePlayer[],
   localUserId: string | null,
   localAccent: string | null,
+  lastCard: GameLastCard | null,
 ): PendingWalk {
   const moverId = roll.userId;
   const colored = asPins(players, localUserId, localAccent);
@@ -111,6 +186,7 @@ function buildPending(
     key: gameRollKey(roll),
     roll,
     settledPlayers: players,
+    lastCard,
     finalPlayers: colored,
     startPlayers: colored.map((p) =>
       p.userId === moverId ? { ...p, boardIndex: roll.fromIndex } : p,
@@ -120,19 +196,17 @@ function buildPending(
 
 /**
  * Drives game pins: snap on first paint; on new lastRoll, walk the mover tile-by-tile.
- * Go-to-Jail / jail cards / third doubles: walk dice path (if any), then straight jump to Jail.
- * When `holdWalk` is true (dice tumbling), parks the pin at `fromIndex` until hold clears.
+ * Chance/Chest move cards: pause on the deck tile (`cardHold`) for the reveal modal,
+ * then resume to the card destination.
  */
 export function useGamePinMotion(opts: {
   layout: BoardLayout | null;
   game: Game | null;
   localUserId: string | null;
   pinRadius: number;
-  /** Phase 6.2b — wait for dice before tile-walk. */
   holdWalk?: boolean;
-  /** Prefer local avatar accent for the local player's pin. */
   localAccent?: string | null;
-}): { pins: BoardPinModel[]; animating: boolean } {
+}): { pins: BoardPinModel[]; animating: boolean; cardHold: boolean } {
   const {
     layout,
     game,
@@ -144,9 +218,11 @@ export function useGamePinMotion(opts: {
 
   const [displayPlayers, setDisplayPlayers] = useState<GamePinPlayer[]>([]);
   const [animating, setAnimating] = useState(false);
+  const [cardHold, setCardHold] = useState(false);
   const seenRollRef = useRef<string | null>(null);
   const firstSyncRef = useRef(true);
   const animatingRef = useRef(false);
+  const cardHoldRef = useRef(false);
   const pendingRef = useRef<PendingWalk | null>(null);
   const walkRef = useRef<WalkTimers | null>(null);
   const cancelledRef = useRef(false);
@@ -156,6 +232,11 @@ export function useGamePinMotion(opts: {
       clearTimeout(walkRef.current.timeout);
       walkRef.current.timeout = null;
     }
+  };
+
+  const setHold = (on: boolean) => {
+    cardHoldRef.current = on;
+    setCardHold(on);
   };
 
   useEffect(() => {
@@ -174,6 +255,7 @@ export function useGamePinMotion(opts: {
       setDisplayPlayers([]);
       setAnimating(false);
       animatingRef.current = false;
+      setHold(false);
       firstSyncRef.current = true;
       seenRollRef.current = null;
       pendingRef.current = null;
@@ -182,11 +264,13 @@ export function useGamePinMotion(opts: {
 
     const roll = game.lastRoll ?? null;
     const key = roll ? gameRollKey(roll) : null;
+    const lastCard = game.lastCard ?? null;
 
     const finishMotion = (pendingKey: string) => {
       if (cancelledRef.current || walkRef.current?.key !== pendingKey) {
         return;
       }
+      setHold(false);
       setAnimating(false);
       animatingRef.current = false;
       walkRef.current = null;
@@ -203,6 +287,7 @@ export function useGamePinMotion(opts: {
         if (cancelledRef.current || walkRef.current?.key !== pending.key) {
           return;
         }
+        setHold(false);
         setDisplayPlayers(pending.finalPlayers);
         if (walkRef.current) {
           walkRef.current.timeout = setTimeout(
@@ -213,12 +298,55 @@ export function useGamePinMotion(opts: {
       }, delayMs);
     };
 
-    const startWalk = (pending: PendingWalk) => {
-      const { roll: r, startPlayers, finalPlayers, settledPlayers } = pending;
-      const moverId = r.userId;
-      const plan = planPinMotion(r, settledPlayers);
+    const scheduleResumeWalk = (
+      pending: PendingWalk,
+      fromIndex: number,
+      resumeSteps: number,
+      delayMs: number,
+    ) => {
+      if (!walkRef.current) {
+        return;
+      }
+      walkRef.current.timeout = setTimeout(() => {
+        if (cancelledRef.current || walkRef.current?.key !== pending.key) {
+          return;
+        }
+        setHold(false);
+        let step = 0;
+        const tick = () => {
+          if (cancelledRef.current || walkRef.current?.key !== pending.key) {
+            return;
+          }
+          step += 1;
+          const idx = (fromIndex + step) % BOARD_SPACES;
+          setDisplayPlayers((prev) =>
+            prev.map((p) =>
+              p.userId === pending.roll.userId
+                ? { ...p, boardIndex: idx }
+                : p,
+            ),
+          );
+          if (step >= resumeSteps) {
+            setDisplayPlayers(pending.finalPlayers);
+            finishMotion(pending.key);
+            return;
+          }
+          if (walkRef.current) {
+            walkRef.current.timeout = setTimeout(tick, PIN_STEP_MS);
+          }
+        };
+        if (walkRef.current) {
+          walkRef.current.timeout = setTimeout(tick, PIN_STEP_MS);
+        }
+      }, delayMs);
+    };
 
-      // Already walking this roll (game identity churn) — do not restart.
+    const startWalk = (pending: PendingWalk) => {
+      const { roll: r, startPlayers, finalPlayers, settledPlayers, lastCard: card } =
+        pending;
+      const moverId = r.userId;
+      const plan = planPinMotion(r, settledPlayers, card);
+
       if (walkRef.current?.key === pending.key && animatingRef.current) {
         return;
       }
@@ -226,6 +354,7 @@ export function useGamePinMotion(opts: {
       clearWalkTimer();
       seenRollRef.current = pending.key;
       pendingRef.current = null;
+      setHold(false);
 
       if (plan.kind === 'snap') {
         setDisplayPlayers(finalPlayers);
@@ -246,8 +375,16 @@ export function useGamePinMotion(opts: {
       }
 
       const steps =
-        plan.kind === 'walkThenJump' ? plan.walkSteps : plan.steps;
+        plan.kind === 'walk'
+          ? plan.steps
+          : plan.walkSteps;
       const thenJump = plan.kind === 'walkThenJump';
+      const thenHoldJump = plan.kind === 'walkThenHoldThenJump';
+      const thenHoldWalk = plan.kind === 'walkThenHoldThenWalk';
+      const holdMs =
+        thenHoldJump || thenHoldWalk ? plan.holdMs : 0;
+      const resumeSteps = thenHoldWalk ? plan.resumeSteps : 0;
+      const diceLand = (r.fromIndex + r.total) % BOARD_SPACES;
 
       let step = 0;
       const tick = () => {
@@ -263,8 +400,22 @@ export function useGamePinMotion(opts: {
         );
         if (step >= steps) {
           if (thenJump) {
-            // Pause on Go-to-Jail / card tile, then straight jump to Jail.
             scheduleJumpToFinal(pending, PIN_STEP_MS);
+            return;
+          }
+          if (thenHoldJump || thenHoldWalk) {
+            // Park on Chance/Chest — open card modal via cardHold.
+            setHold(true);
+            if (thenHoldJump) {
+              scheduleJumpToFinal(pending, PIN_STEP_MS + holdMs);
+            } else {
+              scheduleResumeWalk(
+                pending,
+                diceLand,
+                resumeSteps,
+                PIN_STEP_MS + holdMs,
+              );
+            }
             return;
           }
           setDisplayPlayers(finalPlayers);
@@ -297,11 +448,10 @@ export function useGamePinMotion(opts: {
       setDisplayPlayers(asPins(game.players, localUserId, localAccent));
       setAnimating(false);
       animatingRef.current = false;
+      setHold(false);
       return;
     }
 
-    // Hold cleared — start a deferred walk.
-    // animating may already be true from the park (buy-modal flash guard).
     if (
       !holdWalk &&
       pendingRef.current &&
@@ -311,7 +461,6 @@ export function useGamePinMotion(opts: {
       return;
     }
 
-    // Same roll (WS echo) — do not interrupt an in-flight hop or pending park.
     if (
       key != null &&
       (key === seenRollRef.current || key === pendingRef.current?.key)
@@ -329,31 +478,32 @@ export function useGamePinMotion(opts: {
       return;
     }
 
-    // New roll — always park; never startWalk here (holdWalk may still be false
-    // on the first frame before dice motion claims the hold).
     if (!roll || !key) {
       return;
     }
-    const pending = buildPending(roll, game.players, localUserId, localAccent);
+    const pending = buildPending(
+      roll,
+      game.players,
+      localUserId,
+      localAccent,
+      lastCard,
+    );
     pendingRef.current = pending;
     setDisplayPlayers(pending.startPlayers);
 
-    const plan = planPinMotion(roll, game.players);
-    // Busy from roll arrival until walk finishes — closes buy-modal flash gap
-    // between dice hold release and startWalk.
+    const plan = planPinMotion(roll, game.players, lastCard);
     if (pinMotionDurationMs(plan) > 0) {
       setAnimating(true);
       animatingRef.current = true;
     }
 
     if (!holdWalk) {
-      // Dice will flip hold on next commit; walk starts when hold clears.
       return;
     }
   }, [game, holdWalk, localUserId, localAccent]);
 
   if (!layout || !displayPlayers.length) {
-    return { pins: [], animating };
+    return { pins: [], animating, cardHold };
   }
 
   return {
@@ -362,7 +512,9 @@ export function useGamePinMotion(opts: {
       players: displayPlayers,
       localUserId,
       pinRadius,
+      jailBoardIndex: JAIL_BOARD_INDEX,
     }),
     animating,
+    cardHold,
   };
 }

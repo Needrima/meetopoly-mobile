@@ -16,6 +16,10 @@ type QueuedEconomyEvent = {
  */
 export function useEconomyEventQueue(): {
   current: EconomyEvent | null;
+  /** True while any celebration modal is current or waiting. */
+  busy: boolean;
+  /** True if a Chance/Chest card is current or still queued. */
+  hasCard: boolean;
   enqueue: (event: EconomyEvent) => void;
 } {
   const [queue, setQueue] = useState<QueuedEconomyEvent[]>([]);
@@ -50,5 +54,10 @@ export function useEconomyEventQueue(): {
     };
   }, [currentId]);
 
-  return { current: current?.event ?? null, enqueue };
+  return {
+    current: current?.event ?? null,
+    busy: queue.length > 0,
+    hasCard: queue.some((q) => q.event.kind === 'card'),
+    enqueue,
+  };
 }
