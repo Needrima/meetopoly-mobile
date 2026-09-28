@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.21.0
+ * OpenAPI spec version: 0.23.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
@@ -15,6 +15,7 @@ import type { GameDeed } from './gameDeed';
 import type { GameLastRollProperty } from './gameLastRollProperty';
 import type { GameLastPaymentProperty } from './gameLastPaymentProperty';
 import type { GamePendingPaymentProperty } from './gamePendingPaymentProperty';
+import type { GameLastCardProperty } from './gameLastCardProperty';
 
 export interface Game {
   id: string;
@@ -59,6 +60,13 @@ After 3 failed attempts, false until pay/card.
    * @nullable
    */
   pendingPayment?: GamePendingPaymentProperty;
+  /**
+   * Phase 12.2 — most recent Chance / Community Chest draw.
+Cash/move/jail effects apply in 12.3; GOOJF is already held on the player.
+
+   * @nullable
+   */
+  lastCard?: GameLastCardProperty;
   /** Set when status is finished (last active player) */
   winnerUserId?: string;
   /** Display name of the winner */

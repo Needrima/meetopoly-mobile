@@ -160,8 +160,8 @@ export function buildPaymentEvent(args: {
   displayAccent?: string | null;
 }): EconomyRentEvent | EconomyTaxEvent | null {
   const { payment: p, localUserId, players, displayAccent } = args;
-  // Jail fine toast/modal → Phase 12.4; do not mis-label as rent.
-  if (p.kind === 'jail_fine') {
+  // Jail fine / card cash toast/modal → Phase 12.4; do not mis-label as rent.
+  if (p.kind === 'jail_fine' || p.kind === 'card') {
     return null;
   }
   const place = stripWorldNamePrefix(p.spaceName || `space ${p.boardIndex}`);
