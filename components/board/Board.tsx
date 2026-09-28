@@ -1,20 +1,23 @@
-import { memo, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
-import type { SharedValue } from 'react-native-reanimated';
+import { memo, useMemo } from "react";
+import { StyleSheet, View } from "react-native";
+import type { SharedValue } from "react-native-reanimated";
 
-import type { Location } from '@/api/types';
-import { BoardAvatar } from '@/components/board/BoardAvatar';
-import { BoardCenter } from '@/components/board/BoardCenter';
-import { BoardPin } from '@/components/board/BoardPin';
+import type { Location } from "@/api/types";
+import { BoardAvatar } from "@/components/board/BoardAvatar";
+import { BoardCenter } from "@/components/board/BoardCenter";
+import { BoardPin } from "@/components/board/BoardPin";
 import {
   BoardRemoteAvatar,
   type RemoteAvatarModel,
-} from '@/components/board/BoardRemoteAvatar';
-import { BoardTile } from '@/components/board/BoardTile';
-import type { BoardPinModel } from '@/components/board/boardPins';
-import { BOARD_WALK } from '@/components/board/boardConstants';
-import { layoutBoardRing, type BoardLayout } from '@/components/board/boardLayout';
-import { colors } from '@/theme/colors';
+} from "@/components/board/BoardRemoteAvatar";
+import { BoardTile } from "@/components/board/BoardTile";
+import type { BoardPinModel } from "@/components/board/boardPins";
+import { BOARD_WALK } from "@/components/board/boardConstants";
+import {
+  layoutBoardRing,
+  type BoardLayout,
+} from "@/components/board/boardLayout";
+import { colors } from "@/theme/colors";
 
 type BoardProps = {
   size: number;
@@ -33,7 +36,7 @@ type BoardProps = {
     accent: string;
   } | null;
   /** Phase 7.2 — other players' presence avatars (pins stay from game WS). */
-  remotes?: Omit<RemoteAvatarModel, 'boardSize' | 'radius'>[];
+  remotes?: Omit<RemoteAvatarModel, "boardSize" | "radius">[];
   pins?: BoardPinModel[];
 };
 
@@ -115,7 +118,7 @@ const BoardRemotesLayer = memo(function BoardRemotesLayer({
   radius,
   boardSize,
 }: {
-  remotes: Omit<RemoteAvatarModel, 'boardSize' | 'radius'>[];
+  remotes: Omit<RemoteAvatarModel, "boardSize" | "radius">[];
   radius: number;
   boardSize: number;
 }) {
@@ -153,7 +156,8 @@ export function Board({
     () => layoutProp ?? layoutBoardRing(size, locations),
     [layoutProp, size, locations],
   );
-  const remoteRadius = avatar?.radius ?? layout.size * BOARD_WALK.avatarRadiusFrac;
+  const remoteRadius =
+    avatar?.radius ?? layout.size * BOARD_WALK.avatarRadiusFrac;
 
   return (
     <View style={[styles.root, { width: size, height: size }]}>
@@ -186,6 +190,6 @@ export function Board({
 const styles = StyleSheet.create({
   root: {
     backgroundColor: colors.brandMuted,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
 });

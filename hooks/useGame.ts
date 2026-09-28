@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiMutator, getWsBaseUrl } from '@/api/client';
-import { getGame } from '@/api/services';
-import type { Game } from '@/api/types';
-import { queryKeys } from '@/api/queryKeys';
-import { useSession } from '@/hooks/useSession';
+import { apiMutator, getWsBaseUrl } from "@/api/client";
+import { getGame } from "@/api/services";
+import type { Game } from "@/api/types";
+import { queryKeys } from "@/api/queryKeys";
+import { useSession } from "@/hooks/useSession";
 
 type GameEvent = {
   type: string;
@@ -20,7 +20,7 @@ type GameEvent = {
 export function useGame(gameId: string | null | undefined) {
   const { token } = useSession();
   const queryClient = useQueryClient();
-  const id = gameId?.trim() ?? '';
+  const id = gameId?.trim() ?? "";
   const [wsLive, setWsLive] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -85,7 +85,11 @@ export function useGame(gameId: string | null | undefined) {
       }
       const ws = wsRef.current;
       wsRef.current = null;
-      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      if (
+        ws &&
+        (ws.readyState === WebSocket.OPEN ||
+          ws.readyState === WebSocket.CONNECTING)
+      ) {
         ws.close();
       }
       setWsLive(false);
@@ -104,7 +108,7 @@ export function useGame(gameId: string | null | undefined) {
 
 function useGameMutation(gameId: string | null | undefined) {
   const queryClient = useQueryClient();
-  const id = gameId?.trim() ?? '';
+  const id = gameId?.trim() ?? "";
   return {
     id,
     onSuccess: (game: Game) => {
@@ -119,10 +123,10 @@ export function useRollDice(gameId: string | null | undefined) {
   return useMutation<Game, Error, void>({
     mutationFn: () => {
       if (!id) {
-        return Promise.reject(new Error('Missing game id'));
+        return Promise.reject(new Error("Missing game id"));
       }
       return apiMutator<Game>(`/games/${encodeURIComponent(id)}/roll`, {
-        method: 'POST',
+        method: "POST",
       });
     },
     onSuccess,
@@ -135,10 +139,10 @@ export function useEndTurn(gameId: string | null | undefined) {
   return useMutation<Game, Error, void>({
     mutationFn: () => {
       if (!id) {
-        return Promise.reject(new Error('Missing game id'));
+        return Promise.reject(new Error("Missing game id"));
       }
       return apiMutator<Game>(`/games/${encodeURIComponent(id)}/end-turn`, {
-        method: 'POST',
+        method: "POST",
       });
     },
     onSuccess,
@@ -151,10 +155,10 @@ export function useResignGame(gameId: string | null | undefined) {
   return useMutation<Game, Error, void>({
     mutationFn: () => {
       if (!id) {
-        return Promise.reject(new Error('Missing game id'));
+        return Promise.reject(new Error("Missing game id"));
       }
       return apiMutator<Game>(`/games/${encodeURIComponent(id)}/resign`, {
-        method: 'POST',
+        method: "POST",
       });
     },
     onSuccess,
@@ -167,10 +171,10 @@ export function useBuyProperty(gameId: string | null | undefined) {
   return useMutation<Game, Error, void>({
     mutationFn: () => {
       if (!id) {
-        return Promise.reject(new Error('Missing game id'));
+        return Promise.reject(new Error("Missing game id"));
       }
       return apiMutator<Game>(`/games/${encodeURIComponent(id)}/buy`, {
-        method: 'POST',
+        method: "POST",
       });
     },
     onSuccess,
@@ -183,11 +187,11 @@ export function useSetPinColor(gameId: string | null | undefined) {
   return useMutation<Game, Error, string>({
     mutationFn: (pinColor: string) => {
       if (!id) {
-        return Promise.reject(new Error('Missing game id'));
+        return Promise.reject(new Error("Missing game id"));
       }
       return apiMutator<Game>(`/games/${encodeURIComponent(id)}/pin-color`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pinColor }),
       });
     },
@@ -205,11 +209,11 @@ export function useEnterHub(gameId: string | null | undefined) {
   >({
     mutationFn: ({ hubId, hubRevision, signal }) => {
       if (!id) {
-        return Promise.reject(new Error('Missing game id'));
+        return Promise.reject(new Error("Missing game id"));
       }
       return apiMutator<Game>(`/games/${encodeURIComponent(id)}/enter-hub`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hubId, hubRevision }),
         signal,
       });
@@ -224,10 +228,10 @@ export function useLeaveHub(gameId: string | null | undefined) {
   return useMutation<Game, Error, void>({
     mutationFn: () => {
       if (!id) {
-        return Promise.reject(new Error('Missing game id'));
+        return Promise.reject(new Error("Missing game id"));
       }
       return apiMutator<Game>(`/games/${encodeURIComponent(id)}/leave-hub`, {
-        method: 'POST',
+        method: "POST",
       });
     },
     onSuccess,

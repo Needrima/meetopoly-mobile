@@ -1,9 +1,9 @@
-import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import type { Location } from '@/api/types';
-import type { BoardSide, TileLayout } from '@/components/board/boardLayout';
-import { resolveBoardIcon } from '@/components/board/iconRegistry';
+import type { Location } from "@/api/types";
+import type { BoardSide, TileLayout } from "@/components/board/boardLayout";
+import { resolveBoardIcon } from "@/components/board/iconRegistry";
 import {
   contentRotation,
   isGoArrowIcon,
@@ -11,10 +11,10 @@ import {
   locLongCornerLabel,
   planeIconRotation,
   shortTileName,
-} from '@/components/board/tileLabel';
-import { bandStyle, tileVisual } from '@/components/board/tileStyle';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+} from "@/components/board/tileLabel";
+import { bandStyle, tileVisual } from "@/components/board/tileStyle";
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 type BoardTileProps = {
   tile: TileLayout;
@@ -28,18 +28,21 @@ type BoardTileProps = {
 };
 
 /** Outer-corner inset for ownership chip (away from board-center color band). */
-function ownerChipStyle(
-  side: BoardSide,
-): { left?: number; right?: number; top?: number; bottom?: number } {
+function ownerChipStyle(side: BoardSide): {
+  left?: number;
+  right?: number;
+  top?: number;
+  bottom?: number;
+} {
   const inset = 2;
   switch (side) {
-    case 'bottom':
+    case "bottom":
       return { right: inset, bottom: inset };
-    case 'top':
+    case "top":
       return { left: inset, top: inset };
-    case 'left':
+    case "left":
       return { left: inset, bottom: inset };
-    case 'right':
+    case "right":
       return { right: inset, top: inset };
   }
 }
@@ -76,7 +79,7 @@ function BoardTileInner({
 
   const longCorner = locLongCornerLabel(location);
   const iconPath = location?.assets?.icon;
-  const isPlane = Boolean(iconPath?.includes('plane'));
+  const isPlane = Boolean(iconPath?.includes("plane"));
   const isGoArrow = isGoArrowIcon(iconPath);
 
   const iconTransforms = [
@@ -191,10 +194,10 @@ export const BoardTile = memo(BoardTileInner);
 
 const styles = StyleSheet.create({
   tile: {
-    position: 'absolute',
+    position: "absolute",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   tileGlow: {
     borderWidth: 1,
@@ -207,23 +210,23 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   band: {
-    position: 'absolute',
+    position: "absolute",
   },
   content: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 1,
   },
   label: {
     fontFamily: fonts.bodySemiBold,
     color: colors.ink,
-    textAlign: 'center',
+    textAlign: "center",
   },
   ownerChip: {
-    position: 'absolute',
+    position: "absolute",
     zIndex: 3,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(20,32,27,0.35)',
+    borderColor: "rgba(20,32,27,0.35)",
   },
 });

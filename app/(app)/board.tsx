@@ -545,9 +545,7 @@ export default function BoardScreen() {
     return {
       username: isLocalOwner
         ? "You"
-        : formatUsername(
-            deed.ownerUsername || player?.username || "Player",
-          ),
+        : formatUsername(deed.ownerUsername || player?.username || "Player"),
       pinColor:
         isLocalOwner && displayAccent
           ? displayAccent

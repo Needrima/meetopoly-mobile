@@ -1,12 +1,16 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useMemo } from "react";
+import {
+  Feather,
+  FontAwesome5,
+  MaterialCommunityIcons,
+} from "@expo/vector-icons";
 
 import type { Location } from "@/api/types";
 import type { Game } from "@/api/types";
 import { Joystick } from "@/components/board/Joystick";
 import { shortTileName } from "@/components/board/tileLabel";
 import { MuteMicButton } from "@/components/voice/MuteMicButton";
-import { Button } from "@/components/ui/Button";
 import { AnimatedMeetCoinAmount } from "@/components/ui/AnimatedMeetCoinAmount";
 import type { StickInput } from "@/hooks/useBoardWalk";
 import { usePlayerTimeBanks } from "@/hooks/useTurnCountdown";
@@ -17,6 +21,8 @@ import { fonts } from "@/theme/fonts";
 const JOYSTICK_SIZE = 96;
 /** Inset from panel edges so the stick thumb stays on-screen. */
 const DOCK_PAD = 36;
+/** Disabled dock icon opacity (keep green fill). */
+const DOCK_OFF_OPACITY = 0.35;
 
 /** Phase 8.2 — short code for roster badge `Name(in LOS)`. */
 function hubBadgeCode(
@@ -60,7 +66,7 @@ type BoardPanelProps = {
 };
 
 /**
- * Game HUD; Enter (short tile name) above absolute BR joystick.
+ * Game HUD; dock icons [Dice][End][Hub] ··· [Joystick] (11.4a).
  */
 export function BoardPanel({
   onStick,
@@ -80,8 +86,6 @@ export function BoardPanel({
   endPending = false,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : "";
-  const enterLabel = code ? `Enter ${code}` : "Enter";
-  const showEnter = Boolean(nearby && onEnter);
   const hubCodeById = useMemo(() => {
     const map = new Map<string, string>();
     for (const loc of locations) {
@@ -108,6 +112,13 @@ export function BoardPanel({
   const bankLabels = usePlayerTimeBanks(game);
   const localBank = localPlayer ? (bankLabels[localPlayer.userId] ?? "") : "";
   const localPin = accent ?? localPlayer?.pinColor ?? colors.accent;
+  const rollActive = Boolean(
+    onRoll && canRoll && !rollDisabled && !rollPending,
+  );
+  const endActive = Boolean(
+    onEndTurn && canEnd && !endDisabled && !endPending,
+  );
+  const hubActive = Boolean(nearby && onEnter);
 
   const otherPlayers = (game?.players ?? []).filter((p) => {
     if (localPlayer && p.userId === localPlayer.userId) {
@@ -126,7 +137,9 @@ export function BoardPanel({
   });
 
   return (
-    <View style={[styles.root, { paddingBottom: DOCK_PAD + JOYSTICK_SIZE + 52 }]}>
+    <View
+      style={[styles.root, { paddingBottom: DOCK_PAD + JOYSTICK_SIZE + 52 }]}
+    >
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Panel</Text>
         {onMenuPress ? (
@@ -250,55 +263,61 @@ export function BoardPanel({
               );
             })}
           </View>
-          {game.status !== "finished" && (onRoll || onEndTurn) ? (
-            <View style={styles.actionRow}>
-              {onRoll ? (
-                <View style={styles.actionBtn}>
-                  <Button
-                    label="Roll"
-                    onPress={onRoll}
-                    disabled={rollDisabled || !canRoll}
-                    loading={rollPending}
-                    style={styles.rollBtn}
-                  />
-                </View>
-              ) : null}
-              {onEndTurn ? (
-                <View style={styles.actionBtn}>
-                  <Button
-                    label="End turn"
-                    onPress={onEndTurn}
-                    disabled={endDisabled || !canEnd}
-                    loading={endPending}
-                    style={styles.rollBtn}
-                  />
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-          {showEnter && nearby && onEnter ? (
-            <Button
-              label={enterLabel}
-              onPress={() => {
-                onEnter(nearby);
-              }}
-              style={styles.enterBtn}
-            />
-          ) : null}
         </View>
-      ) : showEnter && nearby && onEnter ? (
-        <Button
-          label={enterLabel}
-          onPress={() => {
-            onEnter(nearby);
-          }}
-          style={[styles.enterBtn, styles.enterBtnSolo]}
-        />
       ) : null}
 
       <View style={styles.joystickDock}>
-        <MuteMicButton />
-        <Joystick onStick={onStick} size={JOYSTICK_SIZE} accent={localPin} />
+        <View style={styles.muteRow}>
+          <MuteMicButton />
+        </View>
+        <View style={styles.stickRow}>
+          <View style={styles.iconRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Roll dice"
+              accessibilityState={{ disabled: !rollActive }}
+              disabled={!rollActive}
+              onPress={() => {
+                onRoll?.();
+              }}
+              className="w-12 h-12 rounded-[12px] bg-[#1f7a45] items-center justify-center"
+              style={!rollActive ? styles.dockOff : undefined}
+            >
+              <FontAwesome5 name="dice" size={24} color="white" />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="End turn"
+              accessibilityState={{ disabled: !endActive }}
+              disabled={!endActive}
+              onPress={() => {
+                onEndTurn?.();
+              }}
+              className="w-12 h-12 rounded-[12px] bg-[#1f7a45] items-center justify-center"
+              style={!endActive ? styles.dockOff : undefined}
+            >
+              <Feather name="arrow-right" size={24} color="white" />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                hubActive && code ? `Enter ${code}` : "Enter hub"
+              }
+              accessibilityState={{ disabled: !hubActive }}
+              disabled={!hubActive}
+              onPress={() => {
+                if (nearby && onEnter) {
+                  onEnter(nearby);
+                }
+              }}
+              className="w-12 h-12 rounded-[12px] bg-[#1f7a45] items-center justify-center"
+              style={!hubActive ? styles.dockOff : undefined}
+            >
+              <MaterialCommunityIcons name="hub" size={24} color="white" />
+            </Pressable>
+          </View>
+          <Joystick onStick={onStick} size={JOYSTICK_SIZE} accent={localPin} />
+        </View>
       </View>
     </View>
   );
@@ -410,30 +429,30 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     color: colors.muted,
   },
-  rollBtn: {
-    height: 40,
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 4,
-  },
-  actionBtn: {
-    flex: 1,
-  },
-  enterBtn: {
-    height: 44,
-    marginTop: 8,
-  },
-  enterBtnSolo: {
-    marginTop: 12,
-  },
   joystickDock: {
     position: "absolute",
+    left: 0,
     right: DOCK_PAD,
     bottom: DOCK_PAD,
-    alignItems: "flex-end",
     gap: 10,
+  },
+  muteRow: {
+    alignSelf: "flex-end",
+  },
+  stickRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    width: "100%",
+    paddingLeft: 16,
+  },
+  iconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  dockOff: {
+    opacity: DOCK_OFF_OPACITY,
   },
   pressed: {
     opacity: 0.75,
