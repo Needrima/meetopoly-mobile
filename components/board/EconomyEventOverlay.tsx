@@ -155,6 +155,8 @@ function CardBody({ event }: { event: Extract<EconomyEvent, { kind: 'card' }> })
   const isChance = event.deck === 'chance';
   const headerBg = isChance ? colors.danger : colors.info;
   const deckLabel = isChance ? 'CHANCE' : 'COMMUNITY CHEST';
+  const cashDelta = event.cashDelta;
+  const cashColor = cashDelta > 0 ? colors.money : colors.danger;
   return (
     <View style={[styles.sheet, { borderColor: headerBg }]}>
       <View style={[styles.header, styles.cardHeader, { backgroundColor: headerBg }]}>
@@ -172,6 +174,18 @@ function CardBody({ event }: { event: Extract<EconomyEvent, { kind: 'card' }> })
           {event.drawerUsername}
         </Text>
         <Text style={styles.cardTitle}>{event.title}</Text>
+        {cashDelta !== 0 ? (
+          <View style={styles.cardCashRow}>
+            <Text style={[styles.cardCashSign, { color: cashColor }]}>
+              {cashDelta > 0 ? '+' : '−'}
+            </Text>
+            <MeetCoinAmount
+              amount={Math.abs(cashDelta)}
+              size={18}
+              color={cashColor}
+            />
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -394,6 +408,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.ink,
     textAlign: 'center',
+    lineHeight: 20,
+  },
+  cardCashRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginTop: 2,
+  },
+  cardCashSign: {
+    fontFamily: fonts.displayBold,
+    fontSize: 18,
     lineHeight: 20,
   },
 });

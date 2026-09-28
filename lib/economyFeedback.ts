@@ -79,6 +79,8 @@ export type EconomyCardEvent = {
   deck: 'chance' | 'community_chest';
   cardId: string;
   title: string;
+  /** Signed MeetCoin for drawer net; 0 = hide amount line. */
+  cashDelta: number;
   drawerUsername: string;
   drawerInitials: string;
   drawerPinColor: string;
@@ -346,11 +348,20 @@ export function buildCardEvent(args: {
   const name = formatUsername(card.username) || 'Someone';
   const deckLabel =
     card.deck === 'chance' ? 'Chance' : 'Community Chest';
+  const cashDelta = card.cashDelta ?? 0;
+  const amountSuffix =
+    cashDelta === 0
+      ? ''
+      : cashDelta > 0
+        ? ` (+${cashDelta} MeetCoin)`
+        : ` (${cashDelta} MeetCoin)`;
+  const titleWithAmount = `${card.title}${amountSuffix}`;
   return {
     kind: 'card',
     deck: card.deck,
     cardId: card.cardId,
     title: card.title,
+    cashDelta,
     drawerUsername: iDrew ? 'You' : name,
     drawerInitials: usernameInitials(name),
     drawerPinColor: pinColorForPlayer(
@@ -360,7 +371,7 @@ export function buildCardEvent(args: {
       displayAccent,
     ),
     toastTitle: deckLabel,
-    toastMessage: iDrew ? card.title : `${name}: ${card.title}`,
+    toastMessage: iDrew ? titleWithAmount : `${name}: ${titleWithAmount}`,
   };
 }
 

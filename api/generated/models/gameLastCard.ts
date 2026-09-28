@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.23.0
+ * OpenAPI spec version: 0.24.0
  */
 import type { GameLastCardDeck } from './gameLastCardDeck';
 
@@ -17,4 +17,11 @@ export interface GameLastCard {
   title: string;
   userId: string;
   username: string;
+  /**
+   * Signed MeetCoin for the drawer's net from this card (credits positive,
+   * debits negative). Omitted or 0 when the card has no cash effect
+   * (move, jail, GOOJF, go back). Includes flat cash, pay/collect-each totals,
+   * and repairs due.
+   */
+  cashDelta?: number;
 }
