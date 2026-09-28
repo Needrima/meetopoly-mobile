@@ -1,8 +1,8 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { MotiView } from 'moti';
 
 import { AvatarPod } from '@/components/board/AvatarPod';
-import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
+import { Button } from '@/components/ui/Button';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -64,6 +64,7 @@ function jailHint(opts: {
 
 /**
  * Phase 12.4b — centered jail options: avatar + Pay / Roll a Double / Use card.
+ * Brand primary buttons; unavailable actions stay visible but disabled.
  * Dock Roll stays off while this is open; "Roll a Double" arms the dock dice.
  */
 export function JailActionSheet({
@@ -90,6 +91,8 @@ export function JailActionSheet({
   const payEnabled = canPayFine && !busy;
   const cardEnabled = canUseCard && getOutOfJailFree >= 1 && !busy;
   const doublesEnabled = canRollDoubles && attemptsLeft > 0 && !busy;
+  const cardLabel =
+    getOutOfJailFree > 0 ? `Use card (${getOutOfJailFree})` : 'Use card';
 
   return (
     <View style={styles.host} pointerEvents="box-none">
@@ -115,82 +118,30 @@ export function JailActionSheet({
                 canRollDoubles: canRollDoubles && attemptsLeft > 0,
               })}
             </Text>
-            <View style={styles.row}>
-              <View style={styles.avatarCol}>
-                <AvatarPod
-                  initials={avatarInitials}
-                  accent={avatarAccent}
-                  radius={28}
-                />
-              </View>
+            <View style={styles.body}>
+              <AvatarPod
+                initials={avatarInitials}
+                accent={avatarAccent}
+                radius={28}
+              />
               <View style={styles.actions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Pay jail fine 100"
-                  accessibilityState={{ disabled: !payEnabled }}
-                  disabled={!payEnabled}
+                <Button
+                  label="Pay 100"
                   onPress={onPayFine}
-                  style={({ pressed }) => [
-                    styles.btn,
-                    styles.payBtn,
-                    !payEnabled && styles.btnOff,
-                    pressed && payEnabled ? styles.pressed : null,
-                  ]}
-                >
-                  {payPending ? (
-                    <ActivityIndicator color={colors.onBrand} />
-                  ) : (
-                    <>
-                      <Text style={styles.btnLabel}>Pay</Text>
-                      <MeetCoinAmount
-                        amount={100}
-                        size={14}
-                        color={colors.onBrand}
-                      />
-                    </>
-                  )}
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Roll a double to leave Jail"
-                  accessibilityState={{ disabled: !doublesEnabled }}
-                  disabled={!doublesEnabled}
+                  disabled={!payEnabled}
+                  loading={payPending}
+                />
+                <Button
+                  label="Roll a Double"
                   onPress={onRollDoubles}
-                  style={({ pressed }) => [
-                    styles.btn,
-                    styles.doublesBtn,
-                    !doublesEnabled && styles.btnOff,
-                    pressed && doublesEnabled ? styles.pressed : null,
-                  ]}
-                >
-                  <Text style={[styles.btnLabel, styles.doublesBtnLabel]}>
-                    Roll a Double
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Use Get Out of Jail Free card"
-                  accessibilityState={{ disabled: !cardEnabled }}
-                  disabled={!cardEnabled}
+                  disabled={!doublesEnabled}
+                />
+                <Button
+                  label={cardLabel}
                   onPress={onUseCard}
-                  style={({ pressed }) => [
-                    styles.btn,
-                    styles.cardBtn,
-                    !cardEnabled && styles.btnOff,
-                    pressed && cardEnabled ? styles.pressed : null,
-                  ]}
-                >
-                  {cardPending ? (
-                    <ActivityIndicator color={colors.ink} />
-                  ) : (
-                    <Text style={[styles.btnLabel, styles.cardBtnLabel]}>
-                      Use card
-                      {getOutOfJailFree > 0 ? ` (${getOutOfJailFree})` : ''}
-                    </Text>
-                  )}
-                </Pressable>
+                  disabled={!cardEnabled}
+                  loading={cardPending}
+                />
               </View>
             </View>
           </View>
@@ -218,7 +169,7 @@ const styles = StyleSheet.create({
   },
   sheetWrap: {
     width: '90%',
-    maxWidth: 420,
+    maxWidth: 360,
   },
   sheet: {
     borderRadius: 18,
@@ -252,57 +203,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
   },
-  row: {
-    flexDirection: 'row',
+  body: {
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  avatarCol: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: 14,
+    paddingBottom: 16,
   },
   actions: {
-    flex: 1,
+    width: '100%',
     gap: 10,
-    minWidth: 0,
-  },
-  btn: {
-    minHeight: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 12,
-  },
-  payBtn: {
-    backgroundColor: colors.brand,
-  },
-  doublesBtn: {
-    backgroundColor: colors.accent,
-  },
-  cardBtn: {
-    backgroundColor: colors.bg,
-    borderWidth: 1.5,
-    borderColor: colors.brand,
-  },
-  btnOff: {
-    opacity: 0.35,
-  },
-  pressed: {
-    opacity: 0.85,
-  },
-  btnLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
-    color: colors.onBrand,
-  },
-  doublesBtnLabel: {
-    color: colors.onAccent,
-  },
-  cardBtnLabel: {
-    color: colors.ink,
   },
 });

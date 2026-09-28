@@ -68,6 +68,16 @@ export function planPinMotion(
 ): PinMotionPlan {
   const mover = players.find((p) => p.userId === roll.userId);
   const diceLand = (roll.fromIndex + roll.total) % BOARD_SPACES;
+
+  // Failed jail doubles (or broke 3rd fail): stay on Jail — dice only, no pin walk-back.
+  if (
+    mover?.inJail &&
+    roll.toIndex === roll.fromIndex &&
+    !roll.thirdDoubles
+  ) {
+    return { kind: 'snap' };
+  }
+
   const jailTeleport =
     Boolean(mover?.inJail) &&
     (roll.thirdDoubles || diceLand !== roll.toIndex);
@@ -77,6 +87,8 @@ export function planPinMotion(
     const cardJail =
       lastCard &&
       lastCard.userId === roll.userId &&
+      (lastCard.cardId === 'chance_go_to_jail' ||
+        lastCard.cardId === 'chest_go_to_jail') &&
       diceLand !== roll.toIndex &&
       !roll.thirdDoubles;
     if (cardJail) {
