@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.20.0
+ * OpenAPI spec version: 0.21.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
@@ -31,10 +31,19 @@ export interface Game {
   currency: string;
   turnPhase: GameTurnPhase;
   doublesStreak: number;
+  /** Phase 12.1 — while in Jail, true only if jailTurns < 3 (try doubles).
+After 3 failed attempts, false until pay/card.
+ */
   canRoll: boolean;
   canEndTurn: boolean;
   /** Current player may buy the space they just landed on (Phase 6.4) */
   canBuy: boolean;
+  /** Phase 12.1 — current player is in Jail, can afford 100 MeetCoin, and may pay to leave.
+ */
+  canPayJailFine: boolean;
+  /** Phase 12.1 — current player is in Jail and holds at least one Get Out of Jail Free card.
+ */
+  canUseJailCard: boolean;
   /** @nullable */
   buyOffer?: GameBuyOfferProperty;
   deeds: GameDeed[];

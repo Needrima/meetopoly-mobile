@@ -208,6 +208,9 @@ export function useEconomyFeedback({
       players: game.players,
       displayAccent,
     });
+    if (!event) {
+      return;
+    }
     const involved =
       p.kind === 'tax'
         ? isTaxInvolved(localUserId, p.fromUserId)

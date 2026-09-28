@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.20.0
+ * OpenAPI spec version: 0.21.0
  */
 
 export type GameLastPaymentKind = typeof GameLastPaymentKind[keyof typeof GameLastPaymentKind];
@@ -15,4 +15,5 @@ export type GameLastPaymentKind = typeof GameLastPaymentKind[keyof typeof GameLa
 export const GameLastPaymentKind = {
   rent: 'rent',
   tax: 'tax',
+  jail_fine: 'jail_fine',
 } as const;

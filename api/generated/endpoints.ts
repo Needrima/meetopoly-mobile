@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.20.0
+ * OpenAPI spec version: 0.21.0
  */
 import type {
   AuthSessionResponse,
@@ -772,6 +772,64 @@ export const redeemDeed = async (gameId: string,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       redeemRequest,)
+  }
+);}
+
+
+
+/**
+ * Phase 12.1 — current player only, while `inJail`. Deducts **100** MeetCoin,
+clears `inJail` / `jailTurns`, sets `turnPhase` to `awaiting_roll` so they
+can Roll and move. Does not move the pin by itself.
+Fans out via WebSocket `state`.
+
+ * @summary Pay 100 MeetCoin to leave Jail
+ */
+export const getPayJailFineUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/pay-jail-fine`
+}
+
+export const payJailFine = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getPayJailFineUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Phase 12.1 — current player only, while `inJail` and `getOutOfJailFree` ≥ 1.
+Decrements the card count, leaves Jail, sets `awaiting_roll` (then Roll to move).
+Cards are drawn in Phase 12.2+; this endpoint is ready when a card is held.
+Fans out via WebSocket `state`.
+
+ * @summary Use a Get Out of Jail Free card
+ */
+export const getUseJailCardUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/use-jail-card`
+}
+
+export const useJailCard = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getUseJailCardUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
   }
 );}
 
