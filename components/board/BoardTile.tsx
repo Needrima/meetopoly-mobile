@@ -21,6 +21,12 @@ type BoardTileProps = {
   location?: Location;
   /** Soft outline when this tile is the nearest Enter target. */
   highlighted?: boolean;
+  /** Phase 11.4b — eligible for active economy mode. */
+  economyEligible?: boolean;
+  /** Phase 11.4b — dim non-eligible while a mode is active. */
+  economyDimmed?: boolean;
+  /** MeetCoin amount cue on eligible tiles (build cost / sell refund / …). */
+  economyAmount?: number | null;
   /** Owner pin color chip when this space has a deed. */
   ownerColor?: string | null;
   /** Tap opens tile info; omit / undefined while buyer has buy modal open. */
@@ -54,6 +60,9 @@ function BoardTileInner({
   tile,
   location,
   highlighted = false,
+  economyEligible = false,
+  economyDimmed = false,
+  economyAmount = null,
   ownerColor = null,
   onPress,
 }: BoardTileProps) {
@@ -98,7 +107,9 @@ function BoardTileInner({
       height: tile.height,
       backgroundColor: visual.fill,
     },
-    highlighted ? styles.tileGlow : null,
+    highlighted || economyEligible ? styles.tileGlow : null,
+    economyEligible ? styles.tileEconomy : null,
+    economyDimmed ? styles.tileDimmed : null,
   ];
 
   const body = (
@@ -152,6 +163,15 @@ function BoardTileInner({
               : {})}
           >
             {label}
+          </Text>
+        ) : null}
+        {economyEligible && economyAmount != null && economyAmount > 0 ? (
+          <Text
+            style={[styles.economyAmount, { fontSize: Math.max(8, fontSize - 1) }]}
+            numberOfLines={1}
+            allowFontScaling={false}
+          >
+            {economyAmount}
           </Text>
         ) : null}
       </View>
@@ -208,6 +228,20 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 0 },
     elevation: 2,
+  },
+  tileEconomy: {
+    borderColor: colors.success,
+    shadowColor: colors.success,
+    backgroundColor: colors.surface,
+    zIndex: 5,
+  },
+  tileDimmed: {
+    opacity: 0.4,
+  },
+  economyAmount: {
+    fontFamily: fonts.bodySemiBold,
+    color: colors.success,
+    textAlign: "center",
   },
   band: {
     position: "absolute",

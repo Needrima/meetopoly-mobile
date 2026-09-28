@@ -24,6 +24,10 @@ type BoardProps = {
   locations: Location[];
   layout?: BoardLayout;
   highlightedBoardIndex?: number | null;
+  /** Phase 11.4b — boardIndex → MeetCoin cue while economy mode is on. */
+  economyEligibleByIndex?: ReadonlyMap<number, number>;
+  /** When true, non-eligible tiles dim. */
+  economyModeActive?: boolean;
   /** boardIndex → owner pinColor for owned buyable spaces. */
   ownerColorByIndex?: ReadonlyMap<number, string>;
   /** When set, tiles are tappable (omit while local buy modal is open). */
@@ -44,6 +48,8 @@ type StaticLayerProps = {
   layout: BoardLayout;
   locations: Location[];
   highlightedBoardIndex: number | null;
+  economyEligibleByIndex?: ReadonlyMap<number, number>;
+  economyModeActive?: boolean;
   ownerColorByIndex?: ReadonlyMap<number, string>;
   onTilePress?: (boardIndex: number) => void;
 };
@@ -53,6 +59,8 @@ const BoardStaticLayer = memo(function BoardStaticLayer({
   layout,
   locations,
   highlightedBoardIndex,
+  economyEligibleByIndex,
+  economyModeActive = false,
   ownerColorByIndex,
   onTilePress,
 }: StaticLayerProps) {
@@ -73,22 +81,30 @@ const BoardStaticLayer = memo(function BoardStaticLayer({
         height={layout.center.height}
         decks={layout.decks}
       />
-      {layout.tiles.map((tile) => (
-        <BoardTile
-          key={tile.boardIndex}
-          tile={tile}
-          location={byIndex.get(tile.boardIndex)}
-          highlighted={highlightedBoardIndex === tile.boardIndex}
-          ownerColor={ownerColorByIndex?.get(tile.boardIndex) ?? null}
-          onPress={
-            onTilePress
-              ? () => {
-                  onTilePress(tile.boardIndex);
-                }
-              : undefined
-          }
-        />
-      ))}
+      {layout.tiles.map((tile) => {
+        const eligibleAmount =
+          economyEligibleByIndex?.get(tile.boardIndex) ?? null;
+        const economyEligible = eligibleAmount != null;
+        return (
+          <BoardTile
+            key={tile.boardIndex}
+            tile={tile}
+            location={byIndex.get(tile.boardIndex)}
+            highlighted={highlightedBoardIndex === tile.boardIndex}
+            economyEligible={economyEligible}
+            economyDimmed={economyModeActive && !economyEligible}
+            economyAmount={eligibleAmount}
+            ownerColor={ownerColorByIndex?.get(tile.boardIndex) ?? null}
+            onPress={
+              onTilePress
+                ? () => {
+                    onTilePress(tile.boardIndex);
+                  }
+                : undefined
+            }
+          />
+        );
+      })}
     </>
   );
 });
@@ -146,6 +162,8 @@ export function Board({
   locations,
   layout: layoutProp,
   highlightedBoardIndex = null,
+  economyEligibleByIndex,
+  economyModeActive = false,
   ownerColorByIndex,
   onTilePress,
   avatar,
@@ -165,6 +183,8 @@ export function Board({
         layout={layout}
         locations={locations}
         highlightedBoardIndex={highlightedBoardIndex}
+        economyEligibleByIndex={economyEligibleByIndex}
+        economyModeActive={economyModeActive}
         ownerColorByIndex={ownerColorByIndex}
         onTilePress={onTilePress}
       />

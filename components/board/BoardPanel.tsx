@@ -1,19 +1,17 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useMemo } from "react";
-import {
-  Feather,
-  FontAwesome5,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
 
 import type { Location } from "@/api/types";
 import type { Game } from "@/api/types";
+import { BoardDockIcons } from "@/components/board/BoardDockIcons";
+import { EconomyActionBar } from "@/components/board/EconomyActionBar";
 import { Joystick } from "@/components/board/Joystick";
 import { shortTileName } from "@/components/board/tileLabel";
 import { MuteMicButton } from "@/components/voice/MuteMicButton";
 import { AnimatedMeetCoinAmount } from "@/components/ui/AnimatedMeetCoinAmount";
 import type { StickInput } from "@/hooks/useBoardWalk";
 import { usePlayerTimeBanks } from "@/hooks/useTurnCountdown";
+import type { EconomyMode } from "@/lib/economyEligibility";
 import { formatUsername } from "@/lib/formatUsername";
 import { colors } from "@/theme/colors";
 import { fonts } from "@/theme/fonts";
@@ -21,8 +19,6 @@ import { fonts } from "@/theme/fonts";
 const JOYSTICK_SIZE = 96;
 /** Inset from panel edges so the stick thumb stays on-screen. */
 const DOCK_PAD = 36;
-/** Disabled dock icon opacity (keep green fill). */
-const DOCK_OFF_OPACITY = 0.35;
 
 /** Phase 8.2 — short code for roster badge `Name(in LOS)`. */
 function hubBadgeCode(
@@ -63,6 +59,9 @@ type BoardPanelProps = {
   onEndTurn?: () => void;
   endDisabled?: boolean;
   endPending?: boolean;
+  /** Phase 11.4b economy mode. */
+  economyMode?: EconomyMode | null;
+  onEconomySelect?: (mode: EconomyMode) => void;
 };
 
 /**
@@ -84,6 +83,8 @@ export function BoardPanel({
   onEndTurn,
   endDisabled = false,
   endPending = false,
+  economyMode = null,
+  onEconomySelect,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : "";
   const hubCodeById = useMemo(() => {
@@ -115,10 +116,11 @@ export function BoardPanel({
   const rollActive = Boolean(
     onRoll && canRoll && !rollDisabled && !rollPending,
   );
-  const endActive = Boolean(
-    onEndTurn && canEnd && !endDisabled && !endPending,
-  );
+  const endActive = Boolean(onEndTurn && canEnd && !endDisabled && !endPending);
   const hubActive = Boolean(nearby && onEnter);
+  const economyEnabled = Boolean(
+    game && game.status === "active" && isMyTurn && onEconomySelect,
+  );
 
   const otherPlayers = (game?.players ?? []).filter((p) => {
     if (localPlayer && p.userId === localPlayer.userId) {
@@ -138,7 +140,7 @@ export function BoardPanel({
 
   return (
     <View
-      style={[styles.root, { paddingBottom: DOCK_PAD + JOYSTICK_SIZE + 52 }]}
+      style={[styles.root, { paddingBottom: DOCK_PAD + JOYSTICK_SIZE + 120 }]}
     >
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Panel</Text>
@@ -271,50 +273,29 @@ export function BoardPanel({
           <MuteMicButton />
         </View>
         <View style={styles.stickRow}>
-          <View style={styles.iconRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Roll dice"
-              accessibilityState={{ disabled: !rollActive }}
-              disabled={!rollActive}
-              onPress={() => {
-                onRoll?.();
-              }}
-              className="w-12 h-12 rounded-[12px] bg-[#1f7a45] items-center justify-center"
-              style={!rollActive ? styles.dockOff : undefined}
-            >
-              <FontAwesome5 name="dice" size={24} color="white" />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="End turn"
-              accessibilityState={{ disabled: !endActive }}
-              disabled={!endActive}
-              onPress={() => {
-                onEndTurn?.();
-              }}
-              className="w-12 h-12 rounded-[12px] bg-[#1f7a45] items-center justify-center"
-              style={!endActive ? styles.dockOff : undefined}
-            >
-              <Feather name="arrow-right" size={24} color="white" />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                hubActive && code ? `Enter ${code}` : "Enter hub"
-              }
-              accessibilityState={{ disabled: !hubActive }}
-              disabled={!hubActive}
-              onPress={() => {
+          <View style={styles.leftCol}>
+            {game?.status === "active" ? (
+              <EconomyActionBar
+                activeMode={economyMode}
+                enabled={economyEnabled}
+                onSelect={(mode) => {
+                  onEconomySelect?.(mode);
+                }}
+              />
+            ) : null}
+            <BoardDockIcons
+              rollActive={rollActive}
+              endActive={endActive}
+              hubActive={hubActive}
+              hubCode={code}
+              onRoll={onRoll}
+              onEndTurn={onEndTurn}
+              onEnterHub={() => {
                 if (nearby && onEnter) {
                   onEnter(nearby);
                 }
               }}
-              className="w-12 h-12 rounded-[12px] bg-[#1f7a45] items-center justify-center"
-              style={!hubActive ? styles.dockOff : undefined}
-            >
-              <MaterialCommunityIcons name="hub" size={24} color="white" />
-            </Pressable>
+            />
           </View>
           <Joystick onStick={onStick} size={JOYSTICK_SIZE} accent={localPin} />
         </View>
@@ -446,13 +427,9 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingLeft: 16,
   },
-  iconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  dockOff: {
-    opacity: DOCK_OFF_OPACITY,
+  leftCol: {
+    gap: 10,
+    flexShrink: 0,
   },
   pressed: {
     opacity: 0.75,

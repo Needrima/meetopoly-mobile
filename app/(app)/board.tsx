@@ -16,6 +16,7 @@ import { BoardOverflowMenu } from "@/components/board/BoardOverflowMenu";
 import { BoardPanel } from "@/components/board/BoardPanel";
 import { BuyPropertyOverlay } from "@/components/board/BuyPropertyOverlay";
 import { EconomyEventOverlay } from "@/components/board/EconomyEventOverlay";
+import { EconomyModeSheet } from "@/components/board/EconomyModeSheet";
 import { TileInfoOverlay } from "@/components/board/TileInfoOverlay";
 import { layoutBoardRing } from "@/components/board/boardLayout";
 import { DiceRollOverlay } from "@/components/board/DiceRollOverlay";
@@ -30,17 +31,26 @@ import { useEconomyFeedback } from "@/hooks/useEconomyFeedback";
 import {
   useGame,
   useBuyProperty,
+  useBuildOnDeed,
   useEndTurn,
   useEnterHub,
+  useMortgageDeed,
+  useRedeemDeed,
   useResignGame,
   useRollDice,
+  useSellBuilding,
 } from "@/hooks/useGame";
+import {
+  useClearEconomyWhenOffTurn,
+  useEconomyMode,
+} from "@/hooks/useEconomyMode";
 import { useBoardPresence } from "@/hooks/useBoardPresence";
 import { useGamePinMotion } from "@/hooks/useGamePinMotion";
 import { DEFAULT_WORLD_ID, useLocations } from "@/hooks/useLocations";
 import { useSession } from "@/hooks/useSession";
 import { notify } from "@/lib/notify";
 import { formatUsername } from "@/lib/formatUsername";
+import { eligibleTilesForMode } from "@/lib/economyEligibility";
 import { beginHubEnter } from "@/lib/hubEnterGuard";
 import { buildBoardRemoteAvatars } from "@/lib/buildBoardRemoteAvatars";
 import { colors } from "@/theme/colors";
@@ -97,7 +107,12 @@ export default function BoardScreen() {
   const rollDice = useRollDice(gameId);
   const endTurnMut = useEndTurn(gameId);
   const buyMut = useBuyProperty(gameId);
+  const buildMut = useBuildOnDeed(gameId);
+  const sellMut = useSellBuilding(gameId);
+  const mortgageMut = useMortgageDeed(gameId);
+  const redeemMut = useRedeemDeed(gameId);
   const resignMut = useResignGame(gameId);
+  const economy = useEconomyMode();
   const enterHubMut = useEnterHub(gameId);
   const game = gameQuery.data ?? null;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -498,6 +513,75 @@ export default function BoardScreen() {
     !turnBusy,
   );
 
+  useClearEconomyWhenOffTurn(
+    economy.clearMode,
+    Boolean(game && game.status === "active" && isMyTurn),
+  );
+
+  const economyEligibleByIndex = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!game || !localUserId || !economy.mode) {
+      return map;
+    }
+    for (const t of eligibleTilesForMode(
+      economy.mode,
+      game,
+      locations,
+      localUserId,
+    )) {
+      map.set(t.boardIndex, t.amount);
+    }
+    return map;
+  }, [game, locations, localUserId, economy.mode]);
+
+  const economyBusy =
+    buildMut.isPending ||
+    sellMut.isPending ||
+    mortgageMut.isPending ||
+    redeemMut.isPending;
+
+  const onEconomyTile = useCallback(
+    (boardIndex: number) => {
+      if (!economy.mode || economyBusy || turnBusy) {
+        return;
+      }
+      if (!economyEligibleByIndex.has(boardIndex)) {
+        return;
+      }
+      const onError = (err: Error) => {
+        notify({
+          type: "error",
+          title: "Action failed",
+          message: err.message || "Could not complete action",
+        });
+      };
+      switch (economy.mode) {
+        case "build":
+          buildMut.mutate(boardIndex, { onError });
+          break;
+        case "sell":
+          sellMut.mutate(boardIndex, { onError });
+          break;
+        case "mortgage":
+          mortgageMut.mutate(boardIndex, { onError });
+          break;
+        case "redeem":
+          redeemMut.mutate(boardIndex, { onError });
+          break;
+      }
+    },
+    [
+      economy.mode,
+      economyBusy,
+      turnBusy,
+      economyEligibleByIndex,
+      buildMut,
+      sellMut,
+      mortgageMut,
+      redeemMut,
+    ],
+  );
+
   // Buyer must not open inspect while buy modal is up; clear if it appears.
   useEffect(() => {
     if (showBuyModal && inspectIndex != null) {
@@ -558,9 +642,13 @@ export default function BoardScreen() {
       if (showBuyModal) {
         return;
       }
+      if (economy.mode) {
+        onEconomyTile(boardIndex);
+        return;
+      }
       setInspectIndex(boardIndex);
     },
-    [showBuyModal],
+    [showBuyModal, economy.mode, onEconomyTile],
   );
 
   const buyLoc = buyOffer
@@ -611,7 +699,13 @@ export default function BoardScreen() {
               size={boardSide}
               locations={locations}
               layout={layout}
-              highlightedBoardIndex={walk.nearby?.boardIndex ?? null}
+              highlightedBoardIndex={
+                economy.mode ? null : (walk.nearby?.boardIndex ?? null)
+              }
+              economyEligibleByIndex={
+                economy.mode ? economyEligibleByIndex : undefined
+              }
+              economyModeActive={Boolean(economy.mode)}
               ownerColorByIndex={ownerColorByIndex}
               onTilePress={showBuyModal ? undefined : onTilePress}
               avatar={{
@@ -646,10 +740,22 @@ export default function BoardScreen() {
             />
           ) : null}
           <TileInfoOverlay
-            visible={inspectIndex != null && !showBuyModal}
+            visible={
+              inspectIndex != null && !showBuyModal && !economy.mode
+            }
             location={inspectLoc}
             owner={inspectOwner}
             onClose={() => setInspectIndex(null)}
+          />
+          <EconomyModeSheet
+            mode={economy.mode}
+            visible={economy.sheetOpen}
+            centerSide={
+              layout
+                ? Math.min(layout.center.width, layout.center.height)
+                : boardSide * 0.55
+            }
+            onClose={economy.clearMode}
           />
           <EconomyEventOverlay event={economyEvent} />
         </View>
@@ -676,6 +782,8 @@ export default function BoardScreen() {
               showBuyModal
             }
             endPending={endTurnMut.isPending}
+            economyMode={economy.mode}
+            onEconomySelect={economy.selectMode}
           />
         </View>
       </View>

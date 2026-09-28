@@ -237,3 +237,78 @@ export function useLeaveHub(gameId: string | null | undefined) {
     onSuccess,
   });
 }
+
+/** POST /games/{id}/build — Phase 11.1 one house/hotel step. */
+export function useBuildOnDeed(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, number>({
+    mutationFn: (boardIndex: number) => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(`/games/${encodeURIComponent(id)}/build`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardIndex }),
+      });
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/sell-building — Phase 11.2 one step down. */
+export function useSellBuilding(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, number>({
+    mutationFn: (boardIndex: number) => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/sell-building`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ boardIndex }),
+        },
+      );
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/mortgage — Phase 11.3. */
+export function useMortgageDeed(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, number>({
+    mutationFn: (boardIndex: number) => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(`/games/${encodeURIComponent(id)}/mortgage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardIndex }),
+      });
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/redeem — Phase 11.3. */
+export function useRedeemDeed(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, number>({
+    mutationFn: (boardIndex: number) => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(`/games/${encodeURIComponent(id)}/redeem`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardIndex }),
+      });
+    },
+    onSuccess,
+  });
+}
