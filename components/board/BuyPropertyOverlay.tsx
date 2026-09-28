@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { MotiView } from 'moti';
 
 import type { GameBuyOffer, Location } from '@/api/types';
@@ -20,12 +20,11 @@ type BuyPropertyOverlayProps = {
   canAfford: boolean;
   buyPending?: boolean;
   onBuy: () => void;
-  onDismiss?: () => void;
 };
 
 /**
  * Center-board buy modal (Phase 9.1 branded deed).
- * Header uses location strip color; DeedCard + price / Buy row.
+ * Non-dismissible until buy (auction → Phase 13).
  */
 export function BuyPropertyOverlay({
   visible,
@@ -34,7 +33,6 @@ export function BuyPropertyOverlay({
   canAfford,
   buyPending = false,
   onBuy,
-  onDismiss,
 }: BuyPropertyOverlayProps) {
   if (!visible) {
     return null;
@@ -46,10 +44,10 @@ export function BuyPropertyOverlay({
 
   return (
     <View style={styles.host} pointerEvents="box-none">
-      <Pressable
+      <View
         style={styles.backdrop}
-        onPress={buyPending ? undefined : onDismiss}
-        accessibilityLabel="Dismiss buy"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
       />
       <View style={styles.center} pointerEvents="box-none">
         <MotiView
@@ -101,7 +99,6 @@ export function BuyPropertyOverlay({
                     style={styles.buyBtn}
                   />
                 </View>
-                <Text style={styles.skipHint}>Or End turn to skip</Text>
               </MotiView>
             </View>
           </View>
@@ -181,11 +178,5 @@ const styles = StyleSheet.create({
   },
   footerAnim: {
     gap: 8,
-  },
-  skipHint: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    color: colors.muted,
-    textAlign: 'center',
   },
 });

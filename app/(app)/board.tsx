@@ -669,7 +669,12 @@ export default function BoardScreen() {
             rollDisabled={!isMyTurn || !game?.canRoll || turnBusy}
             rollPending={rollDice.isPending}
             onEndTurn={game ? onEndTurn : undefined}
-            endDisabled={!isMyTurn || !game?.canEndTurn || turnBusy}
+            endDisabled={
+              !isMyTurn ||
+              !game?.canEndTurn ||
+              turnBusy ||
+              showBuyModal
+            }
             endPending={endTurnMut.isPending}
           />
         </View>
