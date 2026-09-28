@@ -8,6 +8,12 @@ import {
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
+/** Decorative stack depth — same for Chance and Chest. */
+export const DECK_STACK_COUNT = 6;
+/** Board-local px offset per layer (NW) so the pile reads as stacked cards. */
+const STACK_STEP_X = 1.35;
+const STACK_STEP_Y = -1.35;
+
 type BoardCenterProps = {
   x: number;
   y: number;
@@ -16,8 +22,21 @@ type BoardCenterProps = {
   decks: CenterDeckLayout[];
 };
 
+function stackPolygonPoints(
+  deck: CenterDeckLayout,
+  layer: number,
+  originX: number,
+  originY: number,
+): string {
+  const ox = layer * STACK_STEP_X;
+  const oy = layer * STACK_STEP_Y;
+  return deck.points
+    .map((p) => `${p.x - originX + ox},${p.y - originY + oy}`)
+    .join(' ');
+}
+
 /**
- * Phase 4.4 — center brand + Chance / Community Chest deck shapes.
+ * Phase 4.4 — center brand + Chance / Community Chest deck stacks.
  * Deck polygons are hard obstacles when walking (wired in 4.5).
  */
 export function BoardCenter({ x, y, width, height, decks }: BoardCenterProps) {
@@ -31,22 +50,24 @@ export function BoardCenter({ x, y, width, height, decks }: BoardCenterProps) {
     >
       <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
         {decks.map((deck) => {
-          const points = deck.points.map((p) => `${p.x - x},${p.y - y}`).join(' ');
-          return (
-            <Polygon
-              key={deck.id}
-              points={points}
-              fill={deck.fill}
-              stroke={deck.stroke}
-              strokeWidth={2}
-            />
-          );
+          const layers = [];
+          for (let i = DECK_STACK_COUNT - 1; i >= 0; i -= 1) {
+            layers.push(
+              <Polygon
+                key={`${deck.id}-layer-${i}`}
+                points={stackPolygonPoints(deck, i, x, y)}
+                fill={deck.fill}
+                stroke={deck.stroke}
+                strokeWidth={i === 0 ? 2 : 1.25}
+                opacity={i === 0 ? 1 : 0.92}
+              />,
+            );
+          }
+          return layers;
         })}
         {decks.map((deck) => {
-          const cx =
-            deck.points.reduce((sum, p) => sum + p.x, 0) / deck.points.length - x;
-          const cy =
-            deck.points.reduce((sum, p) => sum + p.y, 0) / deck.points.length - y;
+          const cx = deck.cx - x;
+          const cy = deck.cy - y;
           const short = deck.id === 'chance' ? 'CHANCE' : 'CHEST';
           return (
             <SvgText

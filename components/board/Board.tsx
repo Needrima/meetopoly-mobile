@@ -12,6 +12,10 @@ import {
   type RemoteAvatarModel,
 } from "@/components/board/BoardRemoteAvatar";
 import { BoardTile } from "@/components/board/BoardTile";
+import {
+  DeckDrawFlyCard,
+  type DeckDrawFlyModel,
+} from "@/components/board/DeckDrawFlyCard";
 import type { BoardPinModel } from "@/components/board/boardPins";
 import { BOARD_WALK } from "@/components/board/boardConstants";
 import {
@@ -45,6 +49,9 @@ type BoardProps = {
   /** Phase 7.2 — other players' presence avatars (pins stay from game WS). */
   remotes?: Omit<RemoteAvatarModel, "boardSize" | "radius">[];
   pins?: BoardPinModel[];
+  /** Chance/Chest draw fly-off (before card modal). */
+  deckDrawFly?: DeckDrawFlyModel | null;
+  onDeckDrawFlyComplete?: (key: string) => void;
 };
 
 type StaticLayerProps = {
@@ -186,6 +193,8 @@ export function Board({
   avatar,
   remotes = [],
   pins = [],
+  deckDrawFly = null,
+  onDeckDrawFlyComplete,
 }: BoardProps) {
   const layout = useMemo(
     () => layoutProp ?? layoutBoardRing(size, locations),
@@ -219,6 +228,12 @@ export function Board({
           radius={avatar.radius}
           initials={avatar.initials}
           accent={avatar.accent}
+        />
+      ) : null}
+      {deckDrawFly && onDeckDrawFlyComplete ? (
+        <DeckDrawFlyCard
+          fly={deckDrawFly}
+          onComplete={onDeckDrawFlyComplete}
         />
       ) : null}
     </View>

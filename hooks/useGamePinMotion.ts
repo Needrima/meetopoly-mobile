@@ -8,7 +8,18 @@ import {
   type GamePinPlayer,
 } from '@/components/board/boardPins';
 import { gameRollKey } from '@/hooks/gameRollKey';
-import { ECONOMY_MODAL_MS, JAIL_BOARD_INDEX } from '@/lib/economyFeedback';
+import {
+  CARD_REVEAL_HOLD_MS,
+  ECONOMY_MODAL_MS,
+  JAIL_BOARD_INDEX,
+} from '@/lib/economyFeedback';
+
+/** Hold on Chance/Chest: fly + card modal; +salary modal when pass-GO queued first. */
+function cardRevealHoldMs(roll: GameLastRoll): number {
+  return (
+    CARD_REVEAL_HOLD_MS + (roll.passedGo ? ECONOMY_MODAL_MS : 0)
+  );
+}
 
 const BOARD_SPACES = 40;
 /** ms between tile hops — ~2s for a typical 7. */
@@ -73,7 +84,7 @@ export function planPinMotion(
       return {
         kind: 'walkThenHoldThenJump',
         walkSteps,
-        holdMs: ECONOMY_MODAL_MS,
+        holdMs: cardRevealHoldMs(roll),
       };
     }
     if (roll.thirdDoubles || roll.total <= 0) {
@@ -97,7 +108,7 @@ export function planPinMotion(
       return {
         kind: 'walkThenHoldThenJump',
         walkSteps,
-        holdMs: ECONOMY_MODAL_MS,
+        holdMs: cardRevealHoldMs(roll),
       };
     }
     const wentBack =
@@ -107,13 +118,13 @@ export function planPinMotion(
       return {
         kind: 'walkThenHoldThenJump',
         walkSteps,
-        holdMs: ECONOMY_MODAL_MS,
+        holdMs: cardRevealHoldMs(roll),
       };
     }
     return {
       kind: 'walkThenHoldThenWalk',
       walkSteps,
-      holdMs: ECONOMY_MODAL_MS,
+      holdMs: cardRevealHoldMs(roll),
       resumeSteps,
     };
   }

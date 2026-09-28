@@ -17,10 +17,16 @@ export type TileLayout = {
 export type CenterDeckLayout = {
   id: 'chance' | 'community_chest';
   label: string;
-  /** Parallelogram corners (clockwise), board-local. */
+  /** Parallelogram corners (clockwise), board-local — collide hull (base card). */
   points: Array<{ x: number; y: number }>;
   /** Axis-aligned bounds — coarse collide reserved for 4.5. */
   bounds: { x: number; y: number; width: number; height: number };
+  /** Unrotated card center (board-local) — stack + draw fly. */
+  cx: number;
+  cy: number;
+  deckW: number;
+  deckH: number;
+  rotationDeg: number;
   fill: string;
   stroke: string;
 };
@@ -247,6 +253,11 @@ function makeDeck(opts: {
     label: opts.label,
     points,
     bounds: { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+    cx: opts.cx,
+    cy: opts.cy,
+    deckW: opts.deckW,
+    deckH: opts.deckH,
+    rotationDeg: opts.rotationDeg,
     fill: opts.fill,
     stroke: opts.stroke,
   };

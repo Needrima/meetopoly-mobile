@@ -27,6 +27,7 @@ import { useBlockHardwareBack } from "@/hooks/useBlockHardwareBack";
 import { useBoardSession } from "@/hooks/useBoardSession";
 import { useBoardWalk, type AvatarColorKey } from "@/hooks/useBoardWalk";
 import { useDiceRollMotion } from "@/hooks/useDiceRollMotion";
+import { useDeckDrawFly } from "@/hooks/useDeckDrawFly";
 import { useEconomyEventQueue } from "@/hooks/useEconomyEventQueue";
 import { useEconomyFeedback } from "@/hooks/useEconomyFeedback";
 import {
@@ -293,10 +294,28 @@ export default function BoardScreen() {
       holdWalk: holdPinWalk,
       localAccent: displayAccent,
     });
-  const turnBusy = holdPinWalk || pinAnimating;
   // During Chance/Chest reveal hold, pin is still "busy" for End/Roll but
   // economy feedback must present the card modal (not wait for full settle).
-  const economyWaitIdle = holdPinWalk || (pinAnimating && !cardHold);
+  const pinEconomyIdle = holdPinWalk || (pinAnimating && !cardHold);
+
+  const {
+    fly: deckDrawFly,
+    busy: deckFlyBusy,
+    onFlyComplete: onDeckDrawFlyComplete,
+  } = useDeckDrawFly({
+    lastCard: game?.lastCard,
+    decks: layout?.decks,
+    boardSize: layout?.size ?? 0,
+    ready: Boolean(layout && !pinEconomyIdle),
+    gameReady: Boolean(game),
+    enabled: boardFocused,
+  });
+
+  // Fly-off finishes before Chance/Chest modal (and other idle-gated feedback).
+  const economyWaitIdle = pinEconomyIdle || deckFlyBusy;
+  // Block End/Roll during fly + any economy celebration (incl. non-move cards).
+  const turnBusy =
+    holdPinWalk || pinAnimating || deckFlyBusy || economyHasCard;
 
   // Phase 9.3 / 12.4 — economy modals (involved) / toasts (spectators).
   useEconomyFeedback({
@@ -790,6 +809,8 @@ export default function BoardScreen() {
               }}
               remotes={remoteAvatars}
               pins={boardPins}
+              deckDrawFly={deckDrawFly}
+              onDeckDrawFlyComplete={onDeckDrawFlyComplete}
             />
           ) : null}
           {diceOverlay ? (

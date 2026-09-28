@@ -15,6 +15,12 @@ import { colors } from '@/theme/colors';
 /** Board economy celebration duration — longer in __DEV__ for playtesting. */
 export const ECONOMY_MODAL_MS = __DEV__ ? 5000 : 3000;
 
+/** Chance/Chest top-card fly-off before the reveal modal. */
+export const DECK_DRAW_FLY_MS = 520;
+
+/** Pin hold on Chance/Chest tile = fly-off + modal. */
+export const CARD_REVEAL_HOLD_MS = DECK_DRAW_FLY_MS + ECONOMY_MODAL_MS;
+
 /** Classic Jail / Just Visiting index (seed `specialType: jail`). */
 export const JAIL_BOARD_INDEX = 10;
 
