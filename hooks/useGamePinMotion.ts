@@ -103,18 +103,9 @@ export function planPinMotion(
     const walkSteps = Math.max(1, Math.min(BOARD_SPACES - 1, roll.total));
     const resumeSteps =
       (roll.toIndex - diceLand + BOARD_SPACES) % BOARD_SPACES;
-    // Go back / long reverse path → jump; otherwise walk onward (may pass GO).
-    if (resumeSteps === 0) {
-      return {
-        kind: 'walkThenHoldThenJump',
-        walkSteps,
-        holdMs: cardRevealHoldMs(roll),
-      };
-    }
-    const wentBack =
-      (diceLand - roll.toIndex + BOARD_SPACES) % BOARD_SPACES <= 6 &&
-      resumeSteps > 6;
-    if (wentBack) {
+    // Go Back 3 (and zero-step) → jump. All advance / trip / nearest → clockwise walk.
+    const isGoBack = lastCard?.cardId === 'chance_go_back_3';
+    if (isGoBack || resumeSteps === 0) {
       return {
         kind: 'walkThenHoldThenJump',
         walkSteps,
