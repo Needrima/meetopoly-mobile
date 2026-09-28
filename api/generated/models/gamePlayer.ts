@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.19.0
+ * OpenAPI spec version: 0.20.0
  */
 
 export interface GamePlayer {
@@ -41,4 +41,23 @@ not stored on the game document).
 Clients pass the observed value on enter-hub so a late enter cannot restick hubId.
  */
   hubRevision?: number;
+  /** Phase 12.0 — true when the player was sent to Jail (Go to Jail tile,
+three doubles, or later a card). False when merely Just Visiting on
+the Jail tile (board index 10).
+ */
+  inJail: boolean;
+  /**
+   * Phase 12.0/12.1 — count of failed jail-exit attempts this stay.
+Reset to 0 on jail entry; exit pay/doubles/GOOJF in 12.1.
+
+   * @minimum 0
+   */
+  jailTurns: number;
+  /**
+   * Phase 12.0 schema — number of Get Out of Jail Free cards held.
+Drawn from Chance/Chest in 12.2+; always 0 until then.
+
+   * @minimum 0
+   */
+  getOutOfJailFree: number;
 }

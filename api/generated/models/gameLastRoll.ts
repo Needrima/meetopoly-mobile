@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.19.0
+ * OpenAPI spec version: 0.20.0
  */
 
 export interface GameLastRoll {
@@ -30,6 +30,8 @@ export interface GameLastRoll {
   isDoubles: boolean;
   /** Consecutive doubles count after this roll (1–3) */
   doublesStreak: number;
-  /** True when movement was skipped (Jail deferred to Phase 12) */
+  /** True when three doubles sent the player to Jail (Phase 12.0).
+Pin moves to Jail; turn ends (awaiting_end).
+ */
   thirdDoubles: boolean;
 }
