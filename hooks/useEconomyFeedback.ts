@@ -5,6 +5,7 @@ import { gameRollKey } from '@/hooks/gameRollKey';
 import {
   buildBuyEvent,
   buildCardEvent,
+  buildJailDoublesFailEvent,
   buildJailExitEvent,
   buildJustVisitingEvent,
   buildPaymentEvent,
@@ -33,7 +34,7 @@ type UseEconomyFeedbackArgs = {
   displayAccent?: string | null;
   /**
    * `board` — involved → modal, others toast.
-   * Cards: every seated board player gets the modal.
+   * Cards: drawer → modal; others → toast. Hub → toast.
    * `hub` — always toast.
    */
   surface: 'board' | 'hub';
@@ -48,7 +49,7 @@ type UseEconomyFeedbackArgs = {
 
 /**
  * Phase 9.3 / 12.4 — detect buy / rent / tax / salary / card / just-visiting /
- * jail-exit from game WS and route to modal or toast.
+ * jail-exit / jail-doubles-fail from game WS and route to modal or toast.
  */
 export function useEconomyFeedback({
   game,
@@ -68,6 +69,7 @@ export function useEconomyFeedback({
   const cardSigRef = useRef<string | null>(null);
   const visitSigRef = useRef<string | null>(null);
   const jailStatusRef = useRef<string | null>(null);
+  const jailDoublesFailSigRef = useRef<string>('');
 
   // Seed signatures on first game snapshot (no historical replay).
   // Also advance sigs while disabled so reuniting focus does not replay.
@@ -88,6 +90,19 @@ export function useEconomyFeedback({
         ? gameRollKey(game.lastRoll)
         : '';
     const jailSig = jailStatusSignature(game.players);
+    const jailFailKey =
+      game.lastRoll &&
+      game.players.some(
+        (p) =>
+          p.userId === game.lastRoll!.userId &&
+          p.inJail &&
+          game.lastRoll!.fromIndex === jailBoardIndex(locations) &&
+          game.lastRoll!.toIndex === game.lastRoll!.fromIndex &&
+          !game.lastRoll!.isDoubles &&
+          !game.lastRoll!.thirdDoubles,
+      )
+        ? gameRollKey(game.lastRoll)
+        : '';
 
     if (!readyRef.current) {
       readyRef.current = true;
@@ -98,6 +113,7 @@ export function useEconomyFeedback({
       cardSigRef.current = cardSig || null;
       visitSigRef.current = visitKey || null;
       jailStatusRef.current = jailSig;
+      jailDoublesFailSigRef.current = jailFailKey;
       return;
     }
     if (!enabled) {
@@ -113,12 +129,15 @@ export function useEconomyFeedback({
         visitSigRef.current = visitKey;
       }
       jailStatusRef.current = jailSig;
+      if (jailFailKey) {
+        jailDoublesFailSigRef.current = jailFailKey;
+      }
     }
   }, [game, enabled, locations]);
 
   const present = (event: EconomyEvent, involved: boolean) => {
-    // Jail exit decisions → toast for everyone (actor already used the sheet).
-    if (event.kind === 'jail_exit') {
+    // Jail exit / failed doubles → toast for the whole table.
+    if (event.kind === 'jail_exit' || event.kind === 'jail_doubles_fail') {
       notify({
         type: 'info',
         title: event.toastTitle,
@@ -127,18 +146,27 @@ export function useEconomyFeedback({
       });
       return;
     }
-    // Board Chance/Chest: every seated player sees the card face.
-    const forceModal =
-      event.kind === 'card' && surface === 'board' && Boolean(enqueueModal);
-    if (surface === 'hub' || (!involved && !forceModal) || !enqueueModal) {
+    // Chance/Chest: drawer on board → modal only; everyone else (and hub) → toast.
+    if (event.kind === 'card') {
+      if (surface === 'board' && involved && enqueueModal) {
+        enqueueModal(event);
+        return;
+      }
+      notify({
+        type: event.cashDelta < 0 ? 'error' : 'success',
+        title: event.toastTitle,
+        message: event.toastMessage,
+        visibilityTime: 3200,
+      });
+      return;
+    }
+    if (surface === 'hub' || !involved || !enqueueModal) {
       const unpaid =
         (event.kind === 'rent' || event.kind === 'tax') && !event.paidInFull;
       notify({
         type: unpaid
           ? 'error'
-          : event.kind === 'salary' ||
-              event.kind === 'buy' ||
-              event.kind === 'card'
+          : event.kind === 'salary' || event.kind === 'buy'
             ? 'success'
             : 'info',
         title: event.toastTitle,
@@ -291,8 +319,9 @@ export function useEconomyFeedback({
       players: game.players,
       displayAccent,
     });
-    // Board → modal for everyone; hub → toast via present().
-    present(event, surface === 'board');
+    const iDrew = card.userId === localUserId;
+    // Board drawer → modal only; others / hub → toast.
+    present(event, surface === 'board' && iDrew);
   }, [
     enabled,
     game,
@@ -408,5 +437,36 @@ export function useEconomyFeedback({
       });
       present(event, false);
     }
+  }, [enabled, game, localUserId, locations, surface, enqueueModal]);
+
+  // Failed jail doubles (still in Jail) → toast for the table.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current) {
+      return;
+    }
+    const roll = game.lastRoll;
+    if (!roll || roll.isDoubles || roll.thirdDoubles) {
+      return;
+    }
+    const jailIdx = jailBoardIndex(locations);
+    if (roll.fromIndex !== jailIdx || roll.toIndex !== roll.fromIndex) {
+      return;
+    }
+    const mover = game.players.find((p) => p.userId === roll.userId);
+    if (!mover?.inJail) {
+      return;
+    }
+    const key = gameRollKey(roll);
+    if (key === jailDoublesFailSigRef.current) {
+      return;
+    }
+    jailDoublesFailSigRef.current = key;
+    const event = buildJailDoublesFailEvent({
+      username: roll.username,
+      localUserId,
+      userId: roll.userId,
+      jailTurns: mover.jailTurns,
+    });
+    present(event, false);
   }, [enabled, game, localUserId, locations, surface, enqueueModal]);
 }

@@ -98,11 +98,20 @@ export type EconomyJustVisitingEvent = {
   toastMessage: string;
 };
 
-/** Phase 12.4 — left Jail (toast for others; actor used the jail sheet). */
+/** Phase 12.4 — left Jail (toast for table). */
 export type EconomyJailExitEvent = {
   kind: 'jail_exit';
   reason: 'fine' | 'card' | 'doubles';
   actorUsername: string;
+  toastTitle: string;
+  toastMessage: string;
+};
+
+/** Phase 12.4b — failed doubles try while still in Jail. */
+export type EconomyJailDoublesFailEvent = {
+  kind: 'jail_doubles_fail';
+  actorUsername: string;
+  attemptsLeft: number;
   toastTitle: string;
   toastMessage: string;
 };
@@ -114,7 +123,8 @@ export type EconomyEvent =
   | EconomySalaryEvent
   | EconomyCardEvent
   | EconomyJustVisitingEvent
-  | EconomyJailExitEvent;
+  | EconomyJailExitEvent
+  | EconomyJailDoublesFailEvent;
 
 export function buyModalTitle(
   locKind: Location['kind'] | undefined,
@@ -325,9 +335,16 @@ export function isSalaryInvolved(
   return Boolean(localUserId && localUserId === passerUserId);
 }
 
-/** Board: every seated player sees the card face. Hub: toast only. */
-export function isCardInvolvedOnBoard(surface: 'board' | 'hub'): boolean {
-  return surface === 'board';
+/** Board: drawer sees card modal; others toast. Hub: toast only. */
+export function isCardDrawerOnBoard(
+  surface: 'board' | 'hub',
+  localUserId: string | null,
+  drawerUserId: string,
+): boolean {
+  return (
+    surface === 'board' &&
+    Boolean(localUserId && localUserId === drawerUserId)
+  );
 }
 
 export function isJustVisitingInvolved(
@@ -346,16 +363,17 @@ export function buildCardEvent(args: {
   const { card, localUserId, players, displayAccent } = args;
   const iDrew = Boolean(localUserId && card.userId === localUserId);
   const name = formatUsername(card.username) || 'Someone';
-  const deckLabel =
-    card.deck === 'chance' ? 'Chance' : 'Community Chest';
   const cashDelta = card.cashDelta ?? 0;
-  const amountSuffix =
+  const amountLine =
     cashDelta === 0
       ? ''
       : cashDelta > 0
-        ? ` (+${cashDelta} MeetCoin)`
-        : ` (${cashDelta} MeetCoin)`;
-  const titleWithAmount = `${card.title}${amountSuffix}`;
+        ? ` +${cashDelta} MeetCoin`
+        : ` −${Math.abs(cashDelta)} MeetCoin`;
+  const toastTitle =
+    card.deck === 'chance'
+      ? `${name} took a Chance`
+      : `${name} opened a Chest`;
   return {
     kind: 'card',
     deck: card.deck,
@@ -370,8 +388,8 @@ export function buildCardEvent(args: {
       localUserId,
       displayAccent,
     ),
-    toastTitle: deckLabel,
-    toastMessage: iDrew ? titleWithAmount : `${name}: ${titleWithAmount}`,
+    toastTitle,
+    toastMessage: `${card.title}${amountLine}`,
   };
 }
 
@@ -438,6 +456,33 @@ export function buildJailExitEvent(args: {
     toastMessage: iActed
       ? 'Rolled doubles — free!'
       : `${name} rolled doubles out of Jail`,
+  };
+}
+
+export function buildJailDoublesFailEvent(args: {
+  username: string;
+  localUserId: string | null;
+  userId: string;
+  jailTurns: number;
+}): EconomyJailDoublesFailEvent {
+  const iActed = Boolean(args.localUserId && args.userId === args.localUserId);
+  const name = formatUsername(args.username) || 'Someone';
+  const who = iActed ? 'You' : name;
+  const attemptsLeft = Math.max(0, 3 - args.jailTurns);
+  const tryWord = attemptsLeft === 1 ? 'try' : 'tries';
+  return {
+    kind: 'jail_doubles_fail',
+    actorUsername: who,
+    attemptsLeft,
+    toastTitle: 'Still in Jail',
+    toastMessage:
+      attemptsLeft > 0
+        ? iActed
+          ? `No doubles. ${attemptsLeft} ${tryWord} left`
+          : `${name} rolled. no doubles (${attemptsLeft} ${tryWord} left)`
+        : iActed
+          ? 'No doubles on the last try'
+          : `${name} rolled. no doubles`,
   };
 }
 
