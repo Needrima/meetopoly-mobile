@@ -313,6 +313,9 @@ export default function BoardScreen() {
 
   // Fly-off finishes before Chance/Chest modal (and other idle-gated feedback).
   const economyWaitIdle = pinEconomyIdle || deckFlyBusy;
+  // Salary waits for card modal + full pin resume (Advance to GO, wrap trips).
+  const salaryWaitIdle =
+    holdPinWalk || pinAnimating || deckFlyBusy || economyHasCard;
   // Block End/Roll during fly + any economy celebration (incl. non-move cards).
   const turnBusy =
     holdPinWalk || pinAnimating || deckFlyBusy || economyHasCard;
@@ -323,6 +326,7 @@ export default function BoardScreen() {
     locations,
     localUserId,
     waitIdle: economyWaitIdle,
+    salaryWaitIdle,
     displayAccent,
     surface: "board",
     enqueueModal: enqueueEconomy,

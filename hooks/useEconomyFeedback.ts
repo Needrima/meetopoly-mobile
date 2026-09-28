@@ -31,6 +31,12 @@ type UseEconomyFeedbackArgs = {
   localUserId: string | null;
   /** Wait for pin settle / hub turn busy before firing. */
   waitIdle: boolean;
+  /**
+   * Stricter idle for Pass-GO salary — wait until card reveal + pin resume
+   * finish so salary does not cover the Chance/Chest modal (Advance to GO).
+   * Defaults to `waitIdle`.
+   */
+  salaryWaitIdle?: boolean;
   displayAccent?: string | null;
   /**
    * `board` — involved → modal, others toast.
@@ -56,11 +62,13 @@ export function useEconomyFeedback({
   locations,
   localUserId,
   waitIdle,
+  salaryWaitIdle,
   displayAccent = null,
   surface,
   enqueueModal,
   enabled = true,
 }: UseEconomyFeedbackArgs): void {
+  const salaryIdle = salaryWaitIdle ?? waitIdle;
   const readyRef = useRef(false);
   const deedsSigRef = useRef<string | null>(null);
   const paymentSigRef = useRef<string | null>(null);
@@ -178,37 +186,6 @@ export function useEconomyFeedback({
     enqueueModal(event);
   };
 
-  // Pass-GO / salary after idle.
-  useEffect(() => {
-    if (!enabled || !localUserId || !passGoReadyRef.current || waitIdle) {
-      return;
-    }
-    const roll = game?.lastRoll;
-    if (!roll?.passedGo || roll.passGoAmount <= 0) {
-      return;
-    }
-    const key = passGoSignature(roll);
-    if (passGoSigRef.current === key) {
-      return;
-    }
-    passGoSigRef.current = key;
-    const event = buildSalaryEvent({
-      amount: roll.passGoAmount,
-      username: roll.username,
-      localUserId,
-      passerUserId: roll.userId,
-    });
-    present(event, isSalaryInvolved(localUserId, roll.userId));
-  }, [
-    enabled,
-    game?.lastRoll,
-    waitIdle,
-    localUserId,
-    surface,
-    enqueueModal,
-    displayAccent,
-  ]);
-
   // New deeds.
   useEffect(() => {
     if (!enabled || !localUserId || !game || !readyRef.current) {
@@ -254,7 +231,74 @@ export function useEconomyFeedback({
     displayAccent,
   ]);
 
-  // Rent / tax after idle.
+  // Chance / Chest draw after idle (pin settle / cardHold).
+  // Dedupe by stable draw id — lastCard persists on the game for the whole table.
+  // Declared before salary so same-tick idle (hub) presents card first.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current || waitIdle) {
+      return;
+    }
+    const card = game.lastCard;
+    if (!card) {
+      return;
+    }
+    const sig = lastCardSignature(card);
+    if (sig === cardSigRef.current) {
+      return;
+    }
+    cardSigRef.current = sig;
+    const event = buildCardEvent({
+      card,
+      localUserId,
+      players: game.players,
+      displayAccent,
+    });
+    const iDrew = card.userId === localUserId;
+    // Board drawer → modal only; others / hub → toast.
+    present(event, surface === 'board' && iDrew);
+  }, [
+    enabled,
+    game,
+    localUserId,
+    waitIdle,
+    surface,
+    enqueueModal,
+    displayAccent,
+  ]);
+
+  // Pass-GO / salary after full settle (not during Chance/Chest hold/modal).
+  // After card effect so hub toasts keep card → salary order when both unlock.
+  useEffect(() => {
+    if (!enabled || !localUserId || !passGoReadyRef.current || salaryIdle) {
+      return;
+    }
+    const roll = game?.lastRoll;
+    if (!roll?.passedGo || roll.passGoAmount <= 0) {
+      return;
+    }
+    const key = passGoSignature(roll);
+    if (passGoSigRef.current === key) {
+      return;
+    }
+    passGoSigRef.current = key;
+    const event = buildSalaryEvent({
+      amount: roll.passGoAmount,
+      username: roll.username,
+      localUserId,
+      passerUserId: roll.userId,
+    });
+    present(event, isSalaryInvolved(localUserId, roll.userId));
+  }, [
+    enabled,
+    game?.lastRoll,
+    salaryIdle,
+    localUserId,
+    surface,
+    enqueueModal,
+    displayAccent,
+  ]);
+
+  // Rent / tax after idle — after salary so wrap-to-rent stays salary → rent.
   useEffect(() => {
     if (!enabled || !localUserId || !game || !readyRef.current || waitIdle) {
       return;
@@ -297,40 +341,6 @@ export function useEconomyFeedback({
       });
     }
   }, [enabled, game, localUserId, waitIdle, surface, enqueueModal, displayAccent]);
-
-  // Chance / Chest draw after idle (pin settle / cardHold).
-  // Dedupe by stable draw id — lastCard persists on the game for the whole table.
-  useEffect(() => {
-    if (!enabled || !localUserId || !game || !readyRef.current || waitIdle) {
-      return;
-    }
-    const card = game.lastCard;
-    if (!card) {
-      return;
-    }
-    const sig = lastCardSignature(card);
-    if (sig === cardSigRef.current) {
-      return;
-    }
-    cardSigRef.current = sig;
-    const event = buildCardEvent({
-      card,
-      localUserId,
-      players: game.players,
-      displayAccent,
-    });
-    const iDrew = card.userId === localUserId;
-    // Board drawer → modal only; others / hub → toast.
-    present(event, surface === 'board' && iDrew);
-  }, [
-    enabled,
-    game,
-    localUserId,
-    waitIdle,
-    surface,
-    enqueueModal,
-    displayAccent,
-  ]);
 
   // Just Visiting after idle.
   // Consume jail-bound rolls while `inJail` so a later pay/card leave (same
