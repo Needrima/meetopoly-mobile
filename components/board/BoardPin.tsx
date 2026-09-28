@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -6,6 +6,8 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+
+import { PIN_JUMP_MS } from '@/hooks/useGamePinMotion';
 
 type BoardPinProps = {
   x: number;
@@ -17,9 +19,12 @@ type BoardPinProps = {
 };
 
 const HOP_MS = 300;
+/** Pixel travel above this uses the longer jail-teleport ease. */
+const JUMP_DIST = 72;
 
 /**
  * Game pin on a boardIndex slot. Position via Reanimated when hopping tiles.
+ * Long moves (Go-to-Jail → Jail) use a slower straight-line lerp.
  */
 export function BoardPin({
   x,
@@ -33,6 +38,7 @@ export function BoardPin({
   const stemW = Math.max(3, radius * 0.28);
   const left = useSharedValue(x - head / 2);
   const top = useSharedValue(y - head - stemH * 0.35);
+  const prevXY = useRef({ x, y });
 
   useEffect(() => {
     const nextLeft = x - head / 2;
@@ -40,14 +46,18 @@ export function BoardPin({
     if (!animate) {
       left.value = nextLeft;
       top.value = nextTop;
+      prevXY.current = { x, y };
       return;
     }
+    const dist = Math.hypot(x - prevXY.current.x, y - prevXY.current.y);
+    prevXY.current = { x, y };
+    const duration = dist > JUMP_DIST ? PIN_JUMP_MS : HOP_MS;
     left.value = withTiming(nextLeft, {
-      duration: HOP_MS,
+      duration,
       easing: Easing.inOut(Easing.cubic),
     });
     top.value = withTiming(nextTop, {
-      duration: HOP_MS,
+      duration,
       easing: Easing.inOut(Easing.cubic),
     });
   }, [x, y, head, stemH, animate, left, top]);

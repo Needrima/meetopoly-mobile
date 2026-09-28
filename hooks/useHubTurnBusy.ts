@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { Game } from '@/api/types';
 import { gameRollKey } from '@/hooks/gameRollKey';
 import { useDiceRollMotion } from '@/hooks/useDiceRollMotion';
-import { PIN_STEP_MS } from '@/hooks/useGamePinMotion';
-
-const BOARD_SPACES = 40;
+import {
+  pinMotionDurationMs,
+  planPinMotion,
+} from '@/hooks/useGamePinMotion';
 
 /**
  * Hub mirror of board `turnBusy` (dice hold + pin walk) without a board layout.
@@ -29,20 +30,15 @@ export function useHubTurnBusy(game: Game | null): boolean {
     if (
       pendingPinKeyRef.current &&
       pendingPinKeyRef.current === key &&
-      roll
+      roll &&
+      game
     ) {
-      const delta =
-        (roll.toIndex - roll.fromIndex + BOARD_SPACES) % BOARD_SPACES;
-      const steps =
-        roll.thirdDoubles || delta === 0
-          ? 0
-          : Math.max(1, Math.min(BOARD_SPACES - 1, delta));
-      if (steps === 0) {
+      const ms = pinMotionDurationMs(planPinMotion(roll, game.players));
+      if (ms <= 0) {
         pendingPinKeyRef.current = null;
         setPinBusy(false);
         return;
       }
-      const ms = steps * PIN_STEP_MS;
       setPinBusy(true);
       const t = setTimeout(() => {
         pendingPinKeyRef.current = null;
@@ -54,7 +50,7 @@ export function useHubTurnBusy(game: Game | null): boolean {
     if (!holdPinWalk && !pendingPinKeyRef.current) {
       setPinBusy(false);
     }
-  }, [holdPinWalk, game?.lastRoll]);
+  }, [holdPinWalk, game?.lastRoll, game?.players]);
 
   return holdPinWalk || pinBusy;
 }
