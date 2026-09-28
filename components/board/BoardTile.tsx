@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { Location } from "@/api/types";
+import { BoardBuildingMarkers } from "@/components/board/BoardBuildingMarkers";
 import type { BoardSide, TileLayout } from "@/components/board/boardLayout";
 import { resolveBoardIcon } from "@/components/board/iconRegistry";
 import {
@@ -29,6 +30,10 @@ type BoardTileProps = {
   economyAmount?: number | null;
   /** Owner pin color chip when this space has a deed. */
   ownerColor?: string | null;
+  /** Phase 11.4c — deed houses 0–5 (5 = hotel). */
+  houses?: number;
+  /** Phase 11.4c — mortgaged deed shows M. */
+  mortgaged?: boolean;
   /** Tap opens tile info; omit / undefined while buyer has buy modal open. */
   onPress?: () => void;
 };
@@ -64,6 +69,8 @@ function BoardTileInner({
   economyDimmed = false,
   economyAmount = null,
   ownerColor = null,
+  houses = 0,
+  mortgaged = false,
   onPress,
 }: BoardTileProps) {
   const visual = tileVisual(location, { isCorner: tile.isCorner });
@@ -191,6 +198,13 @@ function BoardTileInner({
           ]}
         />
       ) : null}
+
+      <BoardBuildingMarkers
+        side={tile.side}
+        houses={houses}
+        mortgaged={mortgaged}
+        minEdge={minEdge}
+      />
     </>
   );
 

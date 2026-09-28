@@ -707,6 +707,7 @@ export default function BoardScreen() {
               }
               economyModeActive={Boolean(economy.mode)}
               ownerColorByIndex={ownerColorByIndex}
+              deeds={game?.deeds}
               onTilePress={showBuyModal ? undefined : onTilePress}
               avatar={{
                 poseX: walk.poseX,

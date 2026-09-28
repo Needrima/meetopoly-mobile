@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 
 import type { Location } from "@/api/types";
+import type { GameDeed } from "@/api/types";
 import { BoardAvatar } from "@/components/board/BoardAvatar";
 import { BoardCenter } from "@/components/board/BoardCenter";
 import { BoardPin } from "@/components/board/BoardPin";
@@ -30,6 +31,8 @@ type BoardProps = {
   economyModeActive?: boolean;
   /** boardIndex → owner pinColor for owned buyable spaces. */
   ownerColorByIndex?: ReadonlyMap<number, string>;
+  /** Phase 11.4c — deeds for house/hotel/M markers. */
+  deeds?: readonly GameDeed[];
   /** When set, tiles are tappable (omit while local buy modal is open). */
   onTilePress?: (boardIndex: number) => void;
   avatar?: {
@@ -51,6 +54,7 @@ type StaticLayerProps = {
   economyEligibleByIndex?: ReadonlyMap<number, number>;
   economyModeActive?: boolean;
   ownerColorByIndex?: ReadonlyMap<number, string>;
+  deeds?: readonly GameDeed[];
   onTilePress?: (boardIndex: number) => void;
 };
 
@@ -62,6 +66,7 @@ const BoardStaticLayer = memo(function BoardStaticLayer({
   economyEligibleByIndex,
   economyModeActive = false,
   ownerColorByIndex,
+  deeds,
   onTilePress,
 }: StaticLayerProps) {
   const byIndex = useMemo(() => {
@@ -71,6 +76,14 @@ const BoardStaticLayer = memo(function BoardStaticLayer({
     }
     return map;
   }, [locations]);
+
+  const deedByIndex = useMemo(() => {
+    const map = new Map<number, GameDeed>();
+    for (const d of deeds ?? []) {
+      map.set(d.boardIndex, d);
+    }
+    return map;
+  }, [deeds]);
 
   return (
     <>
@@ -85,6 +98,7 @@ const BoardStaticLayer = memo(function BoardStaticLayer({
         const eligibleAmount =
           economyEligibleByIndex?.get(tile.boardIndex) ?? null;
         const economyEligible = eligibleAmount != null;
+        const deed = deedByIndex.get(tile.boardIndex);
         return (
           <BoardTile
             key={tile.boardIndex}
@@ -95,6 +109,8 @@ const BoardStaticLayer = memo(function BoardStaticLayer({
             economyDimmed={economyModeActive && !economyEligible}
             economyAmount={eligibleAmount}
             ownerColor={ownerColorByIndex?.get(tile.boardIndex) ?? null}
+            houses={deed?.houses ?? 0}
+            mortgaged={Boolean(deed?.mortgaged)}
             onPress={
               onTilePress
                 ? () => {
@@ -165,6 +181,7 @@ export function Board({
   economyEligibleByIndex,
   economyModeActive = false,
   ownerColorByIndex,
+  deeds,
   onTilePress,
   avatar,
   remotes = [],
@@ -186,6 +203,7 @@ export function Board({
         economyEligibleByIndex={economyEligibleByIndex}
         economyModeActive={economyModeActive}
         ownerColorByIndex={ownerColorByIndex}
+        deeds={deeds}
         onTilePress={onTilePress}
       />
       <BoardPinsLayer pins={pins} />
