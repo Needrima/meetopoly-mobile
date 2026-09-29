@@ -427,6 +427,7 @@ export default function HubScreen() {
   }, [goBackToBoard]);
 
   // Phase 13.1 — prefer Open board when a bank auction starts (board-only UI).
+  // Wait for hub turnBusy (dice hold + pin settle mirror) so we do not yank mid-walk.
   const auctionKeyRef = useRef<string | null>(null);
   useEffect(() => {
     const a = game?.auction;
@@ -434,6 +435,9 @@ export default function HubScreen() {
       if (!a) {
         auctionKeyRef.current = null;
       }
+      return;
+    }
+    if (turnBusy) {
       return;
     }
     const key = `${a.boardIndex}:${a.startedByUserId}`;
@@ -449,7 +453,7 @@ export default function HubScreen() {
       message: 'Opening board for bidding…',
     });
     openBoard();
-  }, [game?.auction, inHubMarked, openBoard]);
+  }, [game?.auction, inHubMarked, openBoard, turnBusy]);
 
   const dismissBuySheet = useCallback(() => {
     setBuySheetOpen(false);

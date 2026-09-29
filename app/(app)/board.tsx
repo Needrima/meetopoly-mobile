@@ -646,8 +646,13 @@ export default function BoardScreen() {
     !cardRevealBlocking &&
     !auction,
   );
+  // Server may attach auction on roll/landing (e.g. broke auto-auction) before
+  // dice hold + pin walk finish — wait like buy so the overlay does not cover motion.
   const showAuctionModal = Boolean(
-    auction && game?.status === "active",
+    auction &&
+      game?.status === "active" &&
+      !turnBusy &&
+      !cardRevealBlocking,
   );
 
   useEffect(() => {
