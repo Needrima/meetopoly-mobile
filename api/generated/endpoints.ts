@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.25.0
+ * OpenAPI spec version: 0.26.0
  */
 import type {
   AuctionBidBody,
@@ -38,6 +38,8 @@ import type {
   SignupVerifyRequest,
   SignupVerifyResponse,
   Table,
+  TradeAcceptBody,
+  TradeProposeBody,
   UserProfile,
   WorldsResponse
 } from './models';
@@ -656,7 +658,7 @@ export const buyProperty = async (gameId: string, options?: RequestInit): Promis
 /**
  * Phase 13.0 — current player with an open buyOffer starts a turn-based auction.
 If cash < list price, the server auto-starts an auction on land (no buyOffer).
-All personal time banks pause for the whole auction; each bidder gets a 30s clock.
+All personal time banks pause for the whole auction; each bidder gets a 60s clock.
 
  * @summary Decline list-price buy and start a bank auction
  */
@@ -727,6 +729,91 @@ export const getAuctionFoldUrl = (gameId: string,) => {
 export const auctionFold = async (gameId: string, options?: RequestInit): Promise<Game> => {
   
   return apiMutator<Game>(getAuctionFoldUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Phase 13.2 — current player only. One open trade table-wide. Both sides must be
+non-empty; cash-for-cash alone is rejected (at least one deed or GOOJF on either side).
+Deeds with houses/hotels cannot be traded. Pauses the proposer's 3-minute turn clock
+while the target has 60s to accept/decline (auto-decline on timeout). Fans out via WS.
+
+ * @summary Propose a player-to-player trade
+ */
+export const getProposeTradeUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/trade/propose`
+}
+
+export const proposeTrade = async (gameId: string,
+    tradeProposeBody: TradeProposeBody, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getProposeTradeUrl(gameId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      tradeProposeBody,)
+  }
+);}
+
+
+
+/**
+ * Phase 13.2 — trade target only. If any transferred deed is mortgaged, body must
+include `mortgageAction` (`redeem_all` | `leave_all`). Redeem cost is mortgage + 10%.
+
+ * @summary Accept the open trade offer
+ */
+export const getAcceptTradeUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/trade/accept`
+}
+
+export const acceptTrade = async (gameId: string,
+    tradeAcceptBody?: TradeAcceptBody, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getAcceptTradeUrl(gameId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      tradeAcceptBody,)
+  }
+);}
+
+
+
+/**
+ * Phase 13.2 — trade target only. Resumes the proposer's turn clock.
+ * @summary Decline the open trade offer
+ */
+export const getDeclineTradeUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/trade/decline`
+}
+
+export const declineTrade = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getDeclineTradeUrl(gameId),
   {      
     ...options,
     method: 'POST'

@@ -7,11 +7,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.26.0
  */
+import type { GameTrade } from './gameTrade';
 
-export type AuctionBidBody = {
-  /**
-   * MeetCoin bid (≥ minBid)
-   * @minimum 1
-   */
-  amount: number;
-};
+/**
+ * Phase 13.2 — open trade offer (null when none)
+ * @nullable
+ */
+export type GameTradeProperty = GameTrade | null;

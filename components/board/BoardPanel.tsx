@@ -10,7 +10,7 @@ import { shortTileName } from "@/components/board/tileLabel";
 import { MuteMicButton } from "@/components/voice/MuteMicButton";
 import { AnimatedMeetCoinAmount } from "@/components/ui/AnimatedMeetCoinAmount";
 import type { StickInput } from "@/hooks/useBoardWalk";
-import { usePlayerTimeBanks } from "@/hooks/useTurnCountdown";
+import { useCurrentTurnClock } from "@/hooks/useTurnCountdown";
 import type { EconomyMode } from "@/lib/economyEligibility";
 import { formatUsername } from "@/lib/formatUsername";
 import { colors } from "@/theme/colors";
@@ -117,8 +117,16 @@ export function BoardPanel({
   );
   const canRoll = Boolean(isMyTurn && game?.canRoll);
   const canEnd = Boolean(isMyTurn && game?.canEndTurn);
-  const bankLabels = usePlayerTimeBanks(game);
-  const localBank = localPlayer ? (bankLabels[localPlayer.userId] ?? "") : "";
+  const turnClock = useCurrentTurnClock(game);
+  const localBank =
+    localPlayer && turnClock?.userId === localPlayer.userId
+      ? turnClock.label
+      : "";
+  const localBankUrgent = Boolean(
+    localPlayer &&
+      turnClock?.userId === localPlayer.userId &&
+      turnClock.urgent,
+  );
   const localPin = accent ?? localPlayer?.pinColor ?? colors.accent;
   const rollActive = Boolean(
     onRoll && canRoll && !rollDisabled && !rollPending,
@@ -193,7 +201,9 @@ export function BoardPanel({
                 <Text
                   style={[
                     styles.bankLabel,
-                    isMyTurn ? styles.bankLabelActive : styles.bankLabelPaused,
+                    localBankUrgent
+                      ? styles.bankLabelUrgent
+                      : styles.bankLabelActive,
                     localBank === "0:00" ? styles.bankLabelExpired : null,
                   ]}
                 >
@@ -205,8 +215,14 @@ export function BoardPanel({
           ) : null}
           <View style={styles.balances}>
             {otherPlayers.map((p) => {
-              const bank = bankLabels[p.userId] ?? "";
               const isCurrent = p.userId === game.currentUserId && !p.resigned;
+              const bank =
+                isCurrent && turnClock?.userId === p.userId
+                  ? turnClock.label
+                  : "";
+              const bankUrgent = Boolean(
+                isCurrent && turnClock?.userId === p.userId && turnClock.urgent,
+              );
               const pinHex = p.pinColor;
               const hubCode = hubBadgeCode(p.hubId, hubCodeById);
               const name = formatUsername(p.username);
@@ -254,9 +270,9 @@ export function BoardPanel({
                     <Text
                       style={[
                         styles.bankLabel,
-                        isCurrent
-                          ? styles.bankLabelActive
-                          : styles.bankLabelPaused,
+                        bankUrgent
+                          ? styles.bankLabelUrgent
+                          : styles.bankLabelActive,
                         bank === "0:00" ? styles.bankLabelExpired : null,
                       ]}
                     >
@@ -389,6 +405,9 @@ const styles = StyleSheet.create({
   },
   bankLabelActive: {
     color: colors.brand,
+  },
+  bankLabelUrgent: {
+    color: colors.danger,
   },
   bankLabelPaused: {
     color: colors.muted,

@@ -7,11 +7,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.26.0
  */
+import type { GameLastForfeit } from './gameLastForfeit';
 
-export type AuctionBidBody = {
-  /**
-   * MeetCoin bid (≥ minBid)
-   * @minimum 1
-   */
-  amount: number;
-};
+/**
+ * Phase 13.2 — most recent forfeit for toasts
+ * @nullable
+ */
+export type GameLastForfeitProperty = GameLastForfeit | null;

@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.25.0
+ * OpenAPI spec version: 0.26.0
  */
 import type { GameAuctionKind } from './gameAuctionKind';
 import type { GameAuctionEvent } from './gameAuctionEvent';
@@ -24,7 +24,7 @@ export interface GameAuction {
   currentBidderUsername?: string;
   /** Minimum next bid (1 if highBid is 0, else highBid+1) */
   minBid: number;
-  /** UTC instant when the current bidder's 30s clock expires */
+  /** UTC instant when the current bidder's 60s clock expires */
   bidDeadline: string;
   foldedUserIds: string[];
   history: GameAuctionEvent[];

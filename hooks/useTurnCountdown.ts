@@ -14,62 +14,79 @@ export function formatBankMs(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+/** Phase 13.2 — panel turns red at ≤1 minute remaining. */
+export const TURN_CLOCK_URGENT_MS = 60_000;
+
+export type TurnClockHud = {
+  userId: string;
+  label: string;
+  /** True when remaining ≤ 1:00 (red). */
+  urgent: boolean;
+  remainingMs: number;
+};
+
 /**
- * Per-player time (Phase 6.3b) for HUD on every device.
- * Current player's bank ticks down; others stay paused at their remainder.
+ * Phase 13.2 — live turn clock for the **current** player only (3:00 fresh per turn).
+ * Paused when `turnStartedAt` is empty (auction / trade reply wait).
+ */
+export function useCurrentTurnClock(
+  game: Game | null | undefined,
+): TurnClockHud | null {
+  const [hud, setHud] = useState<TurnClockHud | null>(null);
+
+  const currentId = game?.currentUserId ?? '';
+  const current = game?.players?.find((p) => p.userId === currentId);
+  const playersKey = current
+    ? `${current.userId}:${current.timeRemainingMs}:${current.resigned ? 1 : 0}`
+    : '';
+  const turnKey = `${game?.status ?? ''}:${currentId}:${game?.turnStartedAt ?? ''}`;
+
+  useEffect(() => {
+    if (
+      !game ||
+      game.status !== 'active' ||
+      !current ||
+      current.resigned
+    ) {
+      setHud(null);
+      return;
+    }
+
+    const received = Date.now();
+    const ms = current.timeRemainingMs ?? 0;
+    const ticking = Boolean(game.turnStartedAt);
+    const endAt = ticking ? received + ms : null;
+
+    const tick = () => {
+      const remaining = endAt != null ? Math.max(0, endAt - Date.now()) : ms;
+      setHud({
+        userId: current.userId,
+        label: formatBankMs(remaining),
+        urgent: remaining <= TURN_CLOCK_URGENT_MS,
+        remainingMs: remaining,
+      });
+    };
+    tick();
+    if (!ticking) {
+      return;
+    }
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [game, playersKey, turnKey, current]);
+
+  return hud;
+}
+
+/**
+ * @deprecated Prefer `useCurrentTurnClock` (Phase 13.2 shows current player only).
+ * Kept for hub sheets that still key by userId.
  */
 export function usePlayerTimeBanks(
   game: Game | null | undefined,
 ): Record<string, string> {
-  const [labels, setLabels] = useState<Record<string, string>>({});
-
-  const playersKey =
-    game?.players
-      ?.map((p) => `${p.userId}:${p.timeRemainingMs}:${p.resigned ? 1 : 0}`)
-      .join('|') ?? '';
-  const turnKey = `${game?.status ?? ''}:${game?.currentUserId ?? ''}:${game?.turnStartedAt ?? ''}`;
-
-  useEffect(() => {
-    if (!game || game.status !== 'active' || !game.players?.length) {
-      setLabels({});
-      return;
-    }
-
-    const endsAt = new Map<string, number>();
-    const frozen = new Map<string, number>();
-    const received = Date.now();
-
-    for (const p of game.players) {
-      if (p.resigned) {
-        frozen.set(p.userId, 0);
-        continue;
-      }
-      const ms = p.timeRemainingMs ?? 0;
-      if (p.userId === game.currentUserId && game.turnStartedAt) {
-        // Server `timeRemainingMs` is already live at snapshot time.
-        endsAt.set(p.userId, received + ms);
-      } else {
-        frozen.set(p.userId, ms);
-      }
-    }
-
-    const tick = () => {
-      const now = Date.now();
-      const next: Record<string, string> = {};
-      for (const p of game.players) {
-        if (frozen.has(p.userId)) {
-          next[p.userId] = formatBankMs(frozen.get(p.userId) ?? 0);
-          continue;
-        }
-        const end = endsAt.get(p.userId) ?? now;
-        next[p.userId] = formatBankMs(end - now);
-      }
-      setLabels(next);
-    };
-    tick();
-    const id = setInterval(tick, 250);
-    return () => clearInterval(id);
-  }, [game, playersKey, turnKey]);
-
-  return labels;
+  const clock = useCurrentTurnClock(game);
+  if (!clock) {
+    return {};
+  }
+  return { [clock.userId]: clock.label };
 }

@@ -42,7 +42,7 @@ import {
   useLocations,
 } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
-import { usePlayerTimeBanks } from '@/hooks/useTurnCountdown';
+import { useCurrentTurnClock } from '@/hooks/useTurnCountdown';
 import { formatUsername } from '@/lib/formatUsername';
 import { abortHubEnter } from '@/lib/hubEnterGuard';
 import { accentAgainstFloor } from '@/lib/hubFloorContrast';
@@ -103,7 +103,7 @@ export default function HubScreen() {
   const rollDice = useRollDice(gameId);
   const endTurnMut = useEndTurn(gameId);
   const buyMut = useBuyProperty(gameId);
-  const bankLabels = usePlayerTimeBanks(game);
+  const turnClock = useCurrentTurnClock(game);
 
   const localUserId = useMemo(() => {
     if (sessionUserId) {
@@ -343,7 +343,8 @@ export default function HubScreen() {
     floorColor,
   ]);
 
-  const bankLabel = localUserId ? (bankLabels[localUserId] ?? '') : '';
+  const bankLabel =
+    localUserId && turnClock?.userId === localUserId ? turnClock.label : '';
   const canRoll = Boolean(isMyTurn && game?.canRoll);
   const canEnd = Boolean(isMyTurn && game?.canEndTurn);
   const buyOffer = game?.buyOffer ?? null;

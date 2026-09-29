@@ -401,3 +401,72 @@ export function useAuctionFold(gameId: string | null | undefined) {
     onSuccess,
   });
 }
+
+export type TradeSideBody = {
+  cash?: number;
+  boardIndexes?: number[];
+  getOutOfJailFree?: number;
+};
+
+/** POST /games/{id}/trade/propose — Phase 13.2. */
+export function useProposeTrade(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<
+    Game,
+    Error,
+    { toUserId: string; give: TradeSideBody; take: TradeSideBody }
+  >({
+    mutationFn: (body) => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/trade/propose`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/trade/accept — Phase 13.2. */
+export function useAcceptTrade(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, { mortgageAction?: string } | void>({
+    mutationFn: (body) => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/trade/accept`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body ?? {}),
+        },
+      );
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/trade/decline — Phase 13.2. */
+export function useDeclineTrade(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/trade/decline`,
+        { method: "POST" },
+      );
+    },
+    onSuccess,
+  });
+}

@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.25.0
+ * OpenAPI spec version: 0.26.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
@@ -13,6 +13,8 @@ import type { GameTurnPhase } from './gameTurnPhase';
 import type { GameBuyOfferProperty } from './gameBuyOfferProperty';
 import type { GameAuctionProperty } from './gameAuctionProperty';
 import type { GameLastAuctionProperty } from './gameLastAuctionProperty';
+import type { GameTradeProperty } from './gameTradeProperty';
+import type { GameLastForfeitProperty } from './gameLastForfeitProperty';
 import type { GameDeed } from './gameDeed';
 import type { GameLastRollProperty } from './gameLastRollProperty';
 import type { GameLastPaymentProperty } from './gameLastPaymentProperty';
@@ -35,7 +37,7 @@ export interface Game {
   turnPhase: GameTurnPhase;
   doublesStreak: number;
   /** Phase 12.1 — while in Jail, true only if jailTurns < 3 (try doubles).
-After 3 failed attempts, false until pay/card.
+After 3 failed attempts, false until pay/card. False while a trade is open (13.2).
  */
   canRoll: boolean;
   canEndTurn: boolean;
@@ -44,6 +46,9 @@ After 3 failed attempts, false until pay/card.
   /** Phase 13.0 — current player has a buyOffer (can afford list price) and may start a bank auction.
  */
   canStartAuction: boolean;
+  /** Phase 13.2 — current player may open a trade (not during auction/pending payment/open trade).
+ */
+  canProposeTrade: boolean;
   /** Phase 12.1 — current player is in Jail, can afford 100 MeetCoin, and may pay to leave.
  */
   canPayJailFine: boolean;
@@ -62,6 +67,16 @@ After 3 failed attempts, false until pay/card.
    * @nullable
    */
   lastAuction?: GameLastAuctionProperty;
+  /**
+   * Phase 13.2 — open trade offer (null when none)
+   * @nullable
+   */
+  trade?: GameTradeProperty;
+  /**
+   * Phase 13.2 — most recent forfeit for toasts
+   * @nullable
+   */
+  lastForfeit?: GameLastForfeitProperty;
   deeds: GameDeed[];
   /** @nullable */
   lastRoll?: GameLastRollProperty;

@@ -139,6 +139,7 @@ export default function BoardScreen() {
   const startedToastRef = useRef(false);
   const finishedHandledRef = useRef(false);
   const resignToastRef = useRef<string>("");
+  const forfeitToastRef = useRef<string>("");
   const localLeavingRef = useRef(false);
   const {
     current: economyEvent,
@@ -342,11 +343,35 @@ export default function BoardScreen() {
     enabled: boardFocused,
   });
 
-  // Phase 6.2c — resign + finished via game WS.
+  // Phase 6.2c / 13.2 — resign + turn-clock forfeit toasts + finished via game WS.
   useEffect(() => {
     if (!game || !localUserId) {
       return;
     }
+
+    const lf = game.lastForfeit;
+    if (lf?.userId) {
+      const forfeitKey = `${lf.userId}:${lf.reason}:${lf.strikes ?? 0}`;
+      if (forfeitKey !== forfeitToastRef.current) {
+        forfeitToastRef.current = forfeitKey;
+        const isYou = lf.userId === localUserId;
+        const who = isYou ? "You" : formatUsername(lf.username) || "Someone";
+        if (lf.reason === "turn_strike") {
+          notify({
+            type: "warning",
+            title: "Turn forfeit",
+            message: `${who} forfeited a turn, one more strike`,
+          });
+        } else if (lf.reason === "turn_timeout") {
+          notify({
+            type: isYou ? "error" : "info",
+            title: "Turn forfeit",
+            message: `${who} forfeited the game`,
+          });
+        }
+      }
+    }
+
     const resignedSig = game.players
       .filter((p) => p.resigned)
       .map((p) => p.userId)
@@ -362,7 +387,11 @@ export default function BoardScreen() {
       resignToastRef.current = resignedSig;
       for (const p of newlyOut) {
         presence.clearRemote?.(p.userId);
-        if (p.userId === localUserId || localLeavingRef.current) {
+        // Turn-timeout kicks are toasted via lastForfeit above.
+        const timedOut =
+          game.lastForfeit?.userId === p.userId &&
+          game.lastForfeit.reason === "turn_timeout";
+        if (timedOut || p.userId === localUserId || localLeavingRef.current) {
           continue;
         }
         notify({

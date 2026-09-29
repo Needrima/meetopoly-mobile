@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.25.0
+ * OpenAPI spec version: 0.26.0
  */
 
 export interface GamePlayer {
@@ -19,13 +19,21 @@ export interface GamePlayer {
   boardIndex: number;
   /** Hex accent for the pin */
   pinColor: string;
-  /** Left mid-game or time-bank eliminated; skipped for turns */
+  /** Left mid-game or turn-timeout / resign eliminated; skipped for turns */
   resigned: boolean;
-  /** Personal time bank remaining in milliseconds (Phase 6.3b).
-For the current player this is live (bank minus elapsed on this turn).
-For others it is the paused remainder. Starts at 45 minutes.
+  /** Phase 13.2 — current player's remaining turn clock in ms (fresh 3 minutes each
+time they become current). Live while their turn clock is draining; paused
+during auction and while a trade reply is pending. Other players' values are
+unused for HUD (panel shows current player only).
  */
   timeRemainingMs: number;
+  /**
+   * Phase 13.2 — how many times this player's 3m turn clock hit 0.
+After 2, the player auto-resigns (forfeit).
+
+   * @minimum 0
+   */
+  turnTimeouts: number;
   /** Phase 9.0a — ISO 3166-1 alpha-2 from the user profile (enriched on read;
 not stored on the game document).
  */
