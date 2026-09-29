@@ -7,7 +7,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.27.0
  */
+import type { GameLastTrade } from './gameLastTrade';
 
-export interface PasswordResetStartRequest {
-  email: string;
-}
+/**
+ * Phase 13.3 — most recent trade accept/decline for toasts
+ * @nullable
+ */
+export type GameLastTradeProperty = GameLastTrade | null;

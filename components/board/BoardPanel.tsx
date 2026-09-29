@@ -62,6 +62,9 @@ type BoardPanelProps = {
   /** Phase 11.4b economy mode. */
   economyMode?: EconomyMode | null;
   onEconomySelect?: (mode: EconomyMode) => void;
+  /** Phase 13.3 — TRADE CTA. */
+  tradeEnabled?: boolean;
+  onTrade?: () => void;
   /** Phase 13.1 — hold eye to peek under auction. */
   peekActive?: boolean;
   onPeekIn?: () => void;
@@ -89,6 +92,8 @@ export function BoardPanel({
   endPending = false,
   economyMode = null,
   onEconomySelect,
+  tradeEnabled = false,
+  onTrade,
   peekActive = false,
   onPeekIn,
   onPeekOut,
@@ -301,9 +306,11 @@ export function BoardPanel({
               <EconomyActionBar
                 activeMode={economyMode}
                 enabled={economyEnabled}
+                tradeEnabled={tradeEnabled}
                 onSelect={(mode) => {
                   onEconomySelect?.(mode);
                 }}
+                onTrade={onTrade}
               />
             ) : null}
             <BoardDockIcons

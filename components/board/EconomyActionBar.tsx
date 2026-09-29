@@ -24,23 +24,31 @@ const ACTIONS: {
 type EconomyActionBarProps = {
   activeMode: EconomyMode | null;
   enabled: boolean;
+  /** Phase 13.3 — enable TRADE CTA. */
+  tradeEnabled?: boolean;
   onSelect: (mode: EconomyMode) => void;
+  onTrade?: () => void;
 };
 
 /**
  * Phase 11.4b — same dock-style boxes as Roll/End/Hub, row above them.
+ * Phase 13.3 — Trade opens board trade overlay.
  */
 export function EconomyActionBar({
   activeMode,
   enabled,
+  tradeEnabled = false,
   onSelect,
+  onTrade,
 }: EconomyActionBarProps) {
   return (
     <View style={styles.wrap}>
       {ACTIONS.map((a) => {
         const isTrade = a.mode === "trade";
         const active = !isTrade && activeMode === a.mode;
-        const disabled = !enabled || isTrade;
+        const disabled = isTrade
+          ? !enabled || !tradeEnabled
+          : !enabled;
         const bg =
           a.tone === "red"
             ? "bg-[#C23B2A]"
@@ -52,10 +60,12 @@ export function EconomyActionBar({
             key={a.mode}
             accessibilityRole="button"
             accessibilityState={{ disabled, selected: active }}
-            accessibilityLabel={isTrade ? "Trade (coming later)" : a.label}
+            accessibilityLabel={a.label}
             disabled={disabled}
             onPress={() => {
-              if (a.mode !== "trade") {
+              if (a.mode === "trade") {
+                onTrade?.();
+              } else {
                 onSelect(a.mode);
               }
             }}

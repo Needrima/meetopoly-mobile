@@ -7,15 +7,15 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.27.0
  */
-import type { TradeSide } from './tradeSide';
+import type { GameLastTradeOutcome } from './gameLastTradeOutcome';
 
-export interface GameTrade {
+export interface GameLastTrade {
   fromUserId: string;
   fromUsername: string;
   toUserId: string;
   toUsername: string;
-  give: TradeSide;
-  take: TradeSide;
-  /** UTC instant when the target's 60s reply clock expires */
-  replyDeadline: string;
+  /** accepted by target, or declined (manual or reply timeout) */
+  outcome: GameLastTradeOutcome;
+  /** UTC instant the offer settled (dedupe key for toasts) */
+  settledAt: string;
 }

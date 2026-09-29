@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.26.0
+ * OpenAPI spec version: 0.27.0
  */
 
 export * from './auctionBidBody';
@@ -36,6 +36,9 @@ export * from './gameLastPaymentKind';
 export * from './gameLastPaymentProperty';
 export * from './gameLastRoll';
 export * from './gameLastRollProperty';
+export * from './gameLastTrade';
+export * from './gameLastTradeOutcome';
+export * from './gameLastTradeProperty';
 export * from './gamePendingPayment';
 export * from './gamePendingPaymentKind';
 export * from './gamePendingPaymentProperty';

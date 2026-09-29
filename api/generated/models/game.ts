@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.26.0
+ * OpenAPI spec version: 0.27.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
@@ -14,6 +14,7 @@ import type { GameBuyOfferProperty } from './gameBuyOfferProperty';
 import type { GameAuctionProperty } from './gameAuctionProperty';
 import type { GameLastAuctionProperty } from './gameLastAuctionProperty';
 import type { GameTradeProperty } from './gameTradeProperty';
+import type { GameLastTradeProperty } from './gameLastTradeProperty';
 import type { GameLastForfeitProperty } from './gameLastForfeitProperty';
 import type { GameDeed } from './gameDeed';
 import type { GameLastRollProperty } from './gameLastRollProperty';
@@ -72,6 +73,11 @@ After 3 failed attempts, false until pay/card. False while a trade is open (13.2
    * @nullable
    */
   trade?: GameTradeProperty;
+  /**
+   * Phase 13.3 — most recent trade accept/decline for toasts
+   * @nullable
+   */
+  lastTrade?: GameLastTradeProperty;
   /**
    * Phase 13.2 — most recent forfeit for toasts
    * @nullable

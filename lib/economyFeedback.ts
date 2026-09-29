@@ -238,6 +238,39 @@ export function lastAuctionSignature(
   return `${la.boardIndex}:${la.winnerUserId ?? ''}:${la.amount ?? 0}:${la.void ? 1 : 0}`;
 }
 
+export function lastTradeSignature(
+  lt:
+    | {
+        fromUserId: string;
+        toUserId: string;
+        outcome: string;
+        settledAt?: string;
+      }
+    | null
+    | undefined,
+): string {
+  if (!lt) {
+    return '';
+  }
+  return `${lt.fromUserId}:${lt.toUserId}:${lt.outcome}:${lt.settledAt ?? ''}`;
+}
+
+export function openTradeSignature(
+  trade:
+    | {
+        fromUserId: string;
+        toUserId: string;
+        replyDeadline: string;
+      }
+    | null
+    | undefined,
+): string {
+  if (!trade) {
+    return '';
+  }
+  return `${trade.fromUserId}:${trade.toUserId}:${trade.replyDeadline}`;
+}
+
 export function buildPaymentEvent(args: {
   payment: GameLastPayment;
   localUserId: string | null;

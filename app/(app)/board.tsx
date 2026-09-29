@@ -20,6 +20,7 @@ import { EconomyEventOverlay } from "@/components/board/EconomyEventOverlay";
 import { EconomyModeSheet } from "@/components/board/EconomyModeSheet";
 import { JailActionSheet } from "@/components/board/JailActionSheet";
 import { TileInfoOverlay } from "@/components/board/TileInfoOverlay";
+import { TradeOverlay } from "@/components/board/TradeOverlay";
 import { layoutBoardRing } from "@/components/board/boardLayout";
 import { DiceRollOverlay } from "@/components/board/DiceRollOverlay";
 import { InfoModal } from "@/components/ui/InfoModal";
@@ -33,14 +34,17 @@ import { useEconomyEventQueue } from "@/hooks/useEconomyEventQueue";
 import { useEconomyFeedback } from "@/hooks/useEconomyFeedback";
 import {
   useGame,
+  useAcceptTrade,
   useAuctionBid,
   useAuctionFold,
   useBuyProperty,
   useBuildOnDeed,
+  useDeclineTrade,
   useEndTurn,
   useEnterHub,
   useMortgageDeed,
   usePayJailFine,
+  useProposeTrade,
   useRedeemDeed,
   useResignGame,
   useRollDice,
@@ -118,6 +122,9 @@ export default function BoardScreen() {
   const startAuctionMut = useStartAuction(gameId);
   const auctionBidMut = useAuctionBid(gameId);
   const auctionFoldMut = useAuctionFold(gameId);
+  const proposeTradeMut = useProposeTrade(gameId);
+  const acceptTradeMut = useAcceptTrade(gameId);
+  const declineTradeMut = useDeclineTrade(gameId);
   const buildMut = useBuildOnDeed(gameId);
   const sellMut = useSellBuilding(gameId);
   const mortgageMut = useMortgageDeed(gameId);
@@ -136,6 +143,9 @@ export default function BoardScreen() {
   const [jailAttemptArmed, setJailAttemptArmed] = useState(false);
   /** 13.1 — hold dock eye to peek board under auction. */
   const [auctionPeeking, setAuctionPeeking] = useState(false);
+  /** 13.3 — compose trade / peek under trade overlay. */
+  const [tradeComposeOpen, setTradeComposeOpen] = useState(false);
+  const [tradePeeking, setTradePeeking] = useState(false);
   const startedToastRef = useRef(false);
   const finishedHandledRef = useRef(false);
   const resignToastRef = useRef<string>("");
@@ -657,12 +667,85 @@ export default function BoardScreen() {
     setJailAttemptArmed(true);
   }, []);
 
+  const onOpenTrade = useCallback(() => {
+    economy.clearMode();
+    setTradePeeking(false);
+    setTradeComposeOpen(true);
+  }, [economy]);
+
+  const onProposeTrade = useCallback(
+    (args: {
+      toUserId: string;
+      give: { cash: number; boardIndexes: number[]; getOutOfJailFree: number };
+      take: { cash: number; boardIndexes: number[]; getOutOfJailFree: number };
+    }) => {
+      if (!gameId || proposeTradeMut.isPending) {
+        return;
+      }
+      proposeTradeMut.mutate(args, {
+        onSuccess: () => {
+          setTradeComposeOpen(false);
+        },
+        onError: (err: Error) => {
+          notify({
+            type: "error",
+            title: "Trade failed",
+            message: err.message || "Could not send offer",
+          });
+        },
+      });
+    },
+    [gameId, proposeTradeMut],
+  );
+
+  const onAcceptTrade = useCallback(
+    (mortgageAction?: "redeem_all" | "leave_all") => {
+      if (!gameId || acceptTradeMut.isPending) {
+        return;
+      }
+      acceptTradeMut.mutate(
+        mortgageAction ? { mortgageAction } : {},
+        {
+          onError: (err: Error) => {
+            notify({
+              type: "error",
+              title: "Accept failed",
+              message: err.message || "Could not accept trade",
+            });
+          },
+        },
+      );
+    },
+    [gameId, acceptTradeMut],
+  );
+
+  const onDeclineTrade = useCallback(() => {
+    if (!gameId || declineTradeMut.isPending) {
+      return;
+    }
+    declineTradeMut.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: "error",
+          title: "Decline failed",
+          message: err.message || "Could not decline trade",
+        });
+      },
+    });
+  }, [gameId, declineTradeMut]);
+
   const boardPins = game ? motionPins : walk.pins;
   const isMyTurn = Boolean(
     game && localUserId && game.currentUserId === localUserId,
   );
   const buyOffer = game?.buyOffer ?? null;
   const auction = game?.auction ?? null;
+  const trade = game?.trade ?? null;
+  const localInTrade = Boolean(
+    trade &&
+      localUserId &&
+      (trade.toUserId === localUserId || trade.fromUserId === localUserId),
+  );
   // Chance/Chest reveal (hold or anywhere in the economy queue) must finish
   // before buy — lock A opens buyOffer on the server during the card modal.
   const cardRevealBlocking = cardHold || economyHasCard;
@@ -673,7 +756,8 @@ export default function BoardScreen() {
     game.canBuy &&
     !turnBusy &&
     !cardRevealBlocking &&
-    !auction,
+    !auction &&
+    !trade,
   );
   // Server may attach auction on roll/landing (e.g. broke auto-auction) before
   // dice hold + pin walk finish — wait like buy so the overlay does not cover motion.
@@ -683,12 +767,58 @@ export default function BoardScreen() {
       !turnBusy &&
       !cardRevealBlocking,
   );
+  // Trade modal: compose (proposer) OR pending only for parties to the offer
+  // (proposer waiting / target review) — never for third seated players.
+  const showTradeModal = Boolean(
+    game &&
+      game.status === "active" &&
+      localUserId &&
+      ((localInTrade && !turnBusy) || tradeComposeOpen),
+  );
+  const tradeEnabled = Boolean(
+    isMyTurn &&
+      game?.canProposeTrade &&
+      !turnBusy &&
+      !showAuctionModal &&
+      !showBuyModal &&
+      !trade &&
+      !tradeComposeOpen,
+  );
 
   useEffect(() => {
     if (!showAuctionModal) {
       setAuctionPeeking(false);
     }
   }, [showAuctionModal]);
+
+  // Only react when trade opens/closes — not on every WS state refresh (that
+  // would cancel hold-to-peek mid-press).
+  const tradeKey = trade
+    ? `${trade.fromUserId}:${trade.toUserId}:${trade.replyDeadline}`
+    : null;
+  useEffect(() => {
+    setTradePeeking(false);
+    if (!tradeKey) {
+      return;
+    }
+    setTradeComposeOpen(false);
+    economy.clearMode();
+  }, [tradeKey, economy.clearMode]);
+
+  useEffect(() => {
+    if (!showTradeModal) {
+      setTradePeeking(false);
+    }
+  }, [showTradeModal]);
+
+  // Compose is local-only and does not pause the turn clock — close it when
+  // the turn ends (timeout strike, end turn, forfeit). Pending server trade
+  // still shows via `trade` even when it is not your turn (target review).
+  useEffect(() => {
+    if (!isMyTurn) {
+      setTradeComposeOpen(false);
+    }
+  }, [isMyTurn]);
 
   const localGamePlayer = game?.players.find((p) => p.userId === localUserId);
 
@@ -709,6 +839,7 @@ export default function BoardScreen() {
       !turnBusy &&
       !showBuyModal &&
       !showAuctionModal &&
+      !showTradeModal &&
       (game.canPayJailFine || game.canUseJailCard || game.canRoll),
   );
 
@@ -963,11 +1094,31 @@ export default function BoardScreen() {
               onFold={onAuctionFold}
             />
           ) : null}
+          {game && localUserId && showTradeModal ? (
+            <TradeOverlay
+              visible={showTradeModal}
+              peeking={tradePeeking}
+              game={game}
+              locations={locations}
+              localUserId={localUserId}
+              composing={tradeComposeOpen && !trade}
+              proposePending={proposeTradeMut.isPending}
+              acceptPending={acceptTradeMut.isPending}
+              declinePending={declineTradeMut.isPending}
+              onCloseCompose={() => setTradeComposeOpen(false)}
+              onPeekBoard={() => setTradePeeking(true)}
+              onEndPeek={() => setTradePeeking(false)}
+              onPropose={onProposeTrade}
+              onAccept={onAcceptTrade}
+              onDecline={onDeclineTrade}
+            />
+          ) : null}
           <TileInfoOverlay
             visible={
               inspectIndex != null &&
               !showBuyModal &&
               !showAuctionModal &&
+              !showTradeModal &&
               !economy.mode
             }
             location={inspectLoc}
@@ -1021,7 +1172,8 @@ export default function BoardScreen() {
               !game?.canRoll ||
               turnBusy ||
               showJailSheet ||
-              showAuctionModal
+              showAuctionModal ||
+              showTradeModal
             }
             rollPending={rollDice.isPending}
             onEndTurn={game ? onEndTurn : undefined}
@@ -1030,11 +1182,14 @@ export default function BoardScreen() {
               !game?.canEndTurn ||
               turnBusy ||
               showBuyModal ||
-              showAuctionModal
+              showAuctionModal ||
+              showTradeModal
             }
             endPending={endTurnMut.isPending}
             economyMode={economy.mode}
             onEconomySelect={economy.selectMode}
+            tradeEnabled={tradeEnabled}
+            onTrade={onOpenTrade}
             peekActive={showAuctionModal}
             onPeekIn={() => setAuctionPeeking(true)}
             onPeekOut={() => setAuctionPeeking(false)}

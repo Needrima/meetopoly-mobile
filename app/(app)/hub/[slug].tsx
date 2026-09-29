@@ -456,6 +456,40 @@ export default function HubScreen() {
     openBoard();
   }, [game?.auction, inHubMarked, openBoard, turnBusy]);
 
+  // Phase 13.3 — open board when a trade involves the local player.
+  const tradeKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const t = game?.trade;
+    if (!t || !inHubMarked || !localUserId) {
+      if (!t) {
+        tradeKeyRef.current = null;
+      }
+      return;
+    }
+    if (t.toUserId !== localUserId && t.fromUserId !== localUserId) {
+      return;
+    }
+    if (turnBusy) {
+      return;
+    }
+    const key = `${t.fromUserId}:${t.toUserId}:${t.replyDeadline}`;
+    if (tradeKeyRef.current === key) {
+      return;
+    }
+    tradeKeyRef.current = key;
+    setBuySheetOpen(false);
+    setTurnSheetOpen(false);
+    notify({
+      type: 'info',
+      title: 'Trade offer',
+      message:
+        t.toUserId === localUserId
+          ? 'Opening board to review the trade…'
+          : 'Opening board — waiting for a reply…',
+    });
+    openBoard();
+  }, [game?.trade, inHubMarked, openBoard, turnBusy, localUserId]);
+
   const dismissBuySheet = useCallback(() => {
     setBuySheetOpen(false);
     setAwaitingEndAfterBuy(false);

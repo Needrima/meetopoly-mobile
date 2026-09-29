@@ -20,6 +20,8 @@ import {
   jailStatusSignature,
   lastCardSignature,
   lastAuctionSignature,
+  lastTradeSignature,
+  openTradeSignature,
   passGoSignature,
   paymentSignature,
   type EconomyEvent,
@@ -82,6 +84,8 @@ export function useEconomyFeedback({
   const jailStatusRef = useRef<string | null>(null);
   const jailDoublesFailSigRef = useRef<string>('');
   const lastAuctionSigRef = useRef<string | null>(null);
+  const lastTradeSigRef = useRef<string | null>(null);
+  const openTradeSigRef = useRef<string | null>(null);
 
   // Seed signatures on first game snapshot (no historical replay).
   // Also advance sigs while disabled so reuniting focus does not replay.
@@ -105,6 +109,8 @@ export function useEconomyFeedback({
     const auctionSig = game.lastAuction
       ? lastAuctionSignature(game.lastAuction)
       : '';
+    const tradeSig = game.lastTrade ? lastTradeSignature(game.lastTrade) : '';
+    const openTradeSig = game.trade ? openTradeSignature(game.trade) : '';
     const jailFailKey =
       game.lastRoll &&
       game.players.some(
@@ -130,6 +136,8 @@ export function useEconomyFeedback({
       jailStatusRef.current = jailSig;
       jailDoublesFailSigRef.current = jailFailKey;
       lastAuctionSigRef.current = auctionSig || null;
+      lastTradeSigRef.current = tradeSig || null;
+      openTradeSigRef.current = openTradeSig || null;
       return;
     }
     if (!enabled) {
@@ -151,6 +159,10 @@ export function useEconomyFeedback({
       if (auctionSig) {
         lastAuctionSigRef.current = auctionSig;
       }
+      if (tradeSig) {
+        lastTradeSigRef.current = tradeSig;
+      }
+      openTradeSigRef.current = openTradeSig || null;
     }
   }, [game, enabled, locations]);
 
@@ -313,6 +325,78 @@ export function useEconomyFeedback({
     enqueueModal,
     displayAccent,
   ]);
+
+  // Phase 13.3 — open trade: toast only for players not in the offer.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current) {
+      return;
+    }
+    const trade = game.trade;
+    if (!trade) {
+      openTradeSigRef.current = null;
+      return;
+    }
+    const sig = openTradeSignature(trade);
+    if (sig === openTradeSigRef.current) {
+      return;
+    }
+    openTradeSigRef.current = sig;
+    if (
+      trade.fromUserId === localUserId ||
+      trade.toUserId === localUserId
+    ) {
+      return;
+    }
+    const fromName = formatUsername(trade.fromUsername) || 'Someone';
+    const toName = formatUsername(trade.toUsername) || 'someone';
+    notify({
+      type: 'info',
+      title: 'Trade offer',
+      message: `${fromName} offered a trade to ${toName}`,
+    });
+  }, [enabled, game, localUserId]);
+
+  // Phase 13.3 — trade accept / decline (incl. reply timeout) toasts for all.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current) {
+      return;
+    }
+    const lt = game.lastTrade;
+    if (!lt) {
+      return;
+    }
+    const sig = lastTradeSignature(lt);
+    if (sig === lastTradeSigRef.current) {
+      return;
+    }
+    lastTradeSigRef.current = sig;
+    const accepted = lt.outcome === 'accepted';
+    const fromName = formatUsername(lt.fromUsername) || 'Someone';
+    const toName = formatUsername(lt.toUsername) || 'Someone';
+    const iProposed = lt.fromUserId === localUserId;
+    const iTarget = lt.toUserId === localUserId;
+    let message: string;
+    if (accepted) {
+      if (iProposed) {
+        message = `${toName} accepted your offer`;
+      } else if (iTarget) {
+        message = `You accepted ${fromName}'s offer`;
+      } else {
+        message = `${toName} accepted ${fromName}'s offer`;
+      }
+    } else if (iProposed) {
+      message = `${toName} rejected your offer`;
+    } else if (iTarget) {
+      message = `You rejected ${fromName}'s offer`;
+    } else {
+      message = `${toName} rejected ${fromName}'s offer`;
+    }
+    notify({
+      type: accepted ? 'success' : 'info',
+      title: accepted ? 'Offer accepted' : 'Offer rejected',
+      message,
+    });
+  }, [enabled, game, localUserId]);
 
   // Chance / Chest draw after idle (pin settle / cardHold).
   // Dedupe by stable draw id — lastCard persists on the game for the whole table.
