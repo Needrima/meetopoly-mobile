@@ -7,14 +7,14 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.25.0
  */
-import type { GamePendingPaymentKind } from './gamePendingPaymentKind';
 
-export interface GamePendingPayment {
-  kind: GamePendingPaymentKind;
-  /** Remaining MeetCoin owed */
-  amount: number;
-  toUserId?: string;
-  toUsername?: string;
+export interface GameLastAuction {
   boardIndex: number;
   spaceName: string;
+  winnerUserId?: string;
+  winnerUsername?: string;
+  /** MeetCoin paid by winner (omitted when void) */
+  amount?: number;
+  /** true when nobody could buy — deed stays unowned */
+  void: boolean;
 }

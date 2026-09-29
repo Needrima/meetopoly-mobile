@@ -5,9 +5,10 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.23.0
+ * OpenAPI spec version: 0.25.0
  */
 import type {
+  AuctionBidBody,
   AuthSessionResponse,
   BuildRequest,
   EnterHubRequest,
@@ -627,8 +628,7 @@ export const resignGame = async (gameId: string, options?: RequestInit): Promise
 
 /**
  * Phase 6.4 — purchase at list price when the current player occupies an unowned
-property / railroad / utility after landing. Skipping buy = End turn without calling this
-(deed stays unowned until Phase 13 auction).
+property / railroad / utility after landing. To decline, call `start-auction` (Phase 13.0).
 
  * @summary Buy the unowned space you landed on
  */
@@ -643,6 +643,90 @@ export const getBuyPropertyUrl = (gameId: string,) => {
 export const buyProperty = async (gameId: string, options?: RequestInit): Promise<Game> => {
   
   return apiMutator<Game>(getBuyPropertyUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Phase 13.0 — current player with an open buyOffer starts a turn-based auction.
+If cash < list price, the server auto-starts an auction on land (no buyOffer).
+All personal time banks pause for the whole auction; each bidder gets a 30s clock.
+
+ * @summary Decline list-price buy and start a bank auction
+ */
+export const getStartAuctionUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/start-auction`
+}
+
+export const startAuction = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getStartAuctionUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Phase 13.0 — only the current auction bidder. Amount must be ≥ highBid+1 (or ≥ 1 if no bids)
+and ≤ the bidder's cash. High bidder then sits out until outbid.
+
+ * @summary Place a bid on the active auction
+ */
+export const getAuctionBidUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/auction/bid`
+}
+
+export const auctionBid = async (gameId: string,
+    auctionBidBody: AuctionBidBody, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getAuctionBidUrl(gameId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      auctionBidBody,)
+  }
+);}
+
+
+
+/**
+ * Phase 13.0 — only the current auction bidder. If the high bidder later folds after being
+outbid, high reverts to the latest bid among remaining players. Last non-folded wins.
+
+ * @summary Fold from the active auction
+ */
+export const getAuctionFoldUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/auction/fold`
+}
+
+export const auctionFold = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getAuctionFoldUrl(gameId),
   {      
     ...options,
     method: 'POST'

@@ -8,7 +8,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.25.0
  */
 
-export interface PasswordResetVerifyResponse {
-  /** Short-lived Bearer token for password reset confirm */
-  resetToken: string;
-}
+export type AuctionBidBody = {
+  /**
+   * MeetCoin bid (≥ minBid)
+   * @minimum 1
+   */
+  amount: number;
+};

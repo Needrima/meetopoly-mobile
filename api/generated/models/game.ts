@@ -5,12 +5,14 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.23.0
+ * OpenAPI spec version: 0.25.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
 import type { GameTurnPhase } from './gameTurnPhase';
 import type { GameBuyOfferProperty } from './gameBuyOfferProperty';
+import type { GameAuctionProperty } from './gameAuctionProperty';
+import type { GameLastAuctionProperty } from './gameLastAuctionProperty';
 import type { GameDeed } from './gameDeed';
 import type { GameLastRollProperty } from './gameLastRollProperty';
 import type { GameLastPaymentProperty } from './gameLastPaymentProperty';
@@ -37,8 +39,11 @@ After 3 failed attempts, false until pay/card.
  */
   canRoll: boolean;
   canEndTurn: boolean;
-  /** Current player may buy the space they just landed on (Phase 6.4) */
+  /** Current player may buy the space they just landed on at list price (Phase 6.4) */
   canBuy: boolean;
+  /** Phase 13.0 — current player has a buyOffer (can afford list price) and may start a bank auction.
+ */
+  canStartAuction: boolean;
   /** Phase 12.1 — current player is in Jail, can afford 100 MeetCoin, and may pay to leave.
  */
   canPayJailFine: boolean;
@@ -47,6 +52,16 @@ After 3 failed attempts, false until pay/card.
   canUseJailCard: boolean;
   /** @nullable */
   buyOffer?: GameBuyOfferProperty;
+  /**
+   * Phase 13.0 — active bank auction (null when none)
+   * @nullable
+   */
+  auction?: GameAuctionProperty;
+  /**
+   * Phase 13.0 — most recent auction settle/void for toasts
+   * @nullable
+   */
+  lastAuction?: GameLastAuctionProperty;
   deeds: GameDeed[];
   /** @nullable */
   lastRoll?: GameLastRollProperty;

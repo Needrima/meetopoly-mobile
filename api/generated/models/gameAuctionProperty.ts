@@ -7,8 +7,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.25.0
  */
+import type { GameAuction } from './gameAuction';
 
-export interface PasswordResetVerifyResponse {
-  /** Short-lived Bearer token for password reset confirm */
-  resetToken: string;
-}
+/**
+ * Phase 13.0 — active bank auction (null when none)
+ * @nullable
+ */
+export type GameAuctionProperty = GameAuction | null;
