@@ -166,9 +166,19 @@ export function buildBuyEvent(args: {
   localUserId: string | null;
   players: GamePlayer[] | undefined;
   displayAccent?: string | null;
+  /** Phase 13.1 — when set, modal shows auction settle price. */
+  priceOverride?: number | null;
 }): EconomyBuyEvent {
-  const { deed, location, locations, deeds, localUserId, players, displayAccent } =
-    args;
+  const {
+    deed,
+    location,
+    locations,
+    deeds,
+    localUserId,
+    players,
+    displayAccent,
+    priceOverride = null,
+  } = args;
   const iBought = Boolean(localUserId && deed.ownerUserId === localUserId);
   const ownedOfKind = countOwnedOfKind(
     deeds,
@@ -179,7 +189,10 @@ export function buildBuyEvent(args: {
   const place = stripWorldNamePrefix(
     location?.name ?? `space ${deed.boardIndex}`,
   );
-  const price = location?.price ?? 0;
+  const price =
+    priceOverride != null && priceOverride >= 0
+      ? priceOverride
+      : (location?.price ?? 0);
   const buyerName = formatUsername(deed.ownerUsername) || 'Someone';
   const loc: Location =
     location ??
@@ -214,6 +227,15 @@ export function buildBuyEvent(args: {
     }),
     toastMessage: `${place}${price > 0 ? ` · ${price}` : ''}`,
   };
+}
+
+export function lastAuctionSignature(
+  la: { boardIndex: number; winnerUserId?: string; amount?: number; void: boolean } | null | undefined,
+): string {
+  if (!la) {
+    return '';
+  }
+  return `${la.boardIndex}:${la.winnerUserId ?? ''}:${la.amount ?? 0}:${la.void ? 1 : 0}`;
 }
 
 export function buildPaymentEvent(args: {

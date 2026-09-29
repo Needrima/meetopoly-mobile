@@ -11,6 +11,7 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { Location } from "@/api/types";
+import { AuctionOverlay } from "@/components/board/AuctionOverlay";
 import { Board } from "@/components/board/Board";
 import { BoardOverflowMenu } from "@/components/board/BoardOverflowMenu";
 import { BoardPanel } from "@/components/board/BoardPanel";
@@ -32,6 +33,8 @@ import { useEconomyEventQueue } from "@/hooks/useEconomyEventQueue";
 import { useEconomyFeedback } from "@/hooks/useEconomyFeedback";
 import {
   useGame,
+  useAuctionBid,
+  useAuctionFold,
   useBuyProperty,
   useBuildOnDeed,
   useEndTurn,
@@ -42,6 +45,7 @@ import {
   useResignGame,
   useRollDice,
   useSellBuilding,
+  useStartAuction,
   useUseJailCard,
 } from "@/hooks/useGame";
 import {
@@ -111,6 +115,9 @@ export default function BoardScreen() {
   const rollDice = useRollDice(gameId);
   const endTurnMut = useEndTurn(gameId);
   const buyMut = useBuyProperty(gameId);
+  const startAuctionMut = useStartAuction(gameId);
+  const auctionBidMut = useAuctionBid(gameId);
+  const auctionFoldMut = useAuctionFold(gameId);
   const buildMut = useBuildOnDeed(gameId);
   const sellMut = useSellBuilding(gameId);
   const mortgageMut = useMortgageDeed(gameId);
@@ -127,6 +134,8 @@ export default function BoardScreen() {
   const [inspectIndex, setInspectIndex] = useState<number | null>(null);
   /** 12.4b — after "Roll a Double", modal closes and dock Roll unlocks. */
   const [jailAttemptArmed, setJailAttemptArmed] = useState(false);
+  /** 13.1 — hold dock eye to peek board under auction. */
+  const [auctionPeeking, setAuctionPeeking] = useState(false);
   const startedToastRef = useRef(false);
   const finishedHandledRef = useRef(false);
   const resignToastRef = useRef<string>("");
@@ -537,6 +546,54 @@ export default function BoardScreen() {
     });
   }, [gameId, buyMut, turnBusy]);
 
+  const onStartAuction = useCallback(() => {
+    if (!gameId || startAuctionMut.isPending || turnBusy) {
+      return;
+    }
+    startAuctionMut.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: "error",
+          title: "Auction failed",
+          message: err.message || "Could not start auction",
+        });
+      },
+    });
+  }, [gameId, startAuctionMut, turnBusy]);
+
+  const onAuctionBid = useCallback(
+    (amount: number) => {
+      if (!gameId || auctionBidMut.isPending) {
+        return;
+      }
+      auctionBidMut.mutate(amount, {
+        onError: (err: Error) => {
+          notify({
+            type: "error",
+            title: "Bid failed",
+            message: err.message || "Could not bid",
+          });
+        },
+      });
+    },
+    [gameId, auctionBidMut],
+  );
+
+  const onAuctionFold = useCallback(() => {
+    if (!gameId || auctionFoldMut.isPending) {
+      return;
+    }
+    auctionFoldMut.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: "error",
+          title: "Fold failed",
+          message: err.message || "Could not fold",
+        });
+      },
+    });
+  }, [gameId, auctionFoldMut]);
+
   const onPayJailFine = useCallback(() => {
     if (!gameId || payJailMut.isPending || turnBusy) {
       return;
@@ -576,6 +633,7 @@ export default function BoardScreen() {
     game && localUserId && game.currentUserId === localUserId,
   );
   const buyOffer = game?.buyOffer ?? null;
+  const auction = game?.auction ?? null;
   // Chance/Chest reveal (hold or anywhere in the economy queue) must finish
   // before buy — lock A opens buyOffer on the server during the card modal.
   const cardRevealBlocking = cardHold || economyHasCard;
@@ -585,8 +643,19 @@ export default function BoardScreen() {
     game?.status === "active" &&
     game.canBuy &&
     !turnBusy &&
-    !cardRevealBlocking,
+    !cardRevealBlocking &&
+    !auction,
   );
+  const showAuctionModal = Boolean(
+    auction && game?.status === "active",
+  );
+
+  useEffect(() => {
+    if (!showAuctionModal) {
+      setAuctionPeeking(false);
+    }
+  }, [showAuctionModal]);
+
   const localGamePlayer = game?.players.find((p) => p.userId === localUserId);
 
   // Clear armed doubles try when leave jail or leave awaiting_roll (after roll / end).
@@ -605,6 +674,7 @@ export default function BoardScreen() {
       !jailAttemptArmed &&
       !turnBusy &&
       !showBuyModal &&
+      !showAuctionModal &&
       (game.canPayJailFine || game.canUseJailCard || game.canRoll),
   );
 
@@ -752,6 +822,9 @@ export default function BoardScreen() {
   const localCash =
     game?.players.find((p) => p.userId === localUserId)?.cash ?? 0;
   const canAffordBuy = Boolean(buyOffer && localCash >= buyOffer.price);
+  const auctionLoc = auction
+    ? (locations.find((l) => l.boardIndex === auction.boardIndex) ?? null)
+    : null;
 
   return (
     <View style={styles.root}>
@@ -803,7 +876,9 @@ export default function BoardScreen() {
               economyModeActive={Boolean(economy.mode)}
               ownerColorByIndex={ownerColorByIndex}
               deeds={game?.deeds}
-              onTilePress={showBuyModal ? undefined : onTilePress}
+              onTilePress={
+                showBuyModal || showAuctionModal ? undefined : onTilePress
+              }
               avatar={{
                 poseX: walk.poseX,
                 poseY: walk.poseY,
@@ -833,13 +908,33 @@ export default function BoardScreen() {
               offer={buyOffer}
               location={buyLoc}
               canAfford={canAffordBuy}
+              canAuction={Boolean(game?.canStartAuction)}
               buyPending={buyMut.isPending}
+              auctionPending={startAuctionMut.isPending}
               onBuy={onBuy}
+              onAuction={onStartAuction}
+            />
+          ) : null}
+          {auction ? (
+            <AuctionOverlay
+              visible={showAuctionModal}
+              peeking={auctionPeeking}
+              auction={auction}
+              location={auctionLoc}
+              localUserId={localUserId}
+              localCash={localCash}
+              bidPending={auctionBidMut.isPending}
+              foldPending={auctionFoldMut.isPending}
+              onBid={onAuctionBid}
+              onFold={onAuctionFold}
             />
           ) : null}
           <TileInfoOverlay
             visible={
-              inspectIndex != null && !showBuyModal && !economy.mode
+              inspectIndex != null &&
+              !showBuyModal &&
+              !showAuctionModal &&
+              !economy.mode
             }
             location={inspectLoc}
             owner={inspectOwner}
@@ -891,7 +986,8 @@ export default function BoardScreen() {
               !isMyTurn ||
               !game?.canRoll ||
               turnBusy ||
-              showJailSheet
+              showJailSheet ||
+              showAuctionModal
             }
             rollPending={rollDice.isPending}
             onEndTurn={game ? onEndTurn : undefined}
@@ -899,11 +995,15 @@ export default function BoardScreen() {
               !isMyTurn ||
               !game?.canEndTurn ||
               turnBusy ||
-              showBuyModal
+              showBuyModal ||
+              showAuctionModal
             }
             endPending={endTurnMut.isPending}
             economyMode={economy.mode}
             onEconomySelect={economy.selectMode}
+            peekActive={showAuctionModal}
+            onPeekIn={() => setAuctionPeeking(true)}
+            onPeekOut={() => setAuctionPeeking(false)}
           />
         </View>
       </View>

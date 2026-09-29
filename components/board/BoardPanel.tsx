@@ -62,6 +62,10 @@ type BoardPanelProps = {
   /** Phase 11.4b economy mode. */
   economyMode?: EconomyMode | null;
   onEconomySelect?: (mode: EconomyMode) => void;
+  /** Phase 13.1 — hold eye to peek under auction. */
+  peekActive?: boolean;
+  onPeekIn?: () => void;
+  onPeekOut?: () => void;
 };
 
 /**
@@ -85,6 +89,9 @@ export function BoardPanel({
   endPending = false,
   economyMode = null,
   onEconomySelect,
+  peekActive = false,
+  onPeekIn,
+  onPeekOut,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : "";
   const hubCodeById = useMemo(() => {
@@ -287,6 +294,7 @@ export function BoardPanel({
               rollActive={rollActive}
               endActive={endActive}
               hubActive={hubActive}
+              peekActive={peekActive}
               hubCode={code}
               onRoll={onRoll}
               onEndTurn={onEndTurn}
@@ -295,6 +303,8 @@ export function BoardPanel({
                   onEnter(nearby);
                 }
               }}
+              onPeekIn={onPeekIn}
+              onPeekOut={onPeekOut}
             />
           </View>
           <Joystick onStick={onStick} size={JOYSTICK_SIZE} accent={localPin} />

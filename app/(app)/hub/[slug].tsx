@@ -426,6 +426,31 @@ export default function HubScreen() {
     goBackToBoard();
   }, [goBackToBoard]);
 
+  // Phase 13.1 — prefer Open board when a bank auction starts (board-only UI).
+  const auctionKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const a = game?.auction;
+    if (!a || !inHubMarked) {
+      if (!a) {
+        auctionKeyRef.current = null;
+      }
+      return;
+    }
+    const key = `${a.boardIndex}:${a.startedByUserId}`;
+    if (auctionKeyRef.current === key) {
+      return;
+    }
+    auctionKeyRef.current = key;
+    setBuySheetOpen(false);
+    setTurnSheetOpen(false);
+    notify({
+      type: 'info',
+      title: 'Auction started',
+      message: 'Opening board for bidding…',
+    });
+    openBoard();
+  }, [game?.auction, inHubMarked, openBoard]);
+
   const dismissBuySheet = useCallback(() => {
     setBuySheetOpen(false);
     setAwaitingEndAfterBuy(false);

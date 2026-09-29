@@ -346,3 +346,58 @@ export function useUseJailCard(gameId: string | null | undefined) {
     onSuccess,
   });
 }
+
+/** POST /games/{id}/start-auction — Phase 13.0/13.1 decline buy → bank auction. */
+export function useStartAuction(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/start-auction`,
+        { method: "POST" },
+      );
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/auction/bid — Phase 13.0/13.1. */
+export function useAuctionBid(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, number>({
+    mutationFn: (amount: number) => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/auction/bid`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount }),
+        },
+      );
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/auction/fold — Phase 13.0/13.1. */
+export function useAuctionFold(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/auction/fold`,
+        { method: "POST" },
+      );
+    },
+    onSuccess,
+  });
+}

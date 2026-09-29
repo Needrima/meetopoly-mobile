@@ -18,21 +18,28 @@ type BuyPropertyOverlayProps = {
   offer: GameBuyOffer;
   location?: Location | null;
   canAfford: boolean;
+  /** Phase 13.1 — show Auction CTA (decline list price). */
+  canAuction?: boolean;
   buyPending?: boolean;
+  auctionPending?: boolean;
   onBuy: () => void;
+  onAuction?: () => void;
 };
 
 /**
  * Center-board buy modal (Phase 9.1 branded deed).
- * Non-dismissible until buy (auction → Phase 13).
+ * Phase 13.1 — Buy | Auction; non-dismissible until one completes.
  */
 export function BuyPropertyOverlay({
   visible,
   offer,
   location = null,
   canAfford,
+  canAuction = false,
   buyPending = false,
+  auctionPending = false,
   onBuy,
+  onAuction,
 }: BuyPropertyOverlayProps) {
   if (!visible) {
     return null;
@@ -41,6 +48,7 @@ export function BuyPropertyOverlay({
   const Icon = resolveBoardIcon(location?.assets?.icon);
   const strip = stripColorFor(location, offer.kind);
   const onStrip = isLightHex(strip) ? colors.ink : colors.onBrand;
+  const busy = buyPending || auctionPending;
 
   return (
     <View style={styles.host} pointerEvents="box-none">
@@ -83,21 +91,31 @@ export function BuyPropertyOverlay({
                 style={styles.footerAnim}
                 pointerEvents="box-none"
               >
-                <View style={styles.footer}>
-                  <View style={styles.priceBlock}>
-                    <Text style={styles.priceLabel}>Price</Text>
-                    <MeetCoinAmount amount={offer.price} size={20} />
-                    {!canAfford ? (
-                      <Text style={styles.cannot}>Not enough MeetCoin</Text>
-                    ) : null}
-                  </View>
+                <View style={styles.priceBlock}>
+                  <Text style={styles.priceLabel}>Price</Text>
+                  <MeetCoinAmount amount={offer.price} size={20} />
+                  {!canAfford ? (
+                    <Text style={styles.cannot}>Not enough MeetCoin</Text>
+                  ) : null}
+                </View>
+                <View style={styles.ctaRow}>
                   <Button
                     label={`Buy · ${offer.price}`}
                     onPress={onBuy}
-                    disabled={!canAfford || buyPending}
+                    disabled={!canAfford || busy}
                     loading={buyPending}
-                    style={styles.buyBtn}
+                    style={styles.ctaBtn}
                   />
+                  {canAuction && onAuction ? (
+                    <Button
+                      label="Auction"
+                      variant="outline"
+                      onPress={onAuction}
+                      disabled={busy}
+                      loading={auctionPending}
+                      style={styles.ctaBtn}
+                    />
+                  ) : null}
                 </View>
               </MotiView>
             </View>
@@ -150,15 +168,8 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   priceBlock: {
-    flexShrink: 0,
     gap: 2,
-    minWidth: 88,
   },
   priceLabel: {
     fontFamily: fonts.bodySemiBold,
@@ -172,11 +183,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.danger,
   },
-  buyBtn: {
+  ctaRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  ctaBtn: {
     flex: 1,
     height: 44,
   },
   footerAnim: {
-    gap: 8,
+    gap: 10,
   },
 });

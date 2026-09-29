@@ -19,11 +19,14 @@ import {
   jailBoardIndex,
   jailStatusSignature,
   lastCardSignature,
+  lastAuctionSignature,
   passGoSignature,
   paymentSignature,
   type EconomyEvent,
 } from '@/lib/economyFeedback';
+import { formatUsername } from '@/lib/formatUsername';
 import { notify } from '@/lib/notify';
+import { stripWorldNamePrefix } from '@/components/board/deedVisual';
 
 type UseEconomyFeedbackArgs = {
   game: Game | null;
@@ -78,6 +81,7 @@ export function useEconomyFeedback({
   const visitSigRef = useRef<string | null>(null);
   const jailStatusRef = useRef<string | null>(null);
   const jailDoublesFailSigRef = useRef<string>('');
+  const lastAuctionSigRef = useRef<string | null>(null);
 
   // Seed signatures on first game snapshot (no historical replay).
   // Also advance sigs while disabled so reuniting focus does not replay.
@@ -98,6 +102,9 @@ export function useEconomyFeedback({
         ? gameRollKey(game.lastRoll)
         : '';
     const jailSig = jailStatusSignature(game.players);
+    const auctionSig = game.lastAuction
+      ? lastAuctionSignature(game.lastAuction)
+      : '';
     const jailFailKey =
       game.lastRoll &&
       game.players.some(
@@ -122,6 +129,7 @@ export function useEconomyFeedback({
       visitSigRef.current = visitKey || null;
       jailStatusRef.current = jailSig;
       jailDoublesFailSigRef.current = jailFailKey;
+      lastAuctionSigRef.current = auctionSig || null;
       return;
     }
     if (!enabled) {
@@ -139,6 +147,9 @@ export function useEconomyFeedback({
       jailStatusRef.current = jailSig;
       if (jailFailKey) {
         jailDoublesFailSigRef.current = jailFailKey;
+      }
+      if (auctionSig) {
+        lastAuctionSigRef.current = auctionSig;
       }
     }
   }, [game, enabled, locations]);
@@ -186,7 +197,7 @@ export function useEconomyFeedback({
     enqueueModal(event);
   };
 
-  // New deeds.
+  // New deeds (list-price buys). Auction settles → separate effect (auction price).
   useEffect(() => {
     if (!enabled || !localUserId || !game || !readyRef.current) {
       return;
@@ -203,10 +214,19 @@ export function useEconomyFeedback({
       deedsSigRef.current ? deedsSigRef.current.split('|').filter(Boolean) : [],
     );
     deedsSigRef.current = sig;
+    const la = game.lastAuction;
     const deeds = game.deeds ?? [];
     for (const d of deeds) {
       const key = `${d.boardIndex}:${d.ownerUserId}`;
       if (prev.has(key)) {
+        continue;
+      }
+      if (
+        la &&
+        !la.void &&
+        la.boardIndex === d.boardIndex &&
+        la.winnerUserId === d.ownerUserId
+      ) {
         continue;
       }
       const loc = locations.find((l) => l.boardIndex === d.boardIndex);
@@ -221,6 +241,69 @@ export function useEconomyFeedback({
       });
       present(event, isBuyInvolved(localUserId, d.ownerUserId));
     }
+  }, [
+    enabled,
+    game,
+    localUserId,
+    locations,
+    surface,
+    enqueueModal,
+    displayAccent,
+  ]);
+
+  // Phase 13.1 — auction settle/void: toast for all; winner modal @ auction price.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current) {
+      return;
+    }
+    const la = game.lastAuction;
+    if (!la) {
+      return;
+    }
+    const sig = lastAuctionSignature(la);
+    if (sig === lastAuctionSigRef.current) {
+      return;
+    }
+    lastAuctionSigRef.current = sig;
+    const place = stripWorldNamePrefix(la.spaceName || `space ${la.boardIndex}`);
+    if (la.void) {
+      notify({
+        type: 'info',
+        title: 'Auction void',
+        message: `${place} stays unowned`,
+      });
+      return;
+    }
+    const winnerName = formatUsername(la.winnerUsername ?? '') || 'Someone';
+    const amount = la.amount ?? 0;
+    notify({
+      type: 'success',
+      title: 'Auction won',
+      message: `${winnerName} won auction for ${place}${amount > 0 ? ` · ${amount}` : ''}`,
+    });
+    const iWon = Boolean(la.winnerUserId && la.winnerUserId === localUserId);
+    if (!iWon || surface !== 'board' || !enqueueModal) {
+      return;
+    }
+    const deed = (game.deeds ?? []).find(
+      (d) =>
+        d.boardIndex === la.boardIndex && d.ownerUserId === la.winnerUserId,
+    );
+    if (!deed) {
+      return;
+    }
+    const loc = locations.find((l) => l.boardIndex === la.boardIndex);
+    const event = buildBuyEvent({
+      deed,
+      location: loc,
+      locations,
+      deeds: game.deeds ?? [],
+      localUserId,
+      players: game.players,
+      displayAccent,
+      priceOverride: amount,
+    });
+    enqueueModal(event);
   }, [
     enabled,
     game,

@@ -22,6 +22,8 @@ type DeedCardProps = {
   Icon?: BoardIcon | null;
   /** Stagger Moti entrance (header → body). */
   animate?: boolean;
+  /** Smaller strip title + icon (auction overlay). */
+  compactHeader?: boolean;
 };
 
 /**
@@ -34,20 +36,40 @@ export function DeedCard({
   location = null,
   Icon = null,
   animate = true,
+  compactHeader = false,
 }: DeedCardProps) {
   const strip = stripColorFor(location, kind);
   const onStrip = isLightHex(strip) ? colors.ink : colors.onBrand;
   const rows = rentRowsFor(kind, location);
   const title = stripWorldNamePrefix(name);
+  const iconSize = compactHeader ? 20 : 28;
 
   const header = (
-    <View style={[styles.header, { backgroundColor: strip }]}>
+    <View
+      style={[
+        styles.header,
+        compactHeader ? styles.headerCompact : null,
+        { backgroundColor: strip },
+      ]}
+    >
       {Icon ? (
-        <View style={styles.iconWrap}>
-          <Icon width={28} height={28} color={onStrip} />
+        <View
+          style={[
+            styles.iconWrap,
+            compactHeader ? styles.iconWrapCompact : null,
+          ]}
+        >
+          <Icon width={iconSize} height={iconSize} color={onStrip} />
         </View>
       ) : null}
-      <Text style={[styles.name, { color: onStrip }]} numberOfLines={2}>
+      <Text
+        style={[
+          styles.name,
+          compactHeader ? styles.nameCompact : null,
+          { color: onStrip },
+        ]}
+        numberOfLines={2}
+      >
         {title}
       </Text>
     </View>
@@ -117,11 +139,21 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     minHeight: 56,
   },
+  headerCompact: {
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minHeight: 44,
+  },
   iconWrap: {
     width: 28,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  iconWrapCompact: {
+    width: 20,
+    height: 20,
   },
   name: {
     fontFamily: fonts.displayBold,
@@ -131,6 +163,10 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     flexShrink: 1,
     textAlign: 'center',
+  },
+  nameCompact: {
+    fontSize: 15,
+    lineHeight: 20,
   },
   body: {
     backgroundColor: colors.bg,

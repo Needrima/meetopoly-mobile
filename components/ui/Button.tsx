@@ -10,7 +10,7 @@ import {
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
-export type ButtonVariant = 'primary' | 'outline';
+export type ButtonVariant = 'primary' | 'outline' | 'danger';
 
 export type ButtonProps = {
   /** Visible label when not loading. */
@@ -20,8 +20,10 @@ export type ButtonProps = {
   disabled?: boolean;
   /** Shows ActivityIndicator and disables press. */
   loading?: boolean;
-  /** `primary` = filled brand; `outline` = brand border + brand text. */
+  /** `primary` = filled brand; `outline` = brand border; `danger` = filled red. */
   variant?: ButtonVariant;
+  /** Tighter padding + slightly smaller label (e.g. side-by-side auction actions). */
+  compact?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -35,10 +37,12 @@ export function Button({
   disabled = false,
   loading = false,
   variant = 'primary',
+  compact = false,
   style,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
   const isOutline = variant === 'outline';
+  const isDanger = variant === 'danger';
 
   return (
     <TouchableOpacity
@@ -49,18 +53,32 @@ export function Button({
       onPress={onPress}
       style={[
         styles.button,
-        isOutline ? styles.buttonOutline : styles.buttonPrimary,
+        isDanger
+          ? styles.buttonDanger
+          : isOutline
+            ? styles.buttonOutline
+            : styles.buttonPrimary,
         isDisabled ? styles.buttonDisabled : null,
+        compact ? styles.buttonCompact : null,
         style,
       ]}
     >
       {loading ? (
         <ActivityIndicator
-          color={isOutline ? colors.brand : colors.onBrand}
+          color={
+            isOutline ? colors.brand : colors.onBrand
+          }
         />
       ) : (
         <Text
-          style={[styles.label, isOutline ? styles.labelOutline : null]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+          style={[
+            styles.label,
+            isOutline ? styles.labelOutline : null,
+            compact ? styles.labelCompact : null,
+          ]}
         >
           {label}
         </Text>
@@ -88,8 +106,16 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.brand,
   },
+  buttonDanger: {
+    backgroundColor: colors.danger,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
   buttonDisabled: {
     opacity: 0.45,
+  },
+  buttonCompact: {
+    paddingHorizontal: 10,
   },
   label: {
     fontFamily: fonts.bodySemiBold,
@@ -98,5 +124,8 @@ const styles = StyleSheet.create({
   },
   labelOutline: {
     color: colors.brand,
+  },
+  labelCompact: {
+    fontSize: 14,
   },
 });
