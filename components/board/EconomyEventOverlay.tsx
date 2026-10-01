@@ -1,5 +1,11 @@
 import { MotiView } from 'moti';
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { AvatarPod } from '@/components/board/AvatarPod';
 import { DeedCard } from '@/components/board/DeedCard';
@@ -14,6 +20,9 @@ import type { EconomyEvent } from '@/lib/economyFeedback';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
+/** Cap pill grid so the sheet stays on-screen; scroll for the rest. */
+const LANDS_GRID_MAX_H = Math.round(Dimensions.get('window').height * 0.42);
+
 type EconomyEventOverlayProps = {
   event: EconomyEvent | null;
 };
@@ -27,16 +36,22 @@ export function EconomyEventOverlay({ event }: EconomyEventOverlayProps) {
     return null;
   }
 
+  const allowScroll = event.kind === 'lands_received';
+
   return (
-    <View style={styles.host} pointerEvents="none">
-      <View style={styles.backdrop} />
-      <View style={styles.center}>
+    <View
+      style={styles.host}
+      pointerEvents={allowScroll ? 'box-none' : 'none'}
+    >
+      <View style={styles.backdrop} pointerEvents="none" />
+      <View style={styles.center} pointerEvents={allowScroll ? 'box-none' : 'none'}>
         <MotiView
           key={`${event.kind}:${event.toastTitle}:${event.toastMessage}`}
           from={{ opacity: 0, scale: 0.92, translateY: 12 }}
           animate={{ opacity: 1, scale: 1, translateY: 0 }}
           transition={{ type: 'timing', duration: 220 }}
           style={styles.sheetWrap}
+          pointerEvents={allowScroll ? 'auto' : 'none'}
         >
           {event.kind === 'buy' ? <BuyBody event={event} /> : null}
           {event.kind === 'lands_received' ? (
@@ -101,7 +116,13 @@ function LandsReceivedBody({
         </Text>
       </View>
       <View style={styles.landsBody}>
-        <View style={styles.landsGrid}>
+        <ScrollView
+          style={styles.landsScroll}
+          contentContainerStyle={styles.landsGrid}
+          showsVerticalScrollIndicator
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+        >
           {event.locations.map((loc) => {
             const Icon = resolveBoardIcon(loc.assets?.icon);
             const strip = stripColorFor(loc, loc.kind);
@@ -125,7 +146,7 @@ function LandsReceivedBody({
               </View>
             );
           })}
-        </View>
+        </ScrollView>
         <View style={styles.landsFooter}>
           <AvatarPod
             initials={event.receiverInitials}
@@ -344,6 +365,9 @@ const styles = StyleSheet.create({
   landsBody: {
     padding: 12,
     gap: 12,
+  },
+  landsScroll: {
+    maxHeight: LANDS_GRID_MAX_H,
   },
   landsGrid: {
     flexDirection: 'row',
