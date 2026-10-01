@@ -157,6 +157,10 @@ type PeerConnectionLike = {
     track: PresenceMediaTrack,
     ...streams: PresenceMediaStream[]
   ) => unknown;
+  getSenders?: () => {
+    track: PresenceMediaTrack | null;
+    replaceTrack: (track: PresenceMediaTrack | null) => Promise<void>;
+  }[];
   createOffer: (opts?: object) => Promise<{ type: string; sdp: string }>;
   createAnswer: (opts?: object) => Promise<{ type: string; sdp: string }>;
   setLocalDescription: (desc: { type: string; sdp: string }) => Promise<void>;
@@ -263,6 +267,8 @@ export type PresenceChannelResult = {
   remoteVideoByUserId: Record<string, PresenceMediaStream>;
   /** Phase 16.1 — front/back facing for local camera (flip in 16.2). */
   cameraFacing: CameraFacing;
+  /** Phase 16.2 — swap front/back camera via replaceTrack (board only). */
+  flipCamera: () => Promise<void>;
   sendPose: (pose: PresencePoseInput) => void;
   /** Drop a remote avatar (call when game marks them resigned — Phase 7.5). */
   clearRemote: (userId: string) => void;
@@ -328,7 +334,8 @@ function usePresenceChannel({
   const [remoteVideoByUserId, setRemoteVideoByUserId] = useState<
     Record<string, PresenceMediaStream>
   >({});
-  const [cameraFacing] = useState<CameraFacing>("user");
+  const [cameraFacing, setCameraFacing] = useState<CameraFacing>("user");
+  const [flipBusy, setFlipBusy] = useState(false);
 
   const pcRef = useRef<PeerConnectionLike | null>(null);
   const dcRef = useRef<DataChannelLike | null>(null);
@@ -400,6 +407,71 @@ function usePresenceChannel({
       return next;
     });
   }, []);
+
+  const flipCamera = useCallback(async () => {
+    if (!publishVideoRef.current || flipBusy) {
+      return;
+    }
+    const webrtc = loadWebRTC();
+    const pc = pcRef.current;
+    if (!webrtc?.mediaDevices?.getUserMedia || !pc?.getSenders) {
+      return;
+    }
+    const nextFacing: CameraFacing =
+      facingModeRef.current === "user" ? "environment" : "user";
+    setFlipBusy(true);
+    try {
+      const fresh = await webrtc.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: nextFacing } },
+      });
+      const newTrack =
+        typeof fresh.getVideoTracks === "function"
+          ? fresh.getVideoTracks()[0]
+          : fresh.getTracks().find((t) => t.kind === "video");
+      if (!newTrack) {
+        for (const t of fresh.getTracks()) {
+          try {
+            t.stop();
+          } catch {
+            // ignore
+          }
+        }
+        fresh.release?.(true);
+        return;
+      }
+      newTrack.enabled = !videoMutedRef.current;
+      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+      if (!sender) {
+        try {
+          newTrack.stop();
+        } catch {
+          // ignore
+        }
+        fresh.release?.(true);
+        return;
+      }
+      await sender.replaceTrack(newTrack);
+      const oldTracks = localVideoTracksRef.current;
+      localVideoTracksRef.current = [newTrack];
+      for (const old of oldTracks) {
+        try {
+          old.stop();
+        } catch {
+          // ignore
+        }
+      }
+      // Preview uses the new video-only stream; audio senders keep prior tracks.
+      localStreamRef.current = fresh;
+      setLocalVideoStream(fresh);
+      facingModeRef.current = nextFacing;
+      setCameraFacing(nextFacing);
+    } catch (err) {
+      console.warn("[presence] flipCamera failed", err);
+    } finally {
+      setFlipBusy(false);
+    }
+  }, [flipBusy]);
 
   const sendPose = useCallback((pose: PresencePoseInput) => {
     const dc = dcRef.current;
@@ -1144,6 +1216,7 @@ function usePresenceChannel({
     localVideoStream,
     remoteVideoByUserId,
     cameraFacing,
+    flipCamera,
     sendPose,
     clearRemote,
     disconnect,

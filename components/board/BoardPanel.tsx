@@ -4,13 +4,12 @@ import { useMemo } from "react";
 import type { Location } from "@/api/types";
 import type { Game } from "@/api/types";
 import { BoardDockIcons } from "@/components/board/BoardDockIcons";
+import { BoardSeatGrid } from "@/components/board/BoardSeatGrid";
 import { EconomyActionBar } from "@/components/board/EconomyActionBar";
 import { Joystick } from "@/components/board/Joystick";
 import { shortTileName } from "@/components/board/tileLabel";
-import { MuteMicButton } from "@/components/voice/MuteMicButton";
-import { AnimatedMeetCoinAmount } from "@/components/ui/AnimatedMeetCoinAmount";
+import type { PresenceMediaStream } from "@/hooks/useBoardPresence";
 import type { StickInput } from "@/hooks/useBoardWalk";
-import { useCurrentTurnClock } from "@/hooks/useTurnCountdown";
 import type { EconomyMode } from "@/lib/economyEligibility";
 import { formatUsername } from "@/lib/formatUsername";
 import { colors } from "@/theme/colors";
@@ -19,23 +18,6 @@ import { fonts } from "@/theme/fonts";
 const JOYSTICK_SIZE = 96;
 /** Inset from panel edges so the stick thumb stays on-screen. */
 const DOCK_PAD = 36;
-
-/** Phase 8.2 — short code for roster badge `Name(in LOS)`. */
-function hubBadgeCode(
-  hubId: string | null | undefined,
-  byHubId: ReadonlyMap<string, string>,
-): string {
-  const id = hubId?.trim();
-  if (!id) {
-    return "";
-  }
-  const known = byHubId.get(id);
-  if (known) {
-    return known;
-  }
-  const slug = id.split(":").pop() ?? "";
-  return slug.slice(0, 3).toUpperCase() || "HUB";
-}
 
 type BoardPanelProps = {
   onStick: (stick: StickInput) => void;
@@ -69,10 +51,15 @@ type BoardPanelProps = {
   peekActive?: boolean;
   onPeekIn?: () => void;
   onPeekOut?: () => void;
+  /** Phase 16.1/16.2 — board camera streams. */
+  localVideoStream?: PresenceMediaStream | null;
+  remoteVideoByUserId?: Record<string, PresenceMediaStream>;
+  onFlipCamera?: () => void;
 };
 
 /**
  * Game HUD; dock icons [Dice][End][Hub] ··· [Joystick] (11.4a).
+ * Phase 16.2 — Meet seat grid replaces text roster; mic lives on local tile.
  */
 export function BoardPanel({
   onStick,
@@ -97,6 +84,9 @@ export function BoardPanel({
   peekActive = false,
   onPeekIn,
   onPeekOut,
+  localVideoStream = null,
+  remoteVideoByUserId = {},
+  onFlipCamera,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : "";
   const hubCodeById = useMemo(() => {
@@ -122,16 +112,6 @@ export function BoardPanel({
   );
   const canRoll = Boolean(isMyTurn && game?.canRoll);
   const canEnd = Boolean(isMyTurn && game?.canEndTurn);
-  const turnClock = useCurrentTurnClock(game);
-  const localBank =
-    localPlayer && turnClock?.userId === localPlayer.userId
-      ? turnClock.label
-      : "";
-  const localBankUrgent = Boolean(
-    localPlayer &&
-      turnClock?.userId === localPlayer.userId &&
-      turnClock.urgent,
-  );
   const localPin = accent ?? localPlayer?.pinColor ?? colors.accent;
   const rollActive = Boolean(
     onRoll && canRoll && !rollDisabled && !rollPending,
@@ -141,22 +121,6 @@ export function BoardPanel({
   const economyEnabled = Boolean(
     game && game.status === "active" && isMyTurn && onEconomySelect,
   );
-
-  const otherPlayers = (game?.players ?? []).filter((p) => {
-    if (localPlayer && p.userId === localPlayer.userId) {
-      return false;
-    }
-    if (localUserId && p.userId === localUserId) {
-      return false;
-    }
-    if (
-      localNameKey &&
-      formatUsername(p.username).toLowerCase() === localNameKey
-    ) {
-      return false;
-    }
-    return true;
-  });
 
   return (
     <View
@@ -190,116 +154,21 @@ export function BoardPanel({
                 ? "Your turn"
                 : `${formatUsername(turnName)}'s turn`}
           </Text>
-          {localPlayer ? (
-            <View style={styles.cashRow}>
-              <View style={[styles.pinDot, { backgroundColor: localPin }]} />
-              <Text style={styles.cashLabel}>
-                You{isMyTurn ? " · turn" : ""}
-              </Text>
-              {typeof localPlayer.country === "string" &&
-              localPlayer.country.trim() ? (
-                <Text style={styles.countryLabel}>
-                  {localPlayer.country.trim().toUpperCase()}
-                </Text>
-              ) : null}
-              {localBank ? (
-                <Text
-                  style={[
-                    styles.bankLabel,
-                    localBankUrgent
-                      ? styles.bankLabelUrgent
-                      : styles.bankLabelActive,
-                    localBank === "0:00" ? styles.bankLabelExpired : null,
-                  ]}
-                >
-                  {localBank}
-                </Text>
-              ) : null}
-              <AnimatedMeetCoinAmount amount={localPlayer.cash} size={15} />
-            </View>
-          ) : null}
-          <View style={styles.balances}>
-            {otherPlayers.map((p) => {
-              const isCurrent = p.userId === game.currentUserId && !p.resigned;
-              const bank =
-                isCurrent && turnClock?.userId === p.userId
-                  ? turnClock.label
-                  : "";
-              const bankUrgent = Boolean(
-                isCurrent && turnClock?.userId === p.userId && turnClock.urgent,
-              );
-              const pinHex = p.pinColor;
-              const hubCode = hubBadgeCode(p.hubId, hubCodeById);
-              const name = formatUsername(p.username);
-              const country =
-                typeof p.country === "string" && p.country.trim()
-                  ? p.country.trim().toUpperCase()
-                  : "";
-              const hubSuffix = hubCode ? `(in ${hubCode})` : "";
-              const statusSuffix = p.resigned
-                ? " · out"
-                : isCurrent
-                  ? " · turn"
-                  : "";
-              return (
-                <View key={p.userId} style={styles.balanceRow}>
-                  <View
-                    style={[
-                      styles.pinDot,
-                      { backgroundColor: pinHex },
-                      p.resigned ? styles.pinDotOut : null,
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.balanceName,
-                      p.resigned ? styles.balanceNameOut : null,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {name}
-                    {hubSuffix}
-                    {statusSuffix}
-                  </Text>
-                  {country ? (
-                    <Text
-                      style={[
-                        styles.countryLabel,
-                        p.resigned ? styles.balanceNameOut : null,
-                      ]}
-                    >
-                      {country}
-                    </Text>
-                  ) : null}
-                  {bank ? (
-                    <Text
-                      style={[
-                        styles.bankLabel,
-                        bankUrgent
-                          ? styles.bankLabelUrgent
-                          : styles.bankLabelActive,
-                        bank === "0:00" ? styles.bankLabelExpired : null,
-                      ]}
-                    >
-                      {bank}
-                    </Text>
-                  ) : null}
-                  <AnimatedMeetCoinAmount
-                    amount={p.cash}
-                    size={13}
-                    color={colors.muted}
-                  />
-                </View>
-              );
-            })}
-          </View>
+          <BoardSeatGrid
+            game={game}
+            localUserId={localUserId}
+            localUsername={localUsername}
+            hubCodeById={hubCodeById}
+            localVideoStream={localVideoStream}
+            remoteVideoByUserId={remoteVideoByUserId}
+            onFlipCamera={() => {
+              void onFlipCamera?.();
+            }}
+          />
         </View>
       ) : null}
 
       <View style={styles.joystickDock}>
-        <View style={styles.muteRow}>
-          <MuteMicButton />
-        </View>
         <View style={styles.stickRow}>
           <View style={styles.leftCol}>
             {game?.status === "active" ? (
@@ -376,75 +245,12 @@ const styles = StyleSheet.create({
   gameHud: {
     marginTop: 6,
     marginBottom: 4,
-    gap: 6,
+    gap: 8,
   },
   turnLine: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 14,
     color: colors.brand,
-  },
-  cashRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  cashLabel: {
-    flex: 1,
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
-    color: colors.ink,
-  },
-  balances: {
-    gap: 4,
-    maxHeight: 96,
-  },
-  balanceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  bankLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    fontVariant: ["tabular-nums"],
-    minWidth: 40,
-    textAlign: "right",
-  },
-  bankLabelActive: {
-    color: colors.brand,
-  },
-  bankLabelUrgent: {
-    color: colors.danger,
-  },
-  bankLabelPaused: {
-    color: colors.muted,
-  },
-  bankLabelExpired: {
-    color: colors.danger,
-  },
-  pinDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  pinDotOut: {
-    opacity: 0.35,
-  },
-  balanceName: {
-    flex: 1,
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
-  },
-  balanceNameOut: {
-    textDecorationLine: "line-through",
-    opacity: 0.65,
-  },
-  countryLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    letterSpacing: 0.4,
-    color: colors.muted,
   },
   joystickDock: {
     position: "absolute",
@@ -452,9 +258,6 @@ const styles = StyleSheet.create({
     right: DOCK_PAD,
     bottom: DOCK_PAD,
     gap: 10,
-  },
-  muteRow: {
-    alignSelf: "flex-end",
   },
   stickRow: {
     flexDirection: "row",
