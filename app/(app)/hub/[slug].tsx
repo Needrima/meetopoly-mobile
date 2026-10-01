@@ -490,6 +490,72 @@ export default function HubScreen() {
     openBoard();
   }, [game?.trade, inHubMarked, openBoard, turnBusy, localUserId]);
 
+  // Phase 14.2 — debtor must settle on board (Pay | Bankruptcy / debt-pay).
+  const debtKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!inHubMarked || !localUserId || !game || game.status !== 'active') {
+      if (!game?.pendingPayment && !game?.debtPay) {
+        debtKeyRef.current = null;
+      }
+      return;
+    }
+    if (turnBusy) {
+      return;
+    }
+    const debtPay = game.debtPay;
+    const pending = game.pendingPayment;
+    const iAmDebtor = Boolean(
+      pending &&
+        pending.amount > 0 &&
+        (pending.fromUserId === localUserId ||
+          (!pending.fromUserId && game.currentUserId === localUserId)),
+    );
+    const choiceGate =
+      iAmDebtor &&
+      !debtPay &&
+      game.turnPhase === 'awaiting_roll' &&
+      game.currentUserId === localUserId &&
+      (game.canStartDebtPay || game.canBankrupt);
+    const payingMine = Boolean(
+      debtPay && debtPay.userId === localUserId,
+    );
+    if (!choiceGate && !payingMine) {
+      if (!pending && !debtPay) {
+        debtKeyRef.current = null;
+      }
+      return;
+    }
+    const key = debtPay
+      ? `pay:${debtPay.userId}:${debtPay.deadline}`
+      : `choice:${pending?.fromUserId ?? localUserId}:${pending?.amount ?? 0}:${game.turnPhase}`;
+    if (debtKeyRef.current === key) {
+      return;
+    }
+    debtKeyRef.current = key;
+    setBuySheetOpen(false);
+    setTurnSheetOpen(false);
+    notify({
+      type: 'warning',
+      title: choiceGate ? 'Settle debt' : 'Paying debt',
+      message: choiceGate
+        ? 'Opening board — Pay or Bankruptcy…'
+        : 'Opening board to raise funds…',
+    });
+    openBoard();
+  }, [
+    game?.pendingPayment,
+    game?.debtPay,
+    game?.turnPhase,
+    game?.currentUserId,
+    game?.canStartDebtPay,
+    game?.canBankrupt,
+    game?.status,
+    inHubMarked,
+    openBoard,
+    turnBusy,
+    localUserId,
+  ]);
+
   const dismissBuySheet = useCallback(() => {
     setBuySheetOpen(false);
     setAwaitingEndAfterBuy(false);

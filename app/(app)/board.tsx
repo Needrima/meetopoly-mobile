@@ -16,6 +16,7 @@ import { Board } from "@/components/board/Board";
 import { BoardOverflowMenu } from "@/components/board/BoardOverflowMenu";
 import { BoardPanel } from "@/components/board/BoardPanel";
 import { BuyPropertyOverlay } from "@/components/board/BuyPropertyOverlay";
+import { DebtOverlay } from "@/components/board/DebtOverlay";
 import { EconomyEventOverlay } from "@/components/board/EconomyEventOverlay";
 import { EconomyModeSheet } from "@/components/board/EconomyModeSheet";
 import { JailActionSheet } from "@/components/board/JailActionSheet";
@@ -37,6 +38,7 @@ import {
   useAcceptTrade,
   useAuctionBid,
   useAuctionFold,
+  useBankruptGame,
   useBuyProperty,
   useBuildOnDeed,
   useDeclineTrade,
@@ -50,6 +52,7 @@ import {
   useRollDice,
   useSellBuilding,
   useStartAuction,
+  useStartDebtPay,
   useUseJailCard,
 } from "@/hooks/useGame";
 import {
@@ -125,6 +128,8 @@ export default function BoardScreen() {
   const proposeTradeMut = useProposeTrade(gameId);
   const acceptTradeMut = useAcceptTrade(gameId);
   const declineTradeMut = useDeclineTrade(gameId);
+  const bankruptMut = useBankruptGame(gameId);
+  const startDebtPayMut = useStartDebtPay(gameId);
   const buildMut = useBuildOnDeed(gameId);
   const sellMut = useSellBuilding(gameId);
   const mortgageMut = useMortgageDeed(gameId);
@@ -633,6 +638,36 @@ export default function BoardScreen() {
     });
   }, [gameId, auctionFoldMut]);
 
+  const onStartDebtPay = useCallback(() => {
+    if (!gameId || startDebtPayMut.isPending || turnBusy) {
+      return;
+    }
+    startDebtPayMut.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: "error",
+          title: "Could not start pay",
+          message: err.message || "Could not open debt-pay window",
+        });
+      },
+    });
+  }, [gameId, startDebtPayMut, turnBusy]);
+
+  const onBankrupt = useCallback(() => {
+    if (!gameId || bankruptMut.isPending) {
+      return;
+    }
+    bankruptMut.mutate(undefined, {
+      onError: (err: Error) => {
+        notify({
+          type: "error",
+          title: "Bankruptcy failed",
+          message: err.message || "Could not declare bankruptcy",
+        });
+      },
+    });
+  }, [gameId, bankruptMut]);
+
   const onPayJailFine = useCallback(() => {
     if (!gameId || payJailMut.isPending || turnBusy) {
       return;
@@ -775,12 +810,41 @@ export default function BoardScreen() {
       localUserId &&
       ((localInTrade && !turnBusy) || tradeComposeOpen),
   );
+  const debtPay = game?.debtPay ?? null;
+  const pendingPayment = game?.pendingPayment ?? null;
+  const localInDebt = Boolean(
+    pendingPayment &&
+      pendingPayment.amount > 0 &&
+      localUserId &&
+      (pendingPayment.fromUserId === localUserId ||
+        (!pendingPayment.fromUserId && isMyTurn)),
+  );
+  // Next-turn gate only (landing turn stays End OK / no Pay sheet).
+  const showDebtChoice = Boolean(
+    game &&
+      game.status === "active" &&
+      isMyTurn &&
+      localInDebt &&
+      !debtPay &&
+      game.turnPhase === "awaiting_roll" &&
+      !turnBusy &&
+      !cardRevealBlocking &&
+      !auction &&
+      !trade &&
+      (game.canStartDebtPay || game.canBankrupt),
+  );
+  const showDebtPaying = Boolean(
+    game && game.status === "active" && debtPay && !showDebtChoice,
+  );
+
   const tradeEnabled = Boolean(
     isMyTurn &&
       game?.canProposeTrade &&
       !turnBusy &&
       !showAuctionModal &&
       !showBuyModal &&
+      !showDebtChoice &&
+      !showDebtPaying &&
       !trade &&
       !tradeComposeOpen,
   );
@@ -790,6 +854,13 @@ export default function BoardScreen() {
       setAuctionPeeking(false);
     }
   }, [showAuctionModal]);
+
+  useEffect(() => {
+    if (showDebtChoice) {
+      setTradeComposeOpen(false);
+      economy.clearMode();
+    }
+  }, [showDebtChoice, economy.clearMode]);
 
   // Only react when trade opens/closes — not on every WS state refresh (that
   // would cancel hold-to-peek mid-press).
@@ -840,6 +911,8 @@ export default function BoardScreen() {
       !showBuyModal &&
       !showAuctionModal &&
       !showTradeModal &&
+      !showDebtChoice &&
+      !showDebtPaying &&
       (game.canPayJailFine || game.canUseJailCard || game.canRoll),
   );
 
@@ -987,6 +1060,16 @@ export default function BoardScreen() {
   const localCash =
     game?.players.find((p) => p.userId === localUserId)?.cash ?? 0;
   const canAffordBuy = Boolean(buyOffer && localCash >= buyOffer.price);
+  const debtAmountOwed = Math.max(0, pendingPayment?.amount ?? 0);
+  const debtOwedToLabel = pendingPayment?.toUsername
+    ? formatUsername(pendingPayment.toUsername) || "Bank"
+    : pendingPayment?.toUserId
+      ? "player"
+      : "Bank";
+  const debtPayUser =
+    debtPay && game
+      ? game.players.find((p) => p.userId === debtPay.userId)
+      : null;
   const auctionLoc = auction
     ? (locations.find((l) => l.boardIndex === auction.boardIndex) ?? null)
     : null;
@@ -1042,7 +1125,12 @@ export default function BoardScreen() {
               ownerColorByIndex={ownerColorByIndex}
               deeds={game?.deeds}
               onTilePress={
-                showBuyModal || showAuctionModal ? undefined : onTilePress
+                showBuyModal ||
+                showAuctionModal ||
+                showDebtChoice ||
+                showTradeModal
+                  ? undefined
+                  : onTilePress
               }
               avatar={{
                 poseX: walk.poseX,
@@ -1113,12 +1201,39 @@ export default function BoardScreen() {
               onDecline={onDeclineTrade}
             />
           ) : null}
+          <DebtOverlay
+            choiceVisible={showDebtChoice}
+            payingVisible={showDebtPaying}
+            amountOwed={debtAmountOwed}
+            owedToLabel={debtOwedToLabel}
+            debtKind={pendingPayment?.kind}
+            avatarInitials={usernameInitialSafe(
+              localGamePlayer?.username ?? username,
+            )}
+            avatarAccent={
+              displayAccent ?? localGamePlayer?.pinColor ?? colors.accent
+            }
+            canPay={Boolean(game?.canStartDebtPay)}
+            canBankrupt={Boolean(game?.canBankrupt)}
+            payDeadline={debtPay?.deadline}
+            payerUsername={formatUsername(
+              debtPay?.username ?? debtPayUser?.username,
+            )}
+            isDebtor={Boolean(
+              debtPay && localUserId && debtPay.userId === localUserId,
+            )}
+            payPending={startDebtPayMut.isPending}
+            bankruptPending={bankruptMut.isPending}
+            onPay={onStartDebtPay}
+            onBankrupt={onBankrupt}
+          />
           <TileInfoOverlay
             visible={
               inspectIndex != null &&
               !showBuyModal &&
               !showAuctionModal &&
               !showTradeModal &&
+              !showDebtChoice &&
               !economy.mode
             }
             location={inspectLoc}
@@ -1173,7 +1288,9 @@ export default function BoardScreen() {
               turnBusy ||
               showJailSheet ||
               showAuctionModal ||
-              showTradeModal
+              showTradeModal ||
+              showDebtChoice ||
+              showDebtPaying
             }
             rollPending={rollDice.isPending}
             onEndTurn={game ? onEndTurn : undefined}
@@ -1183,11 +1300,15 @@ export default function BoardScreen() {
               turnBusy ||
               showBuyModal ||
               showAuctionModal ||
-              showTradeModal
+              showTradeModal ||
+              showDebtChoice ||
+              showDebtPaying
             }
             endPending={endTurnMut.isPending}
             economyMode={economy.mode}
-            onEconomySelect={economy.selectMode}
+            onEconomySelect={
+              showDebtChoice ? undefined : economy.selectMode
+            }
             tradeEnabled={tradeEnabled}
             onTrade={onOpenTrade}
             peekActive={showAuctionModal}
@@ -1206,7 +1327,7 @@ export default function BoardScreen() {
         }}
         eyebrow="Leave"
         title="Resign from this game?"
-        body="Leaving mid-game counts as resigning. You will be skipped for turns; assets stay frozen until bankruptcy rules land."
+        body="Leaving mid-game counts as resigning. Your deeds return to the Bank and any remaining debt is settled from the Bank."
         actionsLayout="row"
         primaryLabel="Stay"
         onPrimary={() => setLeaveConfirmOpen(false)}

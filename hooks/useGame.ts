@@ -470,3 +470,37 @@ export function useDeclineTrade(gameId: string | null | undefined) {
     onSuccess,
   });
 }
+
+/** POST /games/{id}/bankrupt — Phase 14.0 / 14.2. */
+export function useBankruptGame(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/bankrupt`,
+        { method: "POST" },
+      );
+    },
+    onSuccess,
+  });
+}
+
+/** POST /games/{id}/debt-pay/start — Phase 14.0 / 14.2. */
+export function useStartDebtPay(gameId: string | null | undefined) {
+  const { id, onSuccess } = useGameMutation(gameId);
+  return useMutation<Game, Error, void>({
+    mutationFn: () => {
+      if (!id) {
+        return Promise.reject(new Error("Missing game id"));
+      }
+      return apiMutator<Game>(
+        `/games/${encodeURIComponent(id)}/debt-pay/start`,
+        { method: "POST" },
+      );
+    },
+    onSuccess,
+  });
+}

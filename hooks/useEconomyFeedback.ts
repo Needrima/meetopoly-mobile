@@ -23,6 +23,8 @@ import {
   lastAuctionSignature,
   lastTradeSignature,
   openTradeSignature,
+  debtPaySignature,
+  lastBankruptcySignature,
   passGoSignature,
   paymentSignature,
   type EconomyEvent,
@@ -87,6 +89,8 @@ export function useEconomyFeedback({
   const lastAuctionSigRef = useRef<string | null>(null);
   const lastTradeSigRef = useRef<string | null>(null);
   const openTradeSigRef = useRef<string | null>(null);
+  const debtPaySigRef = useRef<string | null>(null);
+  const lastBankruptcySigRef = useRef<string | null>(null);
 
   // Seed signatures on first game snapshot (no historical replay).
   // Also advance sigs while disabled so reuniting focus does not replay.
@@ -112,6 +116,10 @@ export function useEconomyFeedback({
       : '';
     const tradeSig = game.lastTrade ? lastTradeSignature(game.lastTrade) : '';
     const openTradeSig = game.trade ? openTradeSignature(game.trade) : '';
+    const debtPaySig = game.debtPay ? debtPaySignature(game.debtPay) : '';
+    const bankruptcySig = game.lastBankruptcy
+      ? lastBankruptcySignature(game.lastBankruptcy)
+      : '';
     const jailFailKey =
       game.lastRoll &&
       game.players.some(
@@ -139,6 +147,8 @@ export function useEconomyFeedback({
       lastAuctionSigRef.current = auctionSig || null;
       lastTradeSigRef.current = tradeSig || null;
       openTradeSigRef.current = openTradeSig || null;
+      debtPaySigRef.current = debtPaySig || null;
+      lastBankruptcySigRef.current = bankruptcySig || null;
       return;
     }
     if (!enabled) {
@@ -164,6 +174,10 @@ export function useEconomyFeedback({
         lastTradeSigRef.current = tradeSig;
       }
       openTradeSigRef.current = openTradeSig || null;
+      debtPaySigRef.current = debtPaySig || null;
+      if (bankruptcySig) {
+        lastBankruptcySigRef.current = bankruptcySig;
+      }
     }
   }, [game, enabled, locations]);
 
@@ -433,6 +447,81 @@ export function useEconomyFeedback({
       type: accepted ? 'success' : 'info',
       title: accepted ? 'Offer accepted' : 'Offer rejected',
       message,
+    });
+  }, [enabled, game, localUserId]);
+
+  // Phase 14.2 — debt-pay window opened: toast others.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current) {
+      return;
+    }
+    const dp = game.debtPay;
+    if (!dp) {
+      debtPaySigRef.current = null;
+      return;
+    }
+    const sig = debtPaySignature(dp);
+    if (sig === debtPaySigRef.current) {
+      return;
+    }
+    debtPaySigRef.current = sig;
+    if (dp.userId === localUserId) {
+      return;
+    }
+    const who = formatUsername(dp.username) || 'Someone';
+    notify({
+      type: 'info',
+      title: 'Paying debt',
+      message: `${who} is paying debt`,
+    });
+  }, [enabled, game, localUserId]);
+
+  // Phase 14.2 — bankruptcy wipe toast (declare / auto). Resign + turn
+  // timeout already toast via resign/forfeit handlers on the board.
+  useEffect(() => {
+    if (!enabled || !localUserId || !game || !readyRef.current) {
+      return;
+    }
+    const lb = game.lastBankruptcy;
+    if (!lb) {
+      return;
+    }
+    const sig = lastBankruptcySignature(lb);
+    if (sig === lastBankruptcySigRef.current) {
+      return;
+    }
+    lastBankruptcySigRef.current = sig;
+    if (
+      lb.reason === 'resign' ||
+      lb.reason === 'turn_timeout'
+    ) {
+      return;
+    }
+    const iAm = lb.userId === localUserId;
+    const who = iAm ? 'You' : formatUsername(lb.username) || 'Someone';
+    let detail: string;
+    switch (lb.reason) {
+      case 'auto_timeout':
+        detail = iAm
+          ? 'You ran out of time raising funds'
+          : `${who} ran out of time raising funds`;
+        break;
+      case 'auto_insolvent':
+        detail = iAm
+          ? 'You could not raise enough to settle'
+          : `${who} could not raise enough to settle`;
+        break;
+      case 'declare':
+      default:
+        detail = iAm
+          ? 'You declared bankruptcy'
+          : `${who} declared bankruptcy`;
+        break;
+    }
+    notify({
+      type: iAm ? 'error' : 'info',
+      title: 'Bankruptcy',
+      message: detail,
     });
   }, [enabled, game, localUserId]);
 

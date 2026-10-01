@@ -326,6 +326,40 @@ export function openTradeSignature(
   return `${trade.fromUserId}:${trade.toUserId}:${trade.replyDeadline}`;
 }
 
+/** Phase 14.2 — debt-pay window open signature. */
+export function debtPaySignature(
+  debtPay:
+    | {
+        userId: string;
+        deadline: string;
+      }
+    | null
+    | undefined,
+): string {
+  if (!debtPay) {
+    return '';
+  }
+  return `${debtPay.userId}:${debtPay.deadline}`;
+}
+
+/** Phase 14.2 — last bankruptcy wipe toast signature. */
+export function lastBankruptcySignature(
+  lb:
+    | {
+        userId: string;
+        reason: string;
+        bankPaid?: number;
+        owedToUserId?: string;
+      }
+    | null
+    | undefined,
+): string {
+  if (!lb) {
+    return '';
+  }
+  return `${lb.userId}:${lb.reason}:${lb.bankPaid ?? 0}:${lb.owedToUserId ?? ''}`;
+}
+
 export function buildPaymentEvent(args: {
   payment: GameLastPayment;
   localUserId: string | null;
