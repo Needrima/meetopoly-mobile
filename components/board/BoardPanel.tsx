@@ -54,6 +54,9 @@ type BoardPanelProps = {
   /** Phase 16.1/16.2 — board camera streams. */
   localVideoStream?: PresenceMediaStream | null;
   remoteVideoByUserId?: Record<string, PresenceMediaStream>;
+  localVideoRotationDeg?: number;
+  remoteVideoRotationByUserId?: Record<string, number>;
+  remoteVideoMutedByUserId?: Record<string, boolean>;
   onFlipCamera?: () => void;
 };
 
@@ -86,6 +89,9 @@ export function BoardPanel({
   onPeekOut,
   localVideoStream = null,
   remoteVideoByUserId = {},
+  localVideoRotationDeg = 0,
+  remoteVideoRotationByUserId = {},
+  remoteVideoMutedByUserId = {},
   onFlipCamera,
 }: BoardPanelProps) {
   const code = nearby ? shortTileName(nearby) : "";
@@ -161,6 +167,9 @@ export function BoardPanel({
             hubCodeById={hubCodeById}
             localVideoStream={localVideoStream}
             remoteVideoByUserId={remoteVideoByUserId}
+            localVideoRotationDeg={localVideoRotationDeg}
+            remoteVideoRotationByUserId={remoteVideoRotationByUserId}
+            remoteVideoMutedByUserId={remoteVideoMutedByUserId}
             onFlipCamera={() => {
               void onFlipCamera?.();
             }}

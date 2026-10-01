@@ -18,6 +18,10 @@ type BoardSeatGridProps = {
   hubCodeById: ReadonlyMap<string, string>;
   localVideoStream: PresenceMediaStream | null;
   remoteVideoByUserId: Record<string, PresenceMediaStream>;
+  localVideoRotationDeg?: number;
+  remoteVideoRotationByUserId?: Record<string, number>;
+  /** Publishers who announced cam-off over the presence DataChannel. */
+  remoteVideoMutedByUserId?: Record<string, boolean>;
   onFlipCamera: () => void;
 };
 
@@ -47,6 +51,9 @@ export function BoardSeatGrid({
   hubCodeById,
   localVideoStream,
   remoteVideoByUserId,
+  localVideoRotationDeg = 0,
+  remoteVideoRotationByUserId = {},
+  remoteVideoMutedByUserId = {},
   onFlipCamera,
 }: BoardSeatGridProps) {
   const { muted: micMuted, setMuted: setMicMuted } = useMuteMic();
@@ -85,18 +92,12 @@ export function BoardSeatGrid({
             const stream = isLocal
               ? localVideoStream
               : (remoteVideoByUserId[p.userId] ?? null);
-            const remoteTracksOff =
-              !isLocal &&
-              Boolean(
-                stream &&
-                  (typeof stream.getVideoTracks === 'function'
-                    ? stream.getVideoTracks()
-                    : []
-                  ).every((t) => !t.enabled),
-              );
             const cameraOff = isLocal
               ? videoMuted || !stream
-              : !stream || remoteTracksOff;
+              : !stream || remoteVideoMutedByUserId[p.userId] === true;
+            const contentRotateDeg = isLocal
+              ? localVideoRotationDeg
+              : (remoteVideoRotationByUserId[p.userId] ?? 0);
             return (
               <BoardSeatTile
                 key={p.userId}
@@ -109,6 +110,7 @@ export function BoardSeatGrid({
                 stream={stream}
                 cameraOff={cameraOff}
                 mirror={isLocal}
+                contentRotateDeg={contentRotateDeg}
                 micMuted={micMuted}
                 videoMuted={videoMuted}
                 onLongPress={() => setInfoPlayer(p)}

@@ -1316,6 +1316,9 @@ export default function BoardScreen() {
             onPeekOut={() => setAuctionPeeking(false)}
             localVideoStream={presence.localVideoStream}
             remoteVideoByUserId={presence.remoteVideoByUserId}
+            localVideoRotationDeg={presence.localVideoRotationDeg}
+            remoteVideoRotationByUserId={presence.remoteVideoRotationByUserId}
+            remoteVideoMutedByUserId={presence.remoteVideoMutedByUserId}
             onFlipCamera={presence.flipCamera}
           />
         </View>

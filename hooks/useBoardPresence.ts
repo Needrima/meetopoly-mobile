@@ -14,6 +14,15 @@ import {
   type PresencePose,
   type PresencePoseInput,
 } from "@/lib/presencePose";
+import {
+  encodeVideoMuted,
+  parseVideoMuted,
+} from "@/lib/boardVideoMute";
+import {
+  encodeVideoOrientation,
+  localBoardVideoRotationDeg,
+  parseVideoOrientation,
+} from "@/lib/boardVideoOrientation";
 
 /** SFU board video stream id prefix (Phase 16.0) — `video-{userId}`. */
 const BOARD_VIDEO_STREAM_PREFIX = "video-";
@@ -276,6 +285,17 @@ export type PresenceChannelResult = {
   localVideoStream: PresenceMediaStream | null;
   /** Phase 16.1 — remote board camera streams keyed by publisher userId. */
   remoteVideoByUserId: Record<string, PresenceMediaStream>;
+  /**
+   * Phase 16.2 — display rotation (deg) for upright video.
+   * Local iOS publishes a correction; remotes apply the same for that userId only.
+   */
+  localVideoRotationDeg: number;
+  remoteVideoRotationByUserId: Record<string, number>;
+  /**
+   * Phase 16.2 — remote publishers who announced cam-off via DataChannel.
+   * Remotes cannot see sender `track.enabled`; use this for AvatarPod.
+   */
+  remoteVideoMutedByUserId: Record<string, boolean>;
   /** Phase 16.1 — front/back facing for local camera (flip in 16.2). */
   cameraFacing: CameraFacing;
   /** Phase 16.2 — swap front/back camera via replaceTrack (board only). */
@@ -345,6 +365,12 @@ function usePresenceChannel({
   const [remoteVideoByUserId, setRemoteVideoByUserId] = useState<
     Record<string, PresenceMediaStream>
   >({});
+  const [remoteVideoRotationByUserId, setRemoteVideoRotationByUserId] =
+    useState<Record<string, number>>({});
+  const [remoteVideoMutedByUserId, setRemoteVideoMutedByUserId] = useState<
+    Record<string, boolean>
+  >({});
+  const localVideoRotationDeg = localBoardVideoRotationDeg();
   const [cameraFacing, setCameraFacing] = useState<CameraFacing>("user");
   const [flipBusy, setFlipBusy] = useState(false);
 
@@ -390,6 +416,26 @@ function usePresenceChannel({
   useEffect(() => {
     for (const track of localVideoTracksRef.current) {
       track.enabled = !videoMuted;
+    }
+  }, [videoMuted]);
+
+  // Announce cam-off to remotes (enabled=false is not visible across WebRTC).
+  useEffect(() => {
+    if (!publishVideoRef.current) {
+      return;
+    }
+    const dc = dcRef.current;
+    const identity = identityRef.current;
+    if (!dc || !identity) {
+      return;
+    }
+    if (dc.readyState && dc.readyState !== "open") {
+      return;
+    }
+    try {
+      dc.send(encodeVideoMuted(identity.userId, videoMuted));
+    } catch (err) {
+      console.warn("[presence] videoMuted send failed", err);
     }
   }, [videoMuted]);
 
@@ -477,6 +523,19 @@ function usePresenceChannel({
       setLocalVideoStream(fresh);
       facingModeRef.current = nextFacing;
       setCameraFacing(nextFacing);
+      // Re-announce so late joiners / remotes keep iOS correction after flip.
+      const deg = localBoardVideoRotationDeg();
+      if (deg !== 0) {
+        const dc = dcRef.current;
+        const identity = identityRef.current;
+        if (dc && identity && (!dc.readyState || dc.readyState === "open")) {
+          try {
+            dc.send(encodeVideoOrientation(identity.userId, deg));
+          } catch {
+            // ignore
+          }
+        }
+      }
     } catch (err) {
       console.warn("[presence] flipCamera failed", err);
     } finally {
@@ -517,6 +576,8 @@ function usePresenceChannel({
       setRemotes({});
       setLocalVideoStream(null);
       setRemoteVideoByUserId({});
+      setRemoteVideoRotationByUserId({});
+      setRemoteVideoMutedByUserId({});
       identityRef.current = null;
       disconnectRef.current = () => {};
       return;
@@ -605,6 +666,8 @@ function usePresenceChannel({
       remoteStreamsRef.current.clear();
       if (!cancelled) {
         setRemoteVideoByUserId({});
+        setRemoteVideoRotationByUserId({});
+        setRemoteVideoMutedByUserId({});
       }
     };
 
@@ -678,6 +741,48 @@ function usePresenceChannel({
       }, delay);
     };
 
+    const announceLocalVideoOrientation = () => {
+      if (!publishVideoRef.current) {
+        return;
+      }
+      const deg = localBoardVideoRotationDeg();
+      if (deg === 0) {
+        return;
+      }
+      const dc = dcRef.current;
+      const identity = identityRef.current;
+      if (!dc || !identity) {
+        return;
+      }
+      if (dc.readyState && dc.readyState !== "open") {
+        return;
+      }
+      try {
+        dc.send(encodeVideoOrientation(identity.userId, deg));
+      } catch (err) {
+        console.warn("[presence] videoOrientation send failed", err);
+      }
+    };
+
+    const announceLocalVideoMuted = () => {
+      if (!publishVideoRef.current) {
+        return;
+      }
+      const dc = dcRef.current;
+      const identity = identityRef.current;
+      if (!dc || !identity) {
+        return;
+      }
+      if (dc.readyState && dc.readyState !== "open") {
+        return;
+      }
+      try {
+        dc.send(encodeVideoMuted(identity.userId, videoMutedRef.current));
+      } catch (err) {
+        console.warn("[presence] videoMuted send failed", err);
+      }
+    };
+
     const bindDataChannel = (dc: DataChannelLike) => {
       dcRef.current = dc;
       dc.onopen = () => {
@@ -685,6 +790,8 @@ function usePresenceChannel({
           recoverAttempt = 0;
           setDcOpen(true);
           setStatus("connected");
+          announceLocalVideoOrientation();
+          announceLocalVideoMuted();
         }
       };
       dc.onclose = () => {
@@ -700,8 +807,43 @@ function usePresenceChannel({
       };
       dc.onmessage = (ev) => {
         const text = messageDataToString(ev.data);
+        if (cancelled || !text) {
+          return;
+        }
+        const mutedMsg = parseVideoMuted(text);
+        if (mutedMsg) {
+          if (
+            identityRef.current &&
+            mutedMsg.userId === identityRef.current.userId
+          ) {
+            return;
+          }
+          setRemoteVideoMutedByUserId((prev) => {
+            if (prev[mutedMsg.userId] === mutedMsg.muted) {
+              return prev;
+            }
+            return { ...prev, [mutedMsg.userId]: mutedMsg.muted };
+          });
+          return;
+        }
+        const orient = parseVideoOrientation(text);
+        if (orient) {
+          if (
+            identityRef.current &&
+            orient.userId === identityRef.current.userId
+          ) {
+            return;
+          }
+          setRemoteVideoRotationByUserId((prev) => {
+            if (prev[orient.userId] === orient.rotationDeg) {
+              return prev;
+            }
+            return { ...prev, [orient.userId]: orient.rotationDeg };
+          });
+          return;
+        }
         const pose = parsePresencePose(text);
-        if (!pose || cancelled) {
+        if (!pose) {
           return;
         }
         if (identityRef.current && pose.userId === identityRef.current.userId) {
@@ -868,6 +1010,8 @@ function usePresenceChannel({
             }
             if (wantVideo && videoTracks.length > 0) {
               setLocalVideoStream(stream);
+              announceLocalVideoOrientation();
+              announceLocalVideoMuted();
             } else {
               setLocalVideoStream(null);
             }
@@ -1061,6 +1205,8 @@ function usePresenceChannel({
             message: joinToastRef.current,
             visibilityTime: 2800,
           });
+          announceLocalVideoOrientation();
+          announceLocalVideoMuted();
           if (seedWelcomeRef.current && peer.userId) {
             setRemotes((prev) => {
               if (prev[peer.userId]) {
@@ -1092,6 +1238,22 @@ function usePresenceChannel({
               return next;
             });
             setRemoteVideoByUserId((prev) => {
+              if (!(peer.userId in prev)) {
+                return prev;
+              }
+              const next = { ...prev };
+              delete next[peer.userId];
+              return next;
+            });
+            setRemoteVideoRotationByUserId((prev) => {
+              if (!(peer.userId in prev)) {
+                return prev;
+              }
+              const next = { ...prev };
+              delete next[peer.userId];
+              return next;
+            });
+            setRemoteVideoMutedByUserId((prev) => {
               if (!(peer.userId in prev)) {
                 return prev;
               }
@@ -1207,6 +1369,8 @@ function usePresenceChannel({
       setRosterMap({});
       setLocalVideoStream(null);
       setRemoteVideoByUserId({});
+      setRemoteVideoRotationByUserId({});
+      setRemoteVideoMutedByUserId({});
     };
 
     disconnectRef.current = hardDisconnect;
@@ -1226,6 +1390,9 @@ function usePresenceChannel({
     roster: Object.values(rosterMap),
     localVideoStream,
     remoteVideoByUserId,
+    localVideoRotationDeg,
+    remoteVideoRotationByUserId,
+    remoteVideoMutedByUserId,
     cameraFacing,
     flipCamera,
     sendPose,
