@@ -3,16 +3,23 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useMuteMic } from '@/hooks/useMuteMic';
+import { useMuteVideo } from '@/hooks/useMuteVideo';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
  * Phase 9.2 — home Settings. Mute persists for Phase 10 voice.
+ * Phase 16.1 — board camera off (`muteVideo`).
  * RN Switch (not @expo/ui) — Compose Host+Switch wraps label vertically on Android.
  * Leave stays board ⋯ only; report deferred until player picker + API.
  */
 export default function SettingsScreen() {
   const { muted, ready, setMuted } = useMuteMic();
+  const {
+    muted: videoMuted,
+    ready: videoReady,
+    setMuted: setVideoMuted,
+  } = useMuteVideo();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
@@ -48,8 +55,28 @@ export default function SettingsScreen() {
           />
         </View>
         <Text style={styles.hint}>
-          Also available from the hub Voice rail and board mute button. Muted
-          mic stays off until you unmute.
+          Also available from the hub Voice rail and board seat mic control.
+          Muted mic stays off until you unmute.
+        </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.section}>Video</Text>
+        <View style={styles.row}>
+          <Text style={styles.label}>Camera off</Text>
+          <Switch
+            value={videoMuted}
+            onValueChange={setVideoMuted}
+            disabled={!videoReady}
+            trackColor={{ false: colors.border, true: colors.brandMuted }}
+            thumbColor={videoMuted ? colors.onBrand : colors.surface}
+            ios_backgroundColor={colors.border}
+            accessibilityLabel="Camera off"
+          />
+        </View>
+        <Text style={styles.hint}>
+          Board only — hubs stay audio-only. Also toggled from your board seat
+          tile. Camera stays off until you turn it back on.
         </Text>
       </View>
     </SafeAreaView>

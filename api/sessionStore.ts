@@ -7,7 +7,9 @@ export type SecureStoreKey =
   | 'resetToken'
   | 'resetEmail'
   /** Phase 9.2 — mic muted when voice ships (Phase 10). `'1'` = muted. */
-  | 'muteMic';
+  | 'muteMic'
+  /** Phase 16.1 — board camera off. `'1'` = camera disabled (track.enabled=false). */
+  | 'muteVideo';
 
 const KEY_PREFIX = 'meetopoly.';
 

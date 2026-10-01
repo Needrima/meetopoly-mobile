@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getWsBaseUrl } from "@/api/client";
 import { useMuteMic } from "@/hooks/useMuteMic";
+import { useMuteVideo } from "@/hooks/useMuteVideo";
 import { useSession } from "@/hooks/useSession";
 import { formatUsername } from "@/lib/formatUsername";
 import { startHubSpeaker, stopHubSpeaker } from "@/lib/hubAudioRoute";
@@ -14,7 +15,30 @@ import {
   type PresencePoseInput,
 } from "@/lib/presencePose";
 
+/** SFU board video stream id prefix (Phase 16.0) — `video-{userId}`. */
+const BOARD_VIDEO_STREAM_PREFIX = "video-";
 const PRESENCE_DC_LABEL = "presence";
+
+export type CameraFacing = "user" | "environment";
+
+/** Minimal local/remote track/stream surface (Phase 10 / 16.1). */
+export type PresenceMediaStream = {
+  id?: string;
+  getAudioTracks: () => PresenceMediaTrack[];
+  getVideoTracks: () => PresenceMediaTrack[];
+  getTracks: () => PresenceMediaTrack[];
+  addTrack?: (track: PresenceMediaTrack) => void;
+  release?: (releaseTracks?: boolean) => void;
+  /** react-native-webrtc — required by RTCView. */
+  toURL?: () => string;
+};
+
+type PresenceMediaTrack = {
+  id?: string;
+  kind: string;
+  enabled: boolean;
+  stop: () => void;
+};
 
 type PresencePeer = {
   userId: string;
@@ -91,25 +115,9 @@ type PresenceServerMessage =
 
 export type BoardPresenceStatus = "idle" | "connecting" | "connected" | "error";
 
-/** Minimal local/remote mic track/stream surface (Phase 10.1–10.2). */
-type MediaStreamTrackLike = {
-  id?: string;
-  kind: string;
-  enabled: boolean;
-  stop: () => void;
-};
-
-type MediaStreamLike = {
-  id?: string;
-  getAudioTracks: () => MediaStreamTrackLike[];
-  getTracks: () => MediaStreamTrackLike[];
-  addTrack?: (track: MediaStreamTrackLike) => void;
-  release?: (releaseTracks?: boolean) => void;
-};
-
 type TrackEventLike = {
-  track?: MediaStreamTrackLike | null;
-  streams?: MediaStreamLike[];
+  track?: PresenceMediaTrack | null;
+  streams?: PresenceMediaStream[];
 };
 
 /** Minimal WebRTC surface (avoids hard Expo Go import crash). */
@@ -122,12 +130,16 @@ type WebRTCModule = {
     sdp: string;
   };
   RTCIceCandidate: new (init: IceCandidateInit) => IceCandidateInit;
-  MediaStream: new (tracks?: MediaStreamTrackLike[]) => MediaStreamLike;
+  MediaStream: new (tracks?: PresenceMediaTrack[]) => PresenceMediaStream;
   mediaDevices: {
     getUserMedia: (constraints: {
       audio?: boolean;
-      video?: boolean;
-    }) => Promise<MediaStreamLike>;
+      video?:
+        | boolean
+        | {
+            facingMode?: string | { ideal?: string };
+          };
+    }) => Promise<PresenceMediaStream>;
   };
 };
 
@@ -142,8 +154,8 @@ type PeerConnectionLike = {
     init?: { ordered?: boolean },
   ) => DataChannelLike;
   addTrack: (
-    track: MediaStreamTrackLike,
-    ...streams: MediaStreamLike[]
+    track: PresenceMediaTrack,
+    ...streams: PresenceMediaStream[]
   ) => unknown;
   createOffer: (opts?: object) => Promise<{ type: string; sdp: string }>;
   createAnswer: (opts?: object) => Promise<{ type: string; sdp: string }>;
@@ -226,6 +238,18 @@ function isHubFullMessage(message?: string): boolean {
   return message.toLowerCase().includes("hub full");
 }
 
+/** Parse publisher userId from SFU board video stream id `video-{userId}`. */
+function publisherIdFromVideoStream(
+  stream: PresenceMediaStream | undefined,
+): string | null {
+  const id = stream?.id?.trim() ?? "";
+  if (!id.startsWith(BOARD_VIDEO_STREAM_PREFIX)) {
+    return null;
+  }
+  const userId = id.slice(BOARD_VIDEO_STREAM_PREFIX.length).trim();
+  return userId.length > 0 ? userId : null;
+}
+
 export type PresenceChannelResult = {
   status: BoardPresenceStatus;
   roomId: string | null;
@@ -233,6 +257,12 @@ export type PresenceChannelResult = {
   remotes: Record<string, PresencePose>;
   /** Peers currently in the room (welcome + peer-joined − peer-left). */
   roster: PresenceRosterEntry[];
+  /** Phase 16.1 — local camera preview stream (board only; null when off/unavailable). */
+  localVideoStream: PresenceMediaStream | null;
+  /** Phase 16.1 — remote board camera streams keyed by publisher userId. */
+  remoteVideoByUserId: Record<string, PresenceMediaStream>;
+  /** Phase 16.1 — front/back facing for local camera (flip in 16.2). */
+  cameraFacing: CameraFacing;
   sendPose: (pose: PresencePoseInput) => void;
   /** Drop a remote avatar (call when game marks them resigned — Phase 7.5). */
   clearRemote: (userId: string) => void;
@@ -255,13 +285,17 @@ type PresenceChannelOpts = {
    * When true (hub), seed remotes from welcome.peers and stop reconnect on hub-full.
    */
   seedWelcomePeers?: boolean;
-  /**
-   * Phase 10.1 — hub only: publish local mic into the SFU PC.
-   * Board presence must leave this false (pose-only).
-   */
+  /** Phase 10 — publish local mic into the SFU PC (hub + board). */
   publishLocalAudio?: boolean;
   /** When true, local mic tracks stay `enabled=false` (Settings muteMic). */
   micMuted?: boolean;
+  /**
+   * Phase 16.1 — board only: publish local camera into the SFU PC.
+   * Hub must leave this false (audio-only).
+   */
+  publishLocalVideo?: boolean;
+  /** When true, local video tracks stay `enabled=false` (Settings muteVideo). */
+  videoMuted?: boolean;
 };
 
 /**
@@ -276,6 +310,8 @@ function usePresenceChannel({
   seedWelcomePeers = false,
   publishLocalAudio = false,
   micMuted = false,
+  publishLocalVideo = false,
+  videoMuted = false,
 }: PresenceChannelOpts): PresenceChannelResult {
   const { token } = useSession();
   const path = roomPath?.trim() ?? "";
@@ -287,6 +323,12 @@ function usePresenceChannel({
   const [rosterMap, setRosterMap] = useState<
     Record<string, PresenceRosterEntry>
   >({});
+  const [localVideoStream, setLocalVideoStream] =
+    useState<PresenceMediaStream | null>(null);
+  const [remoteVideoByUserId, setRemoteVideoByUserId] = useState<
+    Record<string, PresenceMediaStream>
+  >({});
+  const [cameraFacing] = useState<CameraFacing>("user");
 
   const pcRef = useRef<PeerConnectionLike | null>(null);
   const dcRef = useRef<DataChannelLike | null>(null);
@@ -297,10 +339,13 @@ function usePresenceChannel({
   const identityRef = useRef<{ userId: string; username: string } | null>(null);
   const iceServersRef = useRef<WelcomeMessage["iceServers"]>(undefined);
   const disconnectRef = useRef<() => void>(() => {});
-  const localStreamRef = useRef<MediaStreamLike | null>(null);
-  const localAudioTracksRef = useRef<MediaStreamTrackLike[]>([]);
-  const remoteStreamsRef = useRef<Map<string, MediaStreamLike>>(new Map());
-  const remoteAudioTracksRef = useRef<MediaStreamTrackLike[]>([]);
+  const localStreamRef = useRef<PresenceMediaStream | null>(null);
+  const localAudioTracksRef = useRef<PresenceMediaTrack[]>([]);
+  const localVideoTracksRef = useRef<PresenceMediaTrack[]>([]);
+  const remoteStreamsRef = useRef<Map<string, PresenceMediaStream>>(new Map());
+  const remoteAudioTracksRef = useRef<PresenceMediaTrack[]>([]);
+  const facingModeRef = useRef<CameraFacing>("user");
+  facingModeRef.current = cameraFacing;
   const joinToastRef = useRef(joinToastMessage);
   joinToastRef.current = joinToastMessage;
   const clearOnLeaveRef = useRef(clearRemoteOnPeerLeft);
@@ -309,8 +354,12 @@ function usePresenceChannel({
   seedWelcomeRef.current = seedWelcomePeers;
   const publishAudioRef = useRef(publishLocalAudio);
   publishAudioRef.current = publishLocalAudio;
+  const publishVideoRef = useRef(publishLocalVideo);
+  publishVideoRef.current = publishLocalVideo;
   const micMutedRef = useRef(micMuted);
   micMutedRef.current = micMuted;
+  const videoMutedRef = useRef(videoMuted);
+  videoMutedRef.current = videoMuted;
 
   // Keep muteMic → track.enabled in sync without renegotiating.
   useEffect(() => {
@@ -318,6 +367,13 @@ function usePresenceChannel({
       track.enabled = !micMuted;
     }
   }, [micMuted]);
+
+  // Keep muteVideo → track.enabled in sync without renegotiating.
+  useEffect(() => {
+    for (const track of localVideoTracksRef.current) {
+      track.enabled = !videoMuted;
+    }
+  }, [videoMuted]);
 
   const applyRemotePose = useCallback((pose: PresencePose) => {
     setRemotes((prev) => {
@@ -376,6 +432,8 @@ function usePresenceChannel({
       setRoomId(null);
       setDcOpen(false);
       setRemotes({});
+      setLocalVideoStream(null);
+      setRemoteVideoByUserId({});
       identityRef.current = null;
       disconnectRef.current = () => {};
       return;
@@ -416,10 +474,12 @@ function usePresenceChannel({
       }
     };
 
-    const stopLocalAudio = () => {
-      const tracks = localAudioTracksRef.current;
+    const stopLocalMedia = () => {
+      const audioTracks = localAudioTracksRef.current;
       localAudioTracksRef.current = [];
-      for (const track of tracks) {
+      const videoTracks = localVideoTracksRef.current;
+      localVideoTracksRef.current = [];
+      for (const track of [...audioTracks, ...videoTracks]) {
         try {
           track.stop();
         } catch {
@@ -435,9 +495,12 @@ function usePresenceChannel({
           // ignore
         }
       }
+      if (!cancelled) {
+        setLocalVideoStream(null);
+      }
     };
 
-    const stopRemoteAudio = () => {
+    const stopRemoteMedia = () => {
       const tracks = remoteAudioTracksRef.current;
       remoteAudioTracksRef.current = [];
       for (const track of tracks) {
@@ -457,13 +520,16 @@ function usePresenceChannel({
         }
       }
       remoteStreamsRef.current.clear();
+      if (!cancelled) {
+        setRemoteVideoByUserId({});
+      }
     };
 
     const teardownPeer = () => {
       remoteSetRef.current = false;
       pendingIceRef.current = [];
-      stopLocalAudio();
-      stopRemoteAudio();
+      stopLocalMedia();
+      stopRemoteMedia();
       const dc = dcRef.current;
       dcRef.current = null;
       if (dc?.close) {
@@ -608,22 +674,19 @@ function usePresenceChannel({
           }
         };
 
-        // Phase 10.2 — hub remote audio. Holding the stream keeps playout alive on RN.
-        if (publishAudioRef.current) {
-          startHubSpeaker();
+        // Phase 10.2 / 16.1 — remote audio (+ board video). Holding streams keeps RN playout alive.
+        if (publishAudioRef.current || publishVideoRef.current) {
+          if (publishAudioRef.current) {
+            startHubSpeaker();
+          }
           pc.ontrack = (ev) => {
             if (cancelled || pcRef.current !== pc) {
               return;
             }
             const track = ev.track;
-            if (!track || track.kind !== "audio") {
+            if (!track) {
               return;
             }
-            track.enabled = true;
-            remoteAudioTracksRef.current = [
-              ...remoteAudioTracksRef.current.filter((t) => t.id !== track.id),
-              track,
-            ];
             let stream = ev.streams?.[0];
             if (!stream && webrtc.MediaStream) {
               try {
@@ -632,9 +695,43 @@ function usePresenceChannel({
                 console.warn("[presence] remote MediaStream wrap failed", err);
               }
             }
-            if (stream) {
-              const key = stream.id || track.id || `audio-${Date.now()}`;
-              remoteStreamsRef.current.set(key, stream);
+
+            if (track.kind === "audio") {
+              if (!publishAudioRef.current) {
+                return;
+              }
+              track.enabled = true;
+              remoteAudioTracksRef.current = [
+                ...remoteAudioTracksRef.current.filter((t) => t.id !== track.id),
+                track,
+              ];
+              if (stream) {
+                const key = stream.id || track.id || `audio-${Date.now()}`;
+                remoteStreamsRef.current.set(key, stream);
+              }
+              return;
+            }
+
+            if (track.kind === "video") {
+              if (!publishVideoRef.current) {
+                return;
+              }
+              track.enabled = true;
+              const userId = publisherIdFromVideoStream(stream);
+              if (!userId || !stream) {
+                console.warn(
+                  "[presence] remote video missing video-{userId} stream id",
+                  stream?.id,
+                );
+                return;
+              }
+              remoteStreamsRef.current.set(stream.id || userId, stream);
+              setRemoteVideoByUserId((prev) => {
+                if (prev[userId] === stream) {
+                  return prev;
+                }
+                return { ...prev, [userId]: stream };
+              });
             }
           };
         }
@@ -642,12 +739,19 @@ function usePresenceChannel({
         const dc = pc.createDataChannel(PRESENCE_DC_LABEL, { ordered: true });
         bindDataChannel(dc);
 
-        // Phase 10.1 — hub mic publish before createOffer so SDP includes audio.
-        if (publishAudioRef.current && webrtc.mediaDevices?.getUserMedia) {
+        // Phase 10.1 / 16.1 — publish mic (+ board camera) before createOffer.
+        if (
+          (publishAudioRef.current || publishVideoRef.current) &&
+          webrtc.mediaDevices?.getUserMedia
+        ) {
           try {
+            const wantAudio = publishAudioRef.current;
+            const wantVideo = publishVideoRef.current;
             const stream = await webrtc.mediaDevices.getUserMedia({
-              audio: true,
-              video: false,
+              audio: wantAudio,
+              video: wantVideo
+                ? { facingMode: { ideal: facingModeRef.current } }
+                : false,
             });
             if (cancelled || pcRef.current !== pc) {
               for (const track of stream.getTracks()) {
@@ -661,16 +765,33 @@ function usePresenceChannel({
               return;
             }
             localStreamRef.current = stream;
-            const audioTracks = stream.getAudioTracks();
+            const audioTracks = wantAudio ? stream.getAudioTracks() : [];
+            const videoTracks = wantVideo
+              ? typeof stream.getVideoTracks === "function"
+                ? stream.getVideoTracks()
+                : stream.getTracks().filter((t) => t.kind === "video")
+              : [];
             localAudioTracksRef.current = audioTracks;
-            const unmuted = !micMutedRef.current;
+            localVideoTracksRef.current = videoTracks;
+            const micOn = !micMutedRef.current;
+            const camOn = !videoMutedRef.current;
             for (const track of audioTracks) {
-              track.enabled = unmuted;
+              track.enabled = micOn;
               pc.addTrack(track, stream);
             }
+            for (const track of videoTracks) {
+              track.enabled = camOn;
+              pc.addTrack(track, stream);
+            }
+            if (wantVideo && videoTracks.length > 0) {
+              setLocalVideoStream(stream);
+            } else {
+              setLocalVideoStream(null);
+            }
           } catch (err) {
-            console.warn("[presence] hub mic getUserMedia failed", err);
-            // Pose DC still works without mic.
+            console.warn("[presence] getUserMedia failed", err);
+            // Pose DC still works without mic/camera.
+            setLocalVideoStream(null);
           }
         }
 
@@ -774,7 +895,7 @@ function usePresenceChannel({
           break;
         }
         case "offer": {
-          // Phase 10.2 — SFU renegotiation when another hub peer publishes audio.
+          // Phase 10.2 / 16.1 — SFU renegotiation when another peer publishes audio/video.
           const offer = msg as OfferMessage;
           const pc = pcRef.current;
           const openWs = wsRef.current;
@@ -782,7 +903,7 @@ function usePresenceChannel({
             !pc ||
             !webrtc ||
             !offer.sdp ||
-            !publishAudioRef.current ||
+            !(publishAudioRef.current || publishVideoRef.current) ||
             !openWs ||
             openWs.readyState !== WebSocket.OPEN
           ) {
@@ -876,9 +997,18 @@ function usePresenceChannel({
         }
         case "peer-left": {
           // Board: linger until resign / hubId synthetic. Hub: remove avatar immediately.
+          // Video streams always clear — peer left the SFU room.
           const peer = msg as PeerLeftMessage;
           if (peer.userId) {
             setRosterMap((prev) => {
+              if (!(peer.userId in prev)) {
+                return prev;
+              }
+              const next = { ...prev };
+              delete next[peer.userId];
+              return next;
+            });
+            setRemoteVideoByUserId((prev) => {
               if (!(peer.userId in prev)) {
                 return prev;
               }
@@ -992,6 +1122,8 @@ function usePresenceChannel({
       setDcOpen(false);
       setRemotes({});
       setRosterMap({});
+      setLocalVideoStream(null);
+      setRemoteVideoByUserId({});
     };
 
     disconnectRef.current = hardDisconnect;
@@ -1009,6 +1141,9 @@ function usePresenceChannel({
     dcOpen,
     remotes,
     roster: Object.values(rosterMap),
+    localVideoStream,
+    remoteVideoByUserId,
+    cameraFacing,
     sendPose,
     clearRemote,
     disconnect,
@@ -1019,25 +1154,30 @@ function usePresenceChannel({
  * Phase 7 board presence. Pass `enabled=false` when the board is blurred (e.g. hub
  * stacked) so Enter leaves the board room without dropping the game WS.
  * Phase 10.4 — publishes/plays mic like hub (`muteMic` SoT).
+ * Phase 16.1 — publishes/plays board camera (`muteVideo` SoT); hub stays audio-only.
  */
 export function useBoardPresence(
   gameId: string | null | undefined,
   enabled = true,
 ): PresenceChannelResult {
   const id = gameId?.trim() ?? "";
-  const { muted, ready } = useMuteMic();
+  const { muted, ready: micReady } = useMuteMic();
+  const { muted: videoMuted, ready: videoReady } = useMuteVideo();
   return usePresenceChannel({
     roomPath: id ? `board/${encodeURIComponent(id)}` : null,
-    enabled: enabled && Boolean(id) && ready,
+    enabled: enabled && Boolean(id) && micReady && videoReady,
     joinToastMessage: "On the board with you",
     publishLocalAudio: true,
     micMuted: muted,
+    publishLocalVideo: true,
+    videoMuted,
   });
 }
 
 /**
  * Phase 8.0 hub presence — any logged-in user; room `hub:{hubId}` on the server.
  * Phase 10.1–10.2 — publishes local mic; plays remote audio; answers SFU offers.
+ * Cameras stay deferred (no publishLocalVideo).
  */
 export function useHubPresence(
   hubId: string | null | undefined,
@@ -1053,5 +1193,6 @@ export function useHubPresence(
     seedWelcomePeers: true,
     publishLocalAudio: true,
     micMuted: muted,
+    publishLocalVideo: false,
   });
 }
