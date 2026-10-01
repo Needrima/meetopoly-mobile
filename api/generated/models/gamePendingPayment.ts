@@ -5,14 +5,18 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.27.0
+ * OpenAPI spec version: 0.28.0
  */
 import type { GamePendingPaymentKind } from './gamePendingPaymentKind';
 
 export interface GamePendingPayment {
   kind: GamePendingPaymentKind;
-  /** Remaining MeetCoin owed */
+  /** Remaining MeetCoin owed (matches −cash while indebted) */
   amount: number;
+  /** Debtor user id (Phase 14.0) */
+  fromUserId?: string;
+  fromUsername?: string;
+  /** Creditor user id; empty = Bank */
   toUserId?: string;
   toUsername?: string;
   boardIndex: number;

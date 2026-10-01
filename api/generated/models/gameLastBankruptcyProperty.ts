@@ -7,10 +7,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.28.0
  */
+import type { GameLastBankruptcy } from './gameLastBankruptcy';
 
-export interface ErrorResponse {
-  /** Machine-readable error code */
-  error: string;
-  /** Human-readable detail */
-  message?: string;
-}
+/**
+ * Phase 14.0 — most recent eliminate wipe for toasts
+ * @nullable
+ */
+export type GameLastBankruptcyProperty = GameLastBankruptcy | null;

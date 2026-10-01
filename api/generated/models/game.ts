@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.27.0
+ * OpenAPI spec version: 0.28.0
  */
 import type { GameStatus } from './gameStatus';
 import type { GamePlayer } from './gamePlayer';
@@ -20,6 +20,8 @@ import type { GameDeed } from './gameDeed';
 import type { GameLastRollProperty } from './gameLastRollProperty';
 import type { GameLastPaymentProperty } from './gameLastPaymentProperty';
 import type { GamePendingPaymentProperty } from './gamePendingPaymentProperty';
+import type { GameDebtPayProperty } from './gameDebtPayProperty';
+import type { GameLastBankruptcyProperty } from './gameLastBankruptcyProperty';
 import type { GameLastCardProperty } from './gameLastCardProperty';
 
 export interface Game {
@@ -41,13 +43,16 @@ export interface Game {
 After 3 failed attempts, false until pay/card. False while a trade is open (13.2).
  */
   canRoll: boolean;
+  /** Phase 14.0 — true in awaiting_end even while cash is negative (End allowed).
+False during auction, trade, or active debt-pay window.
+ */
   canEndTurn: boolean;
   /** Current player may buy the space they just landed on at list price (Phase 6.4) */
   canBuy: boolean;
   /** Phase 13.0 — current player has a buyOffer (can afford list price) and may start a bank auction.
  */
   canStartAuction: boolean;
-  /** Phase 13.2 — current player may open a trade (not during auction/pending payment/open trade).
+  /** Phase 13.2 — current player may open a trade (not during auction/debt/open trade).
  */
   canProposeTrade: boolean;
   /** Phase 12.1 — current player is in Jail, can afford 100 MeetCoin, and may pay to leave.
@@ -56,6 +61,11 @@ After 3 failed attempts, false until pay/card. False while a trade is open (13.2
   /** Phase 12.1 — current player is in Jail and holds at least one Get Out of Jail Free card.
  */
   canUseJailCard: boolean;
+  /** Phase 14.0 — current player has negative cash and may declare bankruptcy */
+  canBankrupt: boolean;
+  /** Phase 14.0 — current player is in debt, has raisable assets, and may open the 2:00 Pay window
+ */
+  canStartDebtPay: boolean;
   /** @nullable */
   buyOffer?: GameBuyOfferProperty;
   /**
@@ -92,10 +102,22 @@ After 3 failed attempts, false until pay/card. False while a trade is open (13.2
    */
   lastPayment?: GameLastPaymentProperty;
   /**
-   * Unpaid remainder; canRoll/canEndTurn false until resign or Phase 14
+   * Phase 14.0 — debt metadata while debtor cash is negative. Roll blocked for debtor;
+End allowed on the landing turn. Amount matches −cash.
+
    * @nullable
    */
   pendingPayment?: GamePendingPaymentProperty;
+  /**
+   * Phase 14.0 — active 2:00 raise-funds window
+   * @nullable
+   */
+  debtPay?: GameDebtPayProperty;
+  /**
+   * Phase 14.0 — most recent eliminate wipe for toasts
+   * @nullable
+   */
+  lastBankruptcy?: GameLastBankruptcyProperty;
   /**
    * Phase 12.2 — most recent Chance / Community Chest draw.
 Cash/move/jail effects apply in 12.3; GOOJF is already held on the player.

@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.27.0
+ * OpenAPI spec version: 0.28.0
  */
 import type {
   AuctionBidBody,
@@ -601,9 +601,9 @@ export const endTurn = async (gameId: string, options?: RequestInit): Promise<Ga
 
 /**
  * Phase 6.2c — voluntary leave mid-game counts as resigning.
-Marks the caller `resigned`, skips them for turns, broadcasts state.
-If only one active player remains, that player wins and `status` becomes `finished`.
-Asset transfer / bankruptcy cleanup stays Phase 14.
+Marks the caller `resigned`, wipes deeds/buildings/GOOJF to the Bank (Phase 14.0),
+skips them for turns, broadcasts state. If a creditor was still owed, the Bank
+credits that player the remaining debt. If only one active player remains, they win.
 
  * @summary Resign and leave the game
  */
@@ -618,6 +618,63 @@ export const getResignGameUrl = (gameId: string,) => {
 export const resignGame = async (gameId: string, options?: RequestInit): Promise<Game> => {
   
   return apiMutator<Game>(getResignGameUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Phase 14.0 — caller must have negative MeetCoin. Eliminates that player only:
+deeds become unowned, buildings cleared, GOOJF returned to deck bottoms,
+Bank credits any remaining owed amount to the creditor. Table continues unless
+one active player remains (they win).
+
+ * @summary Declare bankruptcy
+ */
+export const getBankruptGameUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/bankrupt`
+}
+
+export const bankruptGame = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getBankruptGameUrl(gameId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Phase 14.0 — current player with negative cash opens a 2:00 window to sell
+buildings and mortgage (trade blocked). Turn clock pauses. Expiry or no
+raisable assets → auto-bankrupt. Settling cash to ≥ 0 clears the window.
+
+ * @summary Start the 2-minute debt raise-funds window
+ */
+export const getStartDebtPayUrl = (gameId: string,) => {
+
+
+  
+
+  return `/games/${gameId}/debt-pay/start`
+}
+
+export const startDebtPay = async (gameId: string, options?: RequestInit): Promise<Game> => {
+  
+  return apiMutator<Game>(getStartDebtPayUrl(gameId),
   {      
     ...options,
     method: 'POST'

@@ -8,9 +8,9 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.28.0
  */
 
-export interface ErrorResponse {
-  /** Machine-readable error code */
-  error: string;
-  /** Human-readable detail */
-  message?: string;
+export interface GameDebtPay {
+  userId: string;
+  username?: string;
+  deadline: string;
+  remainingMs: number;
 }

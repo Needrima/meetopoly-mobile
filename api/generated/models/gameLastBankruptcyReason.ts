@@ -8,14 +8,14 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.28.0
  */
 
-/**
- * Redis ping result
- */
-export type HealthResponseRedis = typeof HealthResponseRedis[keyof typeof HealthResponseRedis];
+export type GameLastBankruptcyReason = typeof GameLastBankruptcyReason[keyof typeof GameLastBankruptcyReason];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const HealthResponseRedis = {
-  ok: 'ok',
-  error: 'error',
+export const GameLastBankruptcyReason = {
+  declare: 'declare',
+  auto_timeout: 'auto_timeout',
+  auto_insolvent: 'auto_insolvent',
+  resign: 'resign',
+  turn_timeout: 'turn_timeout',
 } as const;

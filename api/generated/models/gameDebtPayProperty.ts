@@ -7,10 +7,10 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
  * OpenAPI spec version: 0.28.0
  */
+import type { GameDebtPay } from './gameDebtPay';
 
-export interface ErrorResponse {
-  /** Machine-readable error code */
-  error: string;
-  /** Human-readable detail */
-  message?: string;
-}
+/**
+ * Phase 14.0 — active 2:00 raise-funds window
+ * @nullable
+ */
+export type GameDebtPayProperty = GameDebtPay | null;

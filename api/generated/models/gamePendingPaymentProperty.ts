@@ -5,12 +5,14 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.27.0
+ * OpenAPI spec version: 0.28.0
  */
 import type { GamePendingPayment } from './gamePendingPayment';
 
 /**
- * Unpaid remainder; canRoll/canEndTurn false until resign or Phase 14
+ * Phase 14.0 — debt metadata while debtor cash is negative. Roll blocked for debtor;
+End allowed on the landing turn. Amount matches −cash.
+
  * @nullable
  */
 export type GamePendingPaymentProperty = GamePendingPayment | null;
