@@ -26,6 +26,7 @@ function loadRTCView(): RTCViewComponent | null {
 }
 
 const RTCView = loadRTCView();
+const ICON_SIZE = 20;
 
 export type BoardSeatTileProps = {
   displayName: string;
@@ -48,6 +49,8 @@ export type BoardSeatTileProps = {
 
 /**
  * Phase 16.2 — Meet-style seat tile. Local-only: mic / flip / cam controls.
+ * Corner slots are plain Views (Pressable absolute styles were stacking top-left).
+ * No display-side rotate — that broke Android→iOS remote orientation.
  */
 export function BoardSeatTile({
   displayName,
@@ -80,18 +83,15 @@ export function BoardSeatTile({
   const showVideo = Boolean(RTCView && streamURL && !cameraOff);
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${displayName} seat`}
-      onLongPress={onLongPress}
-      delayLongPress={350}
+    <View
       style={[
         styles.tile,
         { borderColor: pinColor },
         resigned ? styles.tileOut : null,
       ]}
+      accessibilityLabel={`${displayName} seat`}
     >
-      <View style={styles.media}>
+      <View style={styles.media} pointerEvents="none">
         {showVideo && RTCView ? (
           <RTCView
             streamURL={streamURL}
@@ -107,71 +107,92 @@ export function BoardSeatTile({
         )}
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${displayName} player info`}
+        onLongPress={onLongPress}
+        delayLongPress={350}
+        style={styles.longPressHit}
+      />
+
       {hubCode ? (
         <View style={styles.hubChip} pointerEvents="none">
           <Text style={styles.hubChipText}>{hubCode}</Text>
         </View>
       ) : null}
 
-      {isLocal ? (
-        <>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Flip camera"
-            hitSlop={6}
-            onPress={onFlipCamera}
-            style={({ pressed }) => [
-              styles.ctrl,
-              styles.ctrlTL,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <Ionicons name="camera-reverse" size={16} color={colors.onBrand} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={videoMuted ? 'Turn camera on' : 'Turn camera off'}
-            hitSlop={6}
-            onPress={onToggleCamera}
-            style={({ pressed }) => [
-              styles.ctrl,
-              styles.ctrlTR,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <Ionicons
-              name={videoMuted ? 'videocam-off' : 'videocam'}
-              size={16}
-              color={colors.onBrand}
-            />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={micMuted ? 'Unmute microphone' : 'Mute microphone'}
-            hitSlop={6}
-            onPress={onToggleMic}
-            style={({ pressed }) => [
-              styles.ctrl,
-              styles.ctrlBL,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <Ionicons
-              name={micMuted ? 'mic-off' : 'mic'}
-              size={16}
-              color={colors.onBrand}
-            />
-          </Pressable>
-        </>
-      ) : null}
+      <View style={styles.chrome} pointerEvents="box-none">
+        {isLocal ? (
+          <>
+            <View style={[styles.ctrlSlot, styles.ctrlTL]} pointerEvents="box-none">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Flip camera"
+                hitSlop={8}
+                onPress={onFlipCamera}
+                style={({ pressed }) => [
+                  styles.ctrl,
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <Ionicons
+                  name="camera-reverse"
+                  size={ICON_SIZE}
+                  color={colors.onBrand}
+                />
+              </Pressable>
+            </View>
+            <View style={[styles.ctrlSlot, styles.ctrlTR]} pointerEvents="box-none">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  videoMuted ? 'Turn camera on' : 'Turn camera off'
+                }
+                hitSlop={8}
+                onPress={onToggleCamera}
+                style={({ pressed }) => [
+                  styles.ctrl,
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <Ionicons
+                  name={videoMuted ? 'videocam-off' : 'videocam'}
+                  size={ICON_SIZE}
+                  color={colors.onBrand}
+                />
+              </Pressable>
+            </View>
+            <View style={[styles.ctrlSlot, styles.ctrlBL]} pointerEvents="box-none">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  micMuted ? 'Unmute microphone' : 'Mute microphone'
+                }
+                hitSlop={8}
+                onPress={onToggleMic}
+                style={({ pressed }) => [
+                  styles.ctrl,
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <Ionicons
+                  name={micMuted ? 'mic-off' : 'mic'}
+                  size={ICON_SIZE}
+                  color={colors.onBrand}
+                />
+              </Pressable>
+            </View>
+          </>
+        ) : null}
 
-      <View style={styles.nameBar} pointerEvents="none">
-        <Text style={styles.name} numberOfLines={1}>
-          {displayName}
-          {resigned ? ' · out' : ''}
-        </Text>
+        <View style={styles.nameBar} pointerEvents="none">
+          <Text style={styles.name} numberOfLines={1}>
+            {displayName}
+            {resigned ? ' · out' : ''}
+          </Text>
+        </View>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -183,6 +204,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     overflow: 'hidden',
     backgroundColor: '#0B1210',
+    position: 'relative',
   },
   tileOut: {
     opacity: 0.55,
@@ -200,12 +222,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#0B1210',
   },
+  longPressHit: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 1,
+  },
   hubChip: {
     position: 'absolute',
     top: 6,
     left: 0,
     right: 0,
     alignItems: 'center',
+    zIndex: 2,
   },
   hubChipText: {
     fontFamily: fonts.bodySemiBold,
@@ -218,11 +245,19 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
   },
-  ctrl: {
+  chrome: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 3,
+  },
+  /** Absolute positioning lives on the slot View — not on Pressable. */
+  ctrlSlot: {
     position: 'absolute',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    zIndex: 4,
+  },
+  ctrl: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: 'rgba(20, 32, 27, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -244,15 +279,17 @@ const styles = StyleSheet.create({
     right: 6,
     bottom: 6,
     maxWidth: '62%',
-    backgroundColor: 'rgba(20, 32, 27, 0.72)',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 2,
+    paddingVertical: 1,
   },
   name: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
+    fontSize: 12,
     color: colors.onBrand,
+    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   pressed: {
     opacity: 0.75,

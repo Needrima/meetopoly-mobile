@@ -138,6 +138,10 @@ type WebRTCModule = {
         | boolean
         | {
             facingMode?: string | { ideal?: string };
+            width?: number | { ideal?: number };
+            height?: number | { ideal?: number };
+            frameRate?: number | { ideal?: number };
+            aspectRatio?: number | { ideal?: number };
           };
     }) => Promise<PresenceMediaStream>;
   };
@@ -187,6 +191,13 @@ function loadWebRTC(): WebRTCModule | null {
     console.warn("[presence] react-native-webrtc unavailable", err);
     return null;
   }
+}
+
+/** Board camera constraints — facing only (no forced 16:9; that broke Android→iOS orientation). */
+function boardVideoConstraints(facing: CameraFacing) {
+  return {
+    facingMode: { ideal: facing },
+  };
 }
 
 function iceServersFromWelcome(
@@ -423,7 +434,7 @@ function usePresenceChannel({
     try {
       const fresh = await webrtc.mediaDevices.getUserMedia({
         audio: false,
-        video: { facingMode: { ideal: nextFacing } },
+        video: boardVideoConstraints(nextFacing),
       });
       const newTrack =
         typeof fresh.getVideoTracks === "function"
@@ -822,7 +833,7 @@ function usePresenceChannel({
             const stream = await webrtc.mediaDevices.getUserMedia({
               audio: wantAudio,
               video: wantVideo
-                ? { facingMode: { ideal: facingModeRef.current } }
+                ? boardVideoConstraints(facingModeRef.current)
                 : false,
             });
             if (cancelled || pcRef.current !== pc) {
