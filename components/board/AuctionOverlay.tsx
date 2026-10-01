@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
+  InputAccessoryView,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,6 +29,28 @@ import { fonts } from '@/theme/fonts';
 
 /** Matches server `AuctionBidTurn` (1 minute). */
 const AUCTION_TURN_SEC = 60;
+const AUCTION_BID_ACCESSORY_ID = 'meetopolyAuctionBidDone';
+
+function AuctionBidDoneAccessory() {
+  if (Platform.OS !== 'ios') {
+    return null;
+  }
+  return (
+    <InputAccessoryView nativeID={AUCTION_BID_ACCESSORY_ID}>
+      <View style={styles.keyboardAccessory}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Done"
+          onPress={() => Keyboard.dismiss()}
+          style={styles.keyboardAccessoryBtn}
+          hitSlop={8}
+        >
+          <Text style={styles.keyboardAccessoryText}>Done</Text>
+        </Pressable>
+      </View>
+    </InputAccessoryView>
+  );
+}
 
 type AuctionOverlayProps = {
   visible: boolean;
@@ -134,6 +159,7 @@ export function AuctionOverlay({
 
   return (
     <View style={styles.host} pointerEvents="box-none">
+      <AuctionBidDoneAccessory />
       <View
         style={styles.backdrop}
         accessibilityElementsHidden
@@ -241,6 +267,9 @@ export function AuctionOverlay({
                   keyboardType="number-pad"
                   inputMode="numeric"
                   returnKeyType="done"
+                  inputAccessoryViewID={
+                    Platform.OS === 'ios' ? AUCTION_BID_ACCESSORY_ID : undefined
+                  }
                   selectTextOnFocus
                   placeholder={String(minBid)}
                   placeholderTextColor={colors.muted}
@@ -472,5 +501,24 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     height: 40,
+  },
+  keyboardAccessory: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  keyboardAccessoryBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  keyboardAccessoryText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 16,
+    color: colors.brand,
   },
 });

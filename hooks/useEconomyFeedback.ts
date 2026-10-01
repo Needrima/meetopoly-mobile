@@ -8,6 +8,7 @@ import {
   buildJailDoublesFailEvent,
   buildJailExitEvent,
   buildJustVisitingEvent,
+  buildLandsReceivedEvent,
   buildPaymentEvent,
   buildSalaryEvent,
   deedsSignature,
@@ -197,7 +198,9 @@ export function useEconomyFeedback({
       notify({
         type: unpaid
           ? 'error'
-          : event.kind === 'salary' || event.kind === 'buy'
+          : event.kind === 'salary' ||
+              event.kind === 'buy' ||
+              event.kind === 'lands_received'
             ? 'success'
             : 'info',
         title: event.toastTitle,
@@ -209,7 +212,7 @@ export function useEconomyFeedback({
     enqueueModal(event);
   };
 
-  // New deeds (list-price buys). Auction settles → separate effect (auction price).
+  // New deeds. Single list-price / transfer → buy modal; 2+ for one owner → lands-received pills.
   useEffect(() => {
     if (!enabled || !localUserId || !game || !readyRef.current) {
       return;
@@ -228,10 +231,10 @@ export function useEconomyFeedback({
     deedsSigRef.current = sig;
     const la = game.lastAuction;
     const deeds = game.deeds ?? [];
-    for (const d of deeds) {
+    const fresh = deeds.filter((d) => {
       const key = `${d.boardIndex}:${d.ownerUserId}`;
       if (prev.has(key)) {
-        continue;
+        return false;
       }
       if (
         la &&
@@ -239,19 +242,54 @@ export function useEconomyFeedback({
         la.boardIndex === d.boardIndex &&
         la.winnerUserId === d.ownerUserId
       ) {
+        return false;
+      }
+      return true;
+    });
+    if (fresh.length === 0) {
+      return;
+    }
+
+    const byOwner = new Map<string, typeof fresh>();
+    for (const d of fresh) {
+      const list = byOwner.get(d.ownerUserId) ?? [];
+      list.push(d);
+      byOwner.set(d.ownerUserId, list);
+    }
+
+    for (const [ownerId, owned] of byOwner) {
+      if (owned.length >= 2) {
+        const locs = owned
+          .map((d) => locations.find((l) => l.boardIndex === d.boardIndex))
+          .filter((l): l is NonNullable<typeof l> => Boolean(l));
+        if (locs.length === 0) {
+          continue;
+        }
+        const ownerName = owned[0]?.ownerUsername ?? '';
+        const event = buildLandsReceivedEvent({
+          locations: locs,
+          receiverUserId: ownerId,
+          receiverUsername: ownerName,
+          localUserId,
+          players: game.players,
+          displayAccent,
+        });
+        present(event, isBuyInvolved(localUserId, ownerId));
         continue;
       }
-      const loc = locations.find((l) => l.boardIndex === d.boardIndex);
-      const event = buildBuyEvent({
-        deed: d,
-        location: loc,
-        locations,
-        deeds,
-        localUserId,
-        players: game.players,
-        displayAccent,
-      });
-      present(event, isBuyInvolved(localUserId, d.ownerUserId));
+      for (const d of owned) {
+        const loc = locations.find((l) => l.boardIndex === d.boardIndex);
+        const event = buildBuyEvent({
+          deed: d,
+          location: loc,
+          locations,
+          deeds,
+          localUserId,
+          players: game.players,
+          displayAccent,
+        });
+        present(event, isBuyInvolved(localUserId, d.ownerUserId));
+      }
     }
   }, [
     enabled,

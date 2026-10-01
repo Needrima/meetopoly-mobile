@@ -23,6 +23,8 @@ export function AnimatedMeetCoinAmount({
   const [display, setDisplay] = useState(amount);
   const displayRef = useRef(amount);
   const rafRef = useRef<number | null>(null);
+  /** Phase 14 — negative MeetCoin reads red in the HUD. */
+  const resolvedColor = amount < 0 ? colors.danger : color;
 
   useEffect(() => {
     displayRef.current = display;
@@ -63,5 +65,7 @@ export function AnimatedMeetCoinAmount({
     };
   }, [amount, durationMs]);
 
-  return <MeetCoinAmount amount={display} size={size} color={color} />;
+  return (
+    <MeetCoinAmount amount={display} size={size} color={resolvedColor} />
+  );
 }

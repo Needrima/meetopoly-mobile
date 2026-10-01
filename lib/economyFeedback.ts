@@ -116,6 +116,18 @@ export type EconomyJailDoublesFailEvent = {
   toastMessage: string;
 };
 
+/** Multi-deed acquire (trade) — one modal, header-only pills. */
+export type EconomyLandsReceivedEvent = {
+  kind: 'lands_received';
+  title: 'LANDS RECEIVED';
+  locations: Location[];
+  receiverUsername: string;
+  receiverInitials: string;
+  receiverPinColor: string;
+  toastTitle: string;
+  toastMessage: string;
+};
+
 export type EconomyEvent =
   | EconomyBuyEvent
   | EconomyRentEvent
@@ -124,7 +136,8 @@ export type EconomyEvent =
   | EconomyCardEvent
   | EconomyJustVisitingEvent
   | EconomyJailExitEvent
-  | EconomyJailDoublesFailEvent;
+  | EconomyJailDoublesFailEvent
+  | EconomyLandsReceivedEvent;
 
 export function buyModalTitle(
   locKind: Location['kind'] | undefined,
@@ -226,6 +239,48 @@ export function buildBuyEvent(args: {
       ownedOfKind,
     }),
     toastMessage: `${place}${price > 0 ? ` · ${price}` : ''}`,
+  };
+}
+
+export function buildLandsReceivedEvent(args: {
+  locations: Location[];
+  receiverUserId: string;
+  receiverUsername: string;
+  localUserId: string | null;
+  players: GamePlayer[] | undefined;
+  displayAccent?: string | null;
+}): EconomyLandsReceivedEvent {
+  const {
+    locations: locs,
+    receiverUserId,
+    receiverUsername,
+    localUserId,
+    players,
+    displayAccent,
+  } = args;
+  const name = formatUsername(receiverUsername) || 'Someone';
+  const iReceived = Boolean(localUserId && receiverUserId === localUserId);
+  const names = locs
+    .map((l) => stripWorldNamePrefix(l.name))
+    .filter(Boolean);
+  const summary =
+    names.length <= 2
+      ? names.join(' · ')
+      : `${names.slice(0, 2).join(' · ')} +${names.length - 2}`;
+  return {
+    kind: 'lands_received',
+    title: 'LANDS RECEIVED',
+    locations: locs,
+    receiverUsername: name,
+    receiverInitials: usernameInitials(name),
+    receiverPinColor: pinColorForPlayer(
+      players,
+      receiverUserId,
+      localUserId,
+      displayAccent,
+    ),
+    toastTitle: iReceived ? 'Lands received' : `${name} received lands`,
+    toastMessage: summary || `${locs.length} properties`,
   };
 }
 

@@ -3,7 +3,11 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { AvatarPod } from '@/components/board/AvatarPod';
 import { DeedCard } from '@/components/board/DeedCard';
-import { isLightHex, stripColorFor } from '@/components/board/deedVisual';
+import {
+  isLightHex,
+  stripColorFor,
+  stripWorldNamePrefix,
+} from '@/components/board/deedVisual';
 import { resolveBoardIcon } from '@/components/board/iconRegistry';
 import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
 import type { EconomyEvent } from '@/lib/economyFeedback';
@@ -35,6 +39,9 @@ export function EconomyEventOverlay({ event }: EconomyEventOverlayProps) {
           style={styles.sheetWrap}
         >
           {event.kind === 'buy' ? <BuyBody event={event} /> : null}
+          {event.kind === 'lands_received' ? (
+            <LandsReceivedBody event={event} />
+          ) : null}
           {event.kind === 'rent' ? <RentBody event={event} /> : null}
           {event.kind === 'tax' ? <TaxBody event={event} /> : null}
           {event.kind === 'salary' ? <SalaryBody event={event} /> : null}
@@ -74,6 +81,56 @@ function BuyBody({ event }: { event: Extract<EconomyEvent, { kind: 'buy' }> }) {
             initials={event.buyerInitials}
             accent={event.buyerPinColor}
             radius={20}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function LandsReceivedBody({
+  event,
+}: {
+  event: Extract<EconomyEvent, { kind: 'lands_received' }>;
+}) {
+  return (
+    <View style={styles.sheet}>
+      <View style={[styles.header, styles.brandHeader]}>
+        <Text style={[styles.headerText, styles.brandHeaderText]}>
+          {event.title}
+        </Text>
+      </View>
+      <View style={styles.landsBody}>
+        <View style={styles.landsGrid}>
+          {event.locations.map((loc) => {
+            const Icon = resolveBoardIcon(loc.assets?.icon);
+            const strip = stripColorFor(loc, loc.kind);
+            const onStrip = isLightHex(strip) ? colors.ink : colors.onBrand;
+            return (
+              <View
+                key={loc.boardIndex}
+                style={[styles.landPill, { backgroundColor: strip }]}
+              >
+                {Icon ? (
+                  <View style={styles.landPillIcon}>
+                    <Icon width={16} height={16} color={onStrip} />
+                  </View>
+                ) : null}
+                <Text
+                  style={[styles.landPillName, { color: onStrip }]}
+                  numberOfLines={2}
+                >
+                  {stripWorldNamePrefix(loc.name)}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+        <View style={styles.landsFooter}>
+          <AvatarPod
+            initials={event.receiverInitials}
+            accent={event.receiverPinColor}
+            radius={18}
           />
         </View>
       </View>
@@ -283,6 +340,42 @@ const styles = StyleSheet.create({
   buyBody: {
     padding: 12,
     gap: 12,
+  },
+  landsBody: {
+    padding: 12,
+    gap: 12,
+  },
+  landsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  landPill: {
+    width: '48%',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 40,
+  },
+  landPillIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  landPillName: {
+    flex: 1,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  landsFooter: {
+    alignItems: 'flex-end',
   },
   buyFooter: {
     flexDirection: 'row',
