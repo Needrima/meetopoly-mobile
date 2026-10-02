@@ -6,21 +6,16 @@
 #import "VideoFrameProcessor.h"
 
 /**
- * Adds +90° to each captured frame's rotation metadata.
- * Landscape-locked Meetopoly: iOS often tags rotation=0 with sideways pixels;
- * Android SurfaceViewRenderer respects metadata (CSS transforms do not).
- * Flip MEETOPOLY_CAM_ROT_ADD if upright is wrong the other way.
+ * Landscape Meetopoly rotation metadata.
+ * Front keeps legacy name `meetopolyCamRot` (+90) so existing iOS clients stay upright.
+ * Back uses `meetopolyCamRotBack` (+270); only present after a native rebuild.
+ * Tune FRONT / BACK adds independently if a facing is still wrong.
  */
-static const NSInteger MEETOPOLY_CAM_ROT_ADD = 90;
+static const NSInteger MEETOPOLY_CAM_ROT_ADD_FRONT = 90;
+static const NSInteger MEETOPOLY_CAM_ROT_ADD_BACK = 270;
 
-@interface MeetopolyCamRotProcessor : NSObject <VideoFrameProcessorDelegate>
-@end
-
-@implementation MeetopolyCamRotProcessor
-
-- (RTCVideoFrame *)capturer:(RTCVideoCapturer *)capturer
-    didCaptureVideoFrame:(RTCVideoFrame *)frame {
-  NSInteger rot = (NSInteger)frame.rotation + MEETOPOLY_CAM_ROT_ADD;
+static RTCVideoFrame *MeetopolyApplyRotationAdd(RTCVideoFrame *frame, NSInteger addDeg) {
+  NSInteger rot = (NSInteger)frame.rotation + addDeg;
   while (rot < 0) {
     rot += 360;
   }
@@ -40,13 +35,33 @@ static const NSInteger MEETOPOLY_CAM_ROT_ADD = 90;
                                    timeStampNs:frame.timeStampNs];
 }
 
+@interface MeetopolyCamRotFrontProcessor : NSObject <VideoFrameProcessorDelegate>
 @end
 
-/** Register at load — no Swift↔ObjC bridging header (unsupported for pod frameworks). */
-__attribute__((constructor)) static void MeetopolyBoardCamRegisterProcessor(void) {
+@implementation MeetopolyCamRotFrontProcessor
+- (RTCVideoFrame *)capturer:(RTCVideoCapturer *)capturer
+    didCaptureVideoFrame:(RTCVideoFrame *)frame {
+  return MeetopolyApplyRotationAdd(frame, MEETOPOLY_CAM_ROT_ADD_FRONT);
+}
+@end
+
+@interface MeetopolyCamRotBackProcessor : NSObject <VideoFrameProcessorDelegate>
+@end
+
+@implementation MeetopolyCamRotBackProcessor
+- (RTCVideoFrame *)capturer:(RTCVideoCapturer *)capturer
+    didCaptureVideoFrame:(RTCVideoFrame *)frame {
+  return MeetopolyApplyRotationAdd(frame, MEETOPOLY_CAM_ROT_ADD_BACK);
+}
+@end
+
+__attribute__((constructor)) static void MeetopolyBoardCamRegisterProcessors(void) {
   static dispatch_once_t onceToken;
   dispatch_once(&onceToken, ^{
-    [ProcessorProvider addProcessor:[[MeetopolyCamRotProcessor alloc] init]
+    // Keep exact legacy name — current App Store / EAS clients depend on it for front.
+    [ProcessorProvider addProcessor:[[MeetopolyCamRotFrontProcessor alloc] init]
                             forName:@"meetopolyCamRot"];
+    [ProcessorProvider addProcessor:[[MeetopolyCamRotBackProcessor alloc] init]
+                            forName:@"meetopolyCamRotBack"];
   });
 }

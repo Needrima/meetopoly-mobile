@@ -516,7 +516,7 @@ function usePresenceChannel({
         return;
       }
       await sender.replaceTrack(newTrack);
-      const effectOn = applyMeetopolyBoardCamEffect(newTrack);
+      const effectOn = applyMeetopolyBoardCamEffect(newTrack, nextFacing);
       setIosCamEffectOn(effectOn);
       const oldTracks = localVideoTracksRef.current;
       localVideoTracksRef.current = [newTrack];
@@ -1022,7 +1022,9 @@ function usePresenceChannel({
             let anyEffect = false;
             for (const track of videoTracks) {
               track.enabled = camOn;
-              if (applyMeetopolyBoardCamEffect(track)) {
+              if (
+                applyMeetopolyBoardCamEffect(track, facingModeRef.current)
+              ) {
                 anyEffect = true;
               }
               pc.addTrack(track, stream);
