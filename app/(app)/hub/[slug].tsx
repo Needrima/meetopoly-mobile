@@ -18,6 +18,7 @@ import { stripWorldNamePrefix } from '@/components/board/deedVisual';
 import { shortTileName } from '@/components/board/tileLabel';
 import { tileVisual } from '@/components/board/tileStyle';
 import { HubBuySheet } from '@/components/hub/HubBuySheet';
+import { HubChatRail } from '@/components/hub/HubChatRail';
 import { HubLocationCopy } from '@/components/hub/HubLocationCopy';
 import { HubMediaRail } from '@/components/hub/HubMediaRail';
 import { HubRoster, type HubRosterRow } from '@/components/hub/HubRoster';
@@ -343,6 +344,23 @@ export default function HubScreen() {
     floorColor,
   ]);
 
+  /** Chat bubble fills — same accents as hub avatars / roster dots. */
+  const chatAccentByUserId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of rosterRows) {
+      map[row.userId] = row.accent;
+    }
+    for (const remote of remotes) {
+      if (!map[remote.pose.userId]) {
+        map[remote.pose.userId] = remote.accent;
+      }
+    }
+    if (localUserId) {
+      map[localUserId] = localAccent;
+    }
+    return map;
+  }, [rosterRows, remotes, localUserId, localAccent]);
+
   const bankLabel =
     localUserId && turnClock?.userId === localUserId ? turnClock.label : '';
   const canRoll = Boolean(isMyTurn && game?.canRoll);
@@ -628,13 +646,19 @@ export default function HubScreen() {
         <View
           style={[
             styles.mediaRail,
-            { flex: PANE_FLEX, paddingTop: 12 + insets.top },
+            {
+              flex: PANE_FLEX,
+              paddingTop: 12 + insets.top,
+              paddingBottom: 0,
+            },
           ]}
         >
-          <HubMediaRail
-            presenceStatus={presence.status}
+          <HubChatRail
+            messages={presence.chatMessages}
+            localUserId={localUserId}
+            accentByUserId={chatAccentByUserId}
             dcOpen={presence.dcOpen}
-            bankLabel={bankLabel}
+            onSend={presence.sendChat}
           />
         </View>
 
@@ -697,6 +721,13 @@ export default function HubScreen() {
         >
           <HubRoster
             rows={rosterRows}
+            statusSlot={
+              <HubMediaRail
+                presenceStatus={presence.status}
+                dcOpen={presence.dcOpen}
+                bankLabel={bankLabel}
+              />
+            }
             headerRight={
               <Pressable
                 accessibilityRole="button"
@@ -779,9 +810,11 @@ const styles = StyleSheet.create({
   },
   mediaRail: {
     flexShrink: 0,
+    alignSelf: 'stretch',
     backgroundColor: colors.surface,
-    paddingHorizontal: 10,
-    gap: 6,
+    paddingHorizontal: 0,
+    gap: 0,
+    overflow: 'hidden',
   },
   centerRail: {
     flexShrink: 0,

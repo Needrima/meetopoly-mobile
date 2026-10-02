@@ -20,7 +20,17 @@ import {
   localBoardVideoRotationDeg,
   parseVideoOrientation,
 } from "@/lib/boardVideoOrientation";
+import {
+  encodeHubChat,
+  HUB_CHAT_MSG_TYPE,
+  normalizeHubChatText,
+  parseHubChat,
+  type HubChatMessage,
+} from "@/lib/hubChat";
 import { applyMeetopolyBoardCamEffect } from "meetopoly-board-cam";
+
+/** Cap in-memory hub chat while staying in one hub (Phase 17.1). */
+const MAX_HUB_CHAT_BUFFER = 200;
 
 /** SFU board video stream id prefix (Phase 16.0) — `video-{userId}`. */
 const BOARD_VIDEO_STREAM_PREFIX = "video-";
@@ -364,6 +374,10 @@ export type PresenceChannelResult = {
   /** Phase 16.2 — swap front/back camera via replaceTrack (board only). */
   flipCamera: () => Promise<void>;
   sendPose: (pose: PresencePoseInput) => void;
+  /** Phase 17.1 — hub-only ephemeral chat lines (empty on board). */
+  chatMessages: HubChatMessage[];
+  /** Phase 17.1 — send hub chat; false if DC closed / invalid. No-op on board. */
+  sendChat: (text: string) => boolean;
   /** Drop a remote avatar (call when game marks them resigned — Phase 7.5). */
   clearRemote: (userId: string) => void;
   /** Tear down presence WS + WebRTC immediately (leave board / resign). */
@@ -396,6 +410,8 @@ type PresenceChannelOpts = {
   publishLocalVideo?: boolean;
   /** When true, local video tracks stay `enabled=false` (Settings muteVideo). */
   videoMuted?: boolean;
+  /** Phase 17.1 — accept/send hubChat on the presence DC (hub only). */
+  enableHubChat?: boolean;
 };
 
 /**
@@ -412,6 +428,7 @@ function usePresenceChannel({
   micMuted = false,
   publishLocalVideo = false,
   videoMuted = false,
+  enableHubChat = false,
 }: PresenceChannelOpts): PresenceChannelResult {
   const { token } = useSession();
   const path = roomPath?.trim() ?? "";
@@ -423,6 +440,7 @@ function usePresenceChannel({
   const [rosterMap, setRosterMap] = useState<
     Record<string, PresenceRosterEntry>
   >({});
+  const [chatMessages, setChatMessages] = useState<HubChatMessage[]>([]);
   const [localVideoStream, setLocalVideoStream] =
     useState<PresenceMediaStream | null>(null);
   const [remoteVideoByUserId, setRemoteVideoByUserId] = useState<
@@ -474,6 +492,8 @@ function usePresenceChannel({
   micMutedRef.current = micMuted;
   const videoMutedRef = useRef(videoMuted);
   videoMutedRef.current = videoMuted;
+  const enableHubChatRef = useRef(enableHubChat);
+  enableHubChatRef.current = enableHubChat;
 
   // Keep muteMic → track.enabled in sync without renegotiating.
   useEffect(() => {
@@ -638,6 +658,46 @@ function usePresenceChannel({
     }
   }, []);
 
+  /** Hub-only chat. SFU does not echo to sender — optimistic local append. */
+  const sendChat = useCallback((text: string): boolean => {
+    if (!enableHubChatRef.current) {
+      return false;
+    }
+    const dc = dcRef.current;
+    const identity = identityRef.current;
+    if (!dc || !identity) {
+      return false;
+    }
+    if (dc.readyState && dc.readyState !== "open") {
+      return false;
+    }
+    const stampedText = normalizeHubChatText(text);
+    const payload = stampedText ? encodeHubChat(stampedText) : null;
+    if (!stampedText || !payload) {
+      return false;
+    }
+    try {
+      dc.send(payload);
+    } catch (err) {
+      console.warn("[presence] sendChat failed", err);
+      return false;
+    }
+    const optimistic: HubChatMessage = {
+      type: HUB_CHAT_MSG_TYPE,
+      userId: identity.userId,
+      username: identity.username,
+      text: stampedText,
+      t: Date.now(),
+    };
+    setChatMessages((prev) => {
+      const next = [...prev, optimistic];
+      return next.length > MAX_HUB_CHAT_BUFFER
+        ? next.slice(next.length - MAX_HUB_CHAT_BUFFER)
+        : next;
+    });
+    return true;
+  }, []);
+
   const disconnect = useCallback(() => {
     disconnectRef.current();
   }, []);
@@ -648,6 +708,8 @@ function usePresenceChannel({
       setRoomId(null);
       setDcOpen(false);
       setRemotes({});
+      setRosterMap({});
+      setChatMessages([]);
       setLocalVideoStream(null);
       setRemoteVideoByUserId({});
       setRemoteVideoRotationByUserId({});
@@ -895,6 +957,24 @@ function usePresenceChannel({
         const text = messageDataToString(ev.data);
         if (cancelled || !text) {
           return;
+        }
+        if (enableHubChatRef.current) {
+          const chat = parseHubChat(text);
+          if (chat) {
+            if (
+              identityRef.current &&
+              chat.userId === identityRef.current.userId
+            ) {
+              return;
+            }
+            setChatMessages((prev) => {
+              const next = [...prev, chat];
+              return next.length > MAX_HUB_CHAT_BUFFER
+                ? next.slice(next.length - MAX_HUB_CHAT_BUFFER)
+                : next;
+            });
+            return;
+          }
         }
         const mutedMsg = parseVideoMuted(text);
         if (mutedMsg) {
@@ -1565,6 +1645,7 @@ function usePresenceChannel({
       setDcOpen(false);
       setRemotes({});
       setRosterMap({});
+      setChatMessages([]);
       setLocalVideoStream(null);
       setRemoteVideoByUserId({});
       setRemoteVideoRotationByUserId({});
@@ -1587,6 +1668,7 @@ function usePresenceChannel({
     dcOpen,
     remotes,
     roster: Object.values(rosterMap),
+    chatMessages,
     localVideoStream,
     remoteVideoByUserId,
     localVideoRotationDeg,
@@ -1595,6 +1677,7 @@ function usePresenceChannel({
     cameraFacing,
     flipCamera,
     sendPose,
+    sendChat,
     clearRemote,
     disconnect,
   };
@@ -1642,5 +1725,6 @@ export function useHubPresence(
     seedWelcomePeers: true,
     publishLocalAudio: false,
     publishLocalVideo: false,
+    enableHubChat: true,
   });
 }
