@@ -8,6 +8,7 @@ import {
 
 import type { GamePlayer } from '@/api/types';
 import { AvatarPod } from '@/components/board/AvatarPod';
+import { Button } from '@/components/ui/Button';
 import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
 import { usernameInitials } from '@/hooks/useBoardWalk';
 import { formatUsername } from '@/lib/formatUsername';
@@ -101,17 +102,11 @@ export function PlayerInfoModal({
           <View style={styles.cashRow}>
             <MeetCoinAmount amount={player.cash} size={20} />
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Close player info"
+          <Button
+            label="Close"
             onPress={onClose}
-            style={({ pressed }) => [
-              styles.closeBtn,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <Text style={styles.closeLabel}>Close</Text>
-          </Pressable>
+            style={styles.closeBtn}
+          />
         </View>
       </View>
     </View>
@@ -179,20 +174,6 @@ const styles = StyleSheet.create({
   closeBtn: {
     marginTop: 8,
     minWidth: 120,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  closeLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.ink,
-  },
-  pressed: {
-    opacity: 0.75,
+    alignSelf: 'stretch',
   },
 });
