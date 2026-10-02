@@ -4,7 +4,7 @@
  * Server stamps userId/username; clients should still send them for debugging only.
  */
 
-export const PRESENCE_POSE_TYPE = 'pose' as const;
+export const PRESENCE_POSE_TYPE = "pose" as const;
 
 export type PresencePose = {
   type: typeof PRESENCE_POSE_TYPE;
@@ -51,10 +51,10 @@ export function parsePresencePose(raw: string): PresencePose | null {
     if (msg.type != null && msg.type !== PRESENCE_POSE_TYPE) {
       return null;
     }
-    if (typeof msg.userId !== 'string' || msg.userId.length === 0) {
+    if (typeof msg.userId !== "string" || msg.userId.length === 0) {
       return null;
     }
-    if (typeof msg.x !== 'number' || typeof msg.y !== 'number') {
+    if (typeof msg.x !== "number" || typeof msg.y !== "number") {
       return null;
     }
     if (!Number.isFinite(msg.x) || !Number.isFinite(msg.y)) {
@@ -63,14 +63,14 @@ export function parsePresencePose(raw: string): PresencePose | null {
     const out: PresencePose = {
       type: PRESENCE_POSE_TYPE,
       userId: msg.userId,
-      username: typeof msg.username === 'string' ? msg.username : 'Player',
+      username: typeof msg.username === "string" ? msg.username : "Player",
       x: msg.x,
       y: msg.y,
     };
-    if (typeof msg.rot === 'number' && Number.isFinite(msg.rot)) {
+    if (typeof msg.rot === "number" && Number.isFinite(msg.rot)) {
       out.rot = msg.rot;
     }
-    if (typeof msg.t === 'number' && Number.isFinite(msg.t)) {
+    if (typeof msg.t === "number" && Number.isFinite(msg.t)) {
       out.t = msg.t;
     }
     return out;

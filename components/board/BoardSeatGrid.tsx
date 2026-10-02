@@ -56,6 +56,7 @@ export function BoardSeatGrid({
   remoteVideoMutedByUserId = {},
   onFlipCamera,
 }: BoardSeatGridProps) {
+  void remoteVideoRotationByUserId; // remotes use frame metadata, not CSS rotate
   const { muted: micMuted, setMuted: setMicMuted } = useMuteMic();
   const { muted: videoMuted, setMuted: setVideoMuted } = useMuteVideo();
   const [infoPlayer, setInfoPlayer] = useState<GamePlayer | null>(null);
@@ -95,9 +96,7 @@ export function BoardSeatGrid({
             const cameraOff = isLocal
               ? videoMuted || !stream
               : !stream || remoteVideoMutedByUserId[p.userId] === true;
-            const contentRotateDeg = isLocal
-              ? localVideoRotationDeg
-              : (remoteVideoRotationByUserId[p.userId] ?? 0);
+            const contentRotateDeg = isLocal ? localVideoRotationDeg : 0;
             return (
               <BoardSeatTile
                 key={p.userId}

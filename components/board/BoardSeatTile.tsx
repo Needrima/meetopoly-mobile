@@ -1,22 +1,22 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState, type ComponentType } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useMemo, useState, type ComponentType } from "react";
 import {
   Pressable,
   StyleSheet,
   Text,
   View,
   type LayoutChangeEvent,
-} from 'react-native';
+} from "react-native";
 
-import { AvatarPod } from '@/components/board/AvatarPod';
-import type { PresenceMediaStream } from '@/hooks/useBoardPresence';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+import { AvatarPod } from "@/components/board/AvatarPod";
+import type { PresenceMediaStream } from "@/hooks/useBoardPresence";
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 type RTCViewComponent = ComponentType<{
   streamURL?: string;
   mirror?: boolean;
-  objectFit?: 'contain' | 'cover';
+  objectFit?: "contain" | "cover";
   style?: object;
   zOrder?: number;
 }>;
@@ -24,7 +24,9 @@ type RTCViewComponent = ComponentType<{
 function loadRTCView(): RTCViewComponent | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require('react-native-webrtc') as { RTCView?: RTCViewComponent };
+    const mod = require("react-native-webrtc") as {
+      RTCView?: RTCViewComponent;
+    };
     return mod.RTCView ?? null;
   } catch {
     return null;
@@ -68,7 +70,7 @@ export function BoardSeatTile({
   initials,
   isLocal,
   resigned = false,
-  hubCode = '',
+  hubCode = "",
   stream,
   cameraOff,
   mirror = false,
@@ -84,12 +86,12 @@ export function BoardSeatTile({
 
   const streamURL = useMemo(() => {
     if (!stream || cameraOff) {
-      return '';
+      return "";
     }
     try {
-      return stream.toURL?.() ?? '';
+      return stream.toURL?.() ?? "";
     } catch {
-      return '';
+      return "";
     }
   }, [stream, cameraOff]);
 
@@ -113,11 +115,7 @@ export function BoardSeatTile({
       ]}
       accessibilityLabel={`${displayName} seat`}
     >
-      <View
-        style={styles.media}
-        pointerEvents="none"
-        onLayout={onMediaLayout}
-      >
+      <View style={styles.media} pointerEvents="none" onLayout={onMediaLayout}>
         {showVideo && RTCView ? (
           <View style={styles.videoClip}>
             {/*
@@ -130,7 +128,9 @@ export function BoardSeatTile({
                   ? {
                       width: needsSwap ? box.h : box.w,
                       height: needsSwap ? box.w : box.h,
-                      transform: [{ rotate: `${contentRotateDeg}deg` as const }],
+                      transform: [
+                        { rotate: `${contentRotateDeg}deg` as const },
+                      ],
                     }
                   : styles.videoFill
               }
@@ -168,7 +168,10 @@ export function BoardSeatTile({
       <View style={styles.chrome} pointerEvents="box-none">
         {isLocal ? (
           <>
-            <View style={[styles.ctrlSlot, styles.ctrlTL]} pointerEvents="box-none">
+            <View
+              style={[styles.ctrlSlot, styles.ctrlTL]}
+              pointerEvents="box-none"
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Flip camera"
@@ -186,11 +189,14 @@ export function BoardSeatTile({
                 />
               </Pressable>
             </View>
-            <View style={[styles.ctrlSlot, styles.ctrlTR]} pointerEvents="box-none">
+            <View
+              style={[styles.ctrlSlot, styles.ctrlTR]}
+              pointerEvents="box-none"
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={
-                  videoMuted ? 'Turn camera on' : 'Turn camera off'
+                  videoMuted ? "Turn camera on" : "Turn camera off"
                 }
                 hitSlop={8}
                 onPress={onToggleCamera}
@@ -200,17 +206,20 @@ export function BoardSeatTile({
                 ]}
               >
                 <Ionicons
-                  name={videoMuted ? 'videocam-off' : 'videocam'}
+                  name={videoMuted ? "videocam-off" : "videocam"}
                   size={ICON_SIZE}
                   color={colors.onBrand}
                 />
               </Pressable>
             </View>
-            <View style={[styles.ctrlSlot, styles.ctrlBL]} pointerEvents="box-none">
+            <View
+              style={[styles.ctrlSlot, styles.ctrlBL]}
+              pointerEvents="box-none"
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={
-                  micMuted ? 'Unmute microphone' : 'Mute microphone'
+                  micMuted ? "Unmute microphone" : "Mute microphone"
                 }
                 hitSlop={8}
                 onPress={onToggleMic}
@@ -220,7 +229,7 @@ export function BoardSeatTile({
                 ]}
               >
                 <Ionicons
-                  name={micMuted ? 'mic-off' : 'mic'}
+                  name={micMuted ? "mic-off" : "mic"}
                   size={ICON_SIZE}
                   color={colors.onBrand}
                 />
@@ -232,7 +241,7 @@ export function BoardSeatTile({
         <View style={styles.nameBar} pointerEvents="none">
           <Text style={styles.name} numberOfLines={1}>
             {displayName}
-            {resigned ? ' · out' : ''}
+            {resigned ? " · out" : ""}
           </Text>
         </View>
       </View>
@@ -246,9 +255,9 @@ const styles = StyleSheet.create({
     minHeight: 72,
     borderRadius: 10,
     borderWidth: 2,
-    overflow: 'hidden',
-    backgroundColor: '#0B1210',
-    position: 'relative',
+    overflow: "hidden",
+    backgroundColor: "#0B1210",
+    position: "relative",
   },
   tileOut: {
     opacity: 0.55,
@@ -258,30 +267,30 @@ const styles = StyleSheet.create({
   },
   videoClip: {
     flex: 1,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
   },
   videoFill: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   placeholder: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0B1210',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0B1210",
   },
   longPressHit: {
     ...StyleSheet.absoluteFill,
     zIndex: 1,
   },
   hubChip: {
-    position: 'absolute',
+    position: "absolute",
     top: 6,
     left: 0,
     right: 0,
-    alignItems: 'center',
+    alignItems: "center",
     zIndex: 2,
   },
   hubChipText: {
@@ -289,27 +298,27 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.6,
     color: colors.onBrand,
-    backgroundColor: 'rgba(20, 32, 27, 0.72)',
+    backgroundColor: "rgba(20, 32, 27, 0.72)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   chrome: {
     ...StyleSheet.absoluteFill,
     zIndex: 3,
   },
   ctrlSlot: {
-    position: 'absolute',
+    position: "absolute",
     zIndex: 4,
   },
   ctrl: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(20, 32, 27, 0.72)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(20, 32, 27, 0.72)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   ctrlTL: {
     top: 6,
@@ -324,11 +333,11 @@ const styles = StyleSheet.create({
     left: 6,
   },
   nameBar: {
-    position: 'absolute',
+    position: "absolute",
     right: 6,
     bottom: 6,
-    maxWidth: '62%',
-    backgroundColor: 'transparent',
+    maxWidth: "62%",
+    backgroundColor: "transparent",
     paddingHorizontal: 2,
     paddingVertical: 1,
   },
@@ -336,7 +345,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     fontSize: 12,
     color: colors.onBrand,
-    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowColor: "rgba(0, 0, 0, 0.85)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },

@@ -5,8 +5,8 @@
   "private": true,
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "api:generate": "orval --config orval.config.ts",
     "icons:generate": "node scripts/generate-icon-registry.mjs"
@@ -33,6 +33,7 @@
     "expo-updates": "~57.0.23",
     "formik": "^2.4.9",
     "lottie-react-native": "~7.3.8",
+    "meetopoly-board-cam": "file:modules/meetopoly-board-cam",
     "moti": "^0.30.0",
     "nativewind": "^4.2.7",
     "react": "19.2.3",

@@ -1,0 +1,14 @@
+{
+  "name": "meetopoly-board-cam",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {},
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*",
+    "react-native-webrtc": "*"
+  }
+}

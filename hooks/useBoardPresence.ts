@@ -14,15 +14,13 @@ import {
   type PresencePose,
   type PresencePoseInput,
 } from "@/lib/presencePose";
-import {
-  encodeVideoMuted,
-  parseVideoMuted,
-} from "@/lib/boardVideoMute";
+import { encodeVideoMuted, parseVideoMuted } from "@/lib/boardVideoMute";
 import {
   encodeVideoOrientation,
   localBoardVideoRotationDeg,
   parseVideoOrientation,
 } from "@/lib/boardVideoOrientation";
+import { applyMeetopolyBoardCamEffect } from "meetopoly-board-cam";
 
 /** SFU board video stream id prefix (Phase 16.0) — `video-{userId}`. */
 const BOARD_VIDEO_STREAM_PREFIX = "video-";
@@ -47,6 +45,8 @@ type PresenceMediaTrack = {
   kind: string;
   enabled: boolean;
   stop: () => void;
+  /** react-native-webrtc — board cam upright on iOS (optional). */
+  _setVideoEffect?: (name: string) => void;
 };
 
 type PresencePeer = {
@@ -370,7 +370,14 @@ function usePresenceChannel({
   const [remoteVideoMutedByUserId, setRemoteVideoMutedByUserId] = useState<
     Record<string, boolean>
   >({});
-  const localVideoRotationDeg = localBoardVideoRotationDeg();
+  /**
+   * When native iOS frame-rotation effect is on, skip CSS rotate (metadata
+   * uprights local + remotes). Fallback CSS only if native module missing.
+   */
+  const [iosCamEffectOn, setIosCamEffectOn] = useState(false);
+  const localVideoRotationDeg = iosCamEffectOn
+    ? 0
+    : localBoardVideoRotationDeg();
   const [cameraFacing, setCameraFacing] = useState<CameraFacing>("user");
   const [flipBusy, setFlipBusy] = useState(false);
 
@@ -509,6 +516,8 @@ function usePresenceChannel({
         return;
       }
       await sender.replaceTrack(newTrack);
+      const effectOn = applyMeetopolyBoardCamEffect(newTrack);
+      setIosCamEffectOn(effectOn);
       const oldTracks = localVideoTracksRef.current;
       localVideoTracksRef.current = [newTrack];
       for (const old of oldTracks) {
@@ -523,16 +532,18 @@ function usePresenceChannel({
       setLocalVideoStream(fresh);
       facingModeRef.current = nextFacing;
       setCameraFacing(nextFacing);
-      // Re-announce so late joiners / remotes keep iOS correction after flip.
-      const deg = localBoardVideoRotationDeg();
-      if (deg !== 0) {
-        const dc = dcRef.current;
-        const identity = identityRef.current;
-        if (dc && identity && (!dc.readyState || dc.readyState === "open")) {
-          try {
-            dc.send(encodeVideoOrientation(identity.userId, deg));
-          } catch {
-            // ignore
+      // Orientation DC only as a legacy hint; Android uses frame metadata.
+      if (!effectOn) {
+        const deg = localBoardVideoRotationDeg();
+        if (deg !== 0) {
+          const dc = dcRef.current;
+          const identity = identityRef.current;
+          if (dc && identity && (!dc.readyState || dc.readyState === "open")) {
+            try {
+              dc.send(encodeVideoOrientation(identity.userId, deg));
+            } catch {
+              // ignore
+            }
           }
         }
       }
@@ -578,6 +589,7 @@ function usePresenceChannel({
       setRemoteVideoByUserId({});
       setRemoteVideoRotationByUserId({});
       setRemoteVideoMutedByUserId({});
+      setIosCamEffectOn(false);
       identityRef.current = null;
       disconnectRef.current = () => {};
       return;
@@ -668,6 +680,7 @@ function usePresenceChannel({
         setRemoteVideoByUserId({});
         setRemoteVideoRotationByUserId({});
         setRemoteVideoMutedByUserId({});
+        setIosCamEffectOn(false);
       }
     };
 
@@ -927,7 +940,9 @@ function usePresenceChannel({
               }
               track.enabled = true;
               remoteAudioTracksRef.current = [
-                ...remoteAudioTracksRef.current.filter((t) => t.id !== track.id),
+                ...remoteAudioTracksRef.current.filter(
+                  (t) => t.id !== track.id,
+                ),
                 track,
               ];
               if (stream) {
@@ -1004,13 +1019,23 @@ function usePresenceChannel({
               track.enabled = micOn;
               pc.addTrack(track, stream);
             }
+            let anyEffect = false;
             for (const track of videoTracks) {
               track.enabled = camOn;
+              if (applyMeetopolyBoardCamEffect(track)) {
+                anyEffect = true;
+              }
               pc.addTrack(track, stream);
+            }
+            if (!cancelled) {
+              setIosCamEffectOn(anyEffect);
             }
             if (wantVideo && videoTracks.length > 0) {
               setLocalVideoStream(stream);
-              announceLocalVideoOrientation();
+              // CSS/DC orientation only if native frame-tag effect unavailable.
+              if (!anyEffect) {
+                announceLocalVideoOrientation();
+              }
               announceLocalVideoMuted();
             } else {
               setLocalVideoStream(null);
@@ -1371,6 +1396,7 @@ function usePresenceChannel({
       setRemoteVideoByUserId({});
       setRemoteVideoRotationByUserId({});
       setRemoteVideoMutedByUserId({});
+      setIosCamEffectOn(false);
     };
 
     disconnectRef.current = hardDisconnect;

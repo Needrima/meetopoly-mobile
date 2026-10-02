@@ -1,15 +1,17 @@
-import { Platform } from 'react-native';
+import { Platform } from "react-native";
 
 /**
- * Landscape-locked Meetopoly: iOS camera frames often need a display correction
- * so local + remotes see the publisher upright. Applied only to iOS-sourced video
- * (never to Android publishers).
+ * Landscape-locked Meetopoly: iOS camera frames often need upright correction.
  *
- * If upright is wrong the other way, flip the sign to 90.
+ * Preferred: native `meetopoly-board-cam` VideoFrameProcessor tags frame.rotation
+ * so Android SurfaceViewRenderer shows remotes upright (CSS cannot rotate it).
+ *
+ * Fallback: local-only CSS rotate via IOS_BOARD_VIDEO_ROTATION_DEG when the
+ * native module is not linked yet. Never apply CSS rotate to Android remotes.
  */
 export const IOS_BOARD_VIDEO_ROTATION_DEG = 90;
 
-export const VIDEO_ORIENTATION_MSG_TYPE = 'videoOrientation' as const;
+export const VIDEO_ORIENTATION_MSG_TYPE = "videoOrientation" as const;
 
 export type VideoOrientationMessage = {
   type: typeof VIDEO_ORIENTATION_MSG_TYPE;
@@ -20,7 +22,7 @@ export type VideoOrientationMessage = {
 
 /** Local board tile rotation for this device's published camera. */
 export function localBoardVideoRotationDeg(): number {
-  return Platform.OS === 'ios' ? IOS_BOARD_VIDEO_ROTATION_DEG : 0;
+  return Platform.OS === "ios" ? IOS_BOARD_VIDEO_ROTATION_DEG : 0;
 }
 
 export function encodeVideoOrientation(
@@ -42,9 +44,9 @@ export function parseVideoOrientation(
     const msg = JSON.parse(raw) as Partial<VideoOrientationMessage>;
     if (
       msg?.type !== VIDEO_ORIENTATION_MSG_TYPE ||
-      typeof msg.userId !== 'string' ||
+      typeof msg.userId !== "string" ||
       !msg.userId.trim() ||
-      typeof msg.rotationDeg !== 'number' ||
+      typeof msg.rotationDeg !== "number" ||
       !Number.isFinite(msg.rotationDeg)
     ) {
       return null;
