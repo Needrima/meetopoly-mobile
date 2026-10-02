@@ -664,7 +664,12 @@ function usePresenceChannel({
     let recoverTimer: ReturnType<typeof setTimeout> | undefined;
     let attempt = 0;
     let recoverAttempt = 0;
-    let renegotiating = false;
+    /**
+     * True from join createOffer until join answer is applied — SFU offers
+     * that arrive mid-join are queued (not dropped).
+     */
+    let joining = false;
+    let pendingSfuOffer: string | null = null;
     const webrtc = loadWebRTC();
 
     const stopFatal = (nextStatus: BoardPresenceStatus = "error") => {
@@ -750,6 +755,8 @@ function usePresenceChannel({
     const teardownPeer = () => {
       remoteSetRef.current = false;
       pendingIceRef.current = [];
+      pendingSfuOffer = null;
+      joining = false;
       stopLocalMedia();
       stopRemoteMedia();
       const dc = dcRef.current;
@@ -764,6 +771,9 @@ function usePresenceChannel({
       const pc = pcRef.current;
       pcRef.current = null;
       if (pc) {
+        pc.onicecandidate = null;
+        pc.onconnectionstatechange = null;
+        pc.ontrack = null;
         try {
           pc.close();
         } catch {
@@ -792,7 +802,7 @@ function usePresenceChannel({
     };
 
     const scheduleRecover = (reason: string) => {
-      if (cancelled || renegotiating || recoverTimer) {
+      if (cancelled || joining || recoverTimer) {
         return;
       }
       const ws = wsRef.current;
@@ -877,7 +887,7 @@ function usePresenceChannel({
         if (!cancelled) {
           setDcOpen(false);
         }
-        if (!cancelled && !renegotiating) {
+        if (!cancelled && !joining) {
           scheduleRecover("dc-close");
         }
       };
@@ -937,9 +947,11 @@ function usePresenceChannel({
         setStatus("connected");
         return;
       }
-      renegotiating = true;
+      joining = true;
+      pendingSfuOffer = null;
       try {
         teardownPeer();
+        joining = true;
         const pc = new webrtc.RTCPeerConnection({
           iceServers: iceServersFromWelcome(iceServers),
         });
@@ -969,7 +981,7 @@ function usePresenceChannel({
             pc.connectionState === "closed"
           ) {
             setDcOpen(false);
-            if (!renegotiating) {
+            if (!joining) {
               scheduleRecover(`pc-${pc.connectionState}`);
             }
           }
@@ -1102,6 +1114,7 @@ function usePresenceChannel({
                 }
               }
               stream.release?.(true);
+              joining = false;
               return;
             }
             localStreamRef.current = stream;
@@ -1163,17 +1176,83 @@ function usePresenceChannel({
         }
 
         const offer = await pc.createOffer({});
+        if (cancelled || pcRef.current !== pc) {
+          joining = false;
+          return;
+        }
         await pc.setLocalDescription(offer);
-        if (cancelled || ws.readyState !== WebSocket.OPEN) {
+        if (
+          cancelled ||
+          pcRef.current !== pc ||
+          ws.readyState !== WebSocket.OPEN
+        ) {
+          joining = false;
+          return;
+        }
+        const local = pc.localDescription;
+        if (!local?.sdp) {
+          joining = false;
+          return;
+        }
+        ws.send(JSON.stringify({ type: "offer", sdp: local.sdp }));
+        // Keep joining=true until the SFU join answer is applied.
+      } catch (err) {
+        joining = false;
+        throw err;
+      }
+    };
+
+    const answerSfuOffer = async (sdp: string) => {
+      if (
+        !sdp ||
+        cancelled ||
+        !(publishAudioRef.current || publishVideoRef.current) ||
+        !webrtc
+      ) {
+        return;
+      }
+      if (joining || !remoteSetRef.current) {
+        pendingSfuOffer = sdp;
+        return;
+      }
+      const pc = pcRef.current;
+      const openWs = wsRef.current;
+      if (
+        !pc ||
+        !openWs ||
+        openWs.readyState !== WebSocket.OPEN
+      ) {
+        return;
+      }
+      try {
+        await pc.setRemoteDescription(
+          new webrtc.RTCSessionDescription({
+            type: "offer",
+            sdp,
+          }),
+        );
+        remoteSetRef.current = true;
+        await flushPendingIce(pc);
+        const answer = await pc.createAnswer({});
+        await pc.setLocalDescription(answer);
+        if (cancelled || openWs.readyState !== WebSocket.OPEN) {
           return;
         }
         const local = pc.localDescription;
         if (!local?.sdp) {
           return;
         }
-        ws.send(JSON.stringify({ type: "offer", sdp: local.sdp }));
-      } finally {
-        renegotiating = false;
+        openWs.send(JSON.stringify({ type: "answer", sdp: local.sdp }));
+      } catch (err) {
+        console.warn("[presence] SFU offer answer failed", err);
+      }
+    };
+
+    const flushPendingSfuOffer = async () => {
+      const sdp = pendingSfuOffer;
+      pendingSfuOffer = null;
+      if (sdp && !cancelled && !joining && remoteSetRef.current) {
+        await answerSfuOffer(sdp);
       }
     };
 
@@ -1255,10 +1334,13 @@ function usePresenceChannel({
               }),
             );
             remoteSetRef.current = true;
+            joining = false;
             await flushPendingIce(pc);
+            await flushPendingSfuOffer();
             // Rejoin: existing board pubs are in this answer; ontrack should fire.
             // If streams were omitted, mid→userId mapping in ontrack recovers them.
           } catch (err) {
+            joining = false;
             console.warn("[presence] setRemoteDescription failed", err);
           }
           break;
@@ -1266,44 +1348,18 @@ function usePresenceChannel({
         case "offer": {
           // Phase 10.2 / 16.1 — SFU renegotiation when another peer publishes audio/video.
           const offer = msg as OfferMessage;
-          const pc = pcRef.current;
-          const openWs = wsRef.current;
-          if (
-            !pc ||
-            !webrtc ||
-            !offer.sdp ||
-            !(publishAudioRef.current || publishVideoRef.current) ||
-            !openWs ||
-            openWs.readyState !== WebSocket.OPEN
-          ) {
+          if (!offer.sdp) {
             break;
           }
-          if (renegotiating) {
-            console.warn("[presence] skip SFU offer during local renegotiate");
+          // Pose-only hubs never publish media — ignore SFU offers (should not arrive).
+          if (!(publishAudioRef.current || publishVideoRef.current)) {
             break;
           }
-          try {
-            await pc.setRemoteDescription(
-              new webrtc.RTCSessionDescription({
-                type: "offer",
-                sdp: offer.sdp,
-              }),
-            );
-            remoteSetRef.current = true;
-            await flushPendingIce(pc);
-            const answer = await pc.createAnswer({});
-            await pc.setLocalDescription(answer);
-            if (cancelled || openWs.readyState !== WebSocket.OPEN) {
-              break;
-            }
-            const local = pc.localDescription;
-            if (!local?.sdp) {
-              break;
-            }
-            openWs.send(JSON.stringify({ type: "answer", sdp: local.sdp }));
-          } catch (err) {
-            console.warn("[presence] SFU offer answer failed", err);
+          if (joining || !remoteSetRef.current) {
+            pendingSfuOffer = offer.sdp;
+            break;
           }
+          await answerSfuOffer(offer.sdp);
           break;
         }
         case "ice": {
@@ -1545,11 +1601,11 @@ function usePresenceChannel({
 }
 
 /**
- * Phase 7 board presence. Pass `enabled=false` when leaving for a hub (dual presence)
- * so Enter leaves the board room without dropping the game WS. Locations/Health keep
- * `enabled=true` — board stays mounted under the stack with cameras alive.
- * Phase 10.4 — publishes/plays mic like hub (`muteMic` SoT).
- * Phase 16.1 — publishes/plays board camera (`muteVideo` SoT); hub stays audio-only.
+ * Phase 7 board presence. Pass `enabled=false` only when fully leaving the table
+ * (resign / worlds). Locations, Health, and Hub keep `enabled=true` — board SFU
+ * (cameras + table voice) stays alive under the stack.
+ * Phase 10.4 — publishes/plays mic (`muteMic` SoT).
+ * Phase 16.1 — publishes/plays board camera (`muteVideo` SoT).
  */
 export function useBoardPresence(
   gameId: string | null | undefined,
@@ -1571,23 +1627,20 @@ export function useBoardPresence(
 
 /**
  * Phase 8.0 hub presence — any logged-in user; room `hub:{hubId}` on the server.
- * Phase 10.1–10.2 — publishes local mic; plays remote audio; answers SFU offers.
- * Cameras stay deferred (no publishLocalVideo).
+ * Pose DataChannel only (no mic/speaker). Table A/V stays on the board SFU while
+ * the hub UI is open (same keep-alive pattern as Locations).
  */
 export function useHubPresence(
   hubId: string | null | undefined,
 ): PresenceChannelResult {
   const id = hubId?.trim() ?? "";
-  const { muted, ready } = useMuteMic();
   return usePresenceChannel({
     roomPath: id ? `hub/${encodeURIComponent(id)}` : null,
-    // Wait for muteMic SecureStore so the first offer does not briefly unmute.
-    enabled: Boolean(id) && ready,
+    enabled: Boolean(id),
     joinToastMessage: "In this hub with you",
     clearRemoteOnPeerLeft: true,
     seedWelcomePeers: true,
-    publishLocalAudio: true,
-    micMuted: muted,
+    publishLocalAudio: false,
     publishLocalVideo: false,
   });
 }

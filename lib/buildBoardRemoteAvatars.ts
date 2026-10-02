@@ -23,8 +23,9 @@ type BuildOpts = {
 
 /**
  * Phase 8.2 — board remotes for drawing:
- * prefer live/linger presence poses; for seated players with hubId and no pose,
- * place a frozen avatar at that hub tile's center so returners still see them.
+ * Game `hubId` wins over linger poses (board SFU stays up in hub — do not keep
+ * walking the last board pose). Otherwise prefer live/linger DC poses; if a
+ * seated player has hubId and no pose, place a frozen avatar at hub tile center.
  */
 export function buildBoardRemoteAvatars({
   layout,
@@ -52,12 +53,16 @@ export function buildBoardRemoteAvatars({
 
   const colorByUser = new Map<string, string>();
   const resigned = new Set<string>();
+  const inHub = new Set<string>();
   for (const p of players) {
     if (p.pinColor) {
       colorByUser.set(p.userId, p.pinColor);
     }
     if (p.resigned) {
       resigned.add(p.userId);
+    }
+    if (p.hubId?.trim()) {
+      inHub.add(p.userId);
     }
   }
 
@@ -68,6 +73,10 @@ export function buildBoardRemoteAvatars({
       continue;
     }
     if (localUserId && pose.userId === localUserId) {
+      continue;
+    }
+    // In-hub players: ignore board linger — use hub-tile synthetic below.
+    if (inHub.has(pose.userId)) {
       continue;
     }
     byUser.set(pose.userId, {

@@ -55,8 +55,9 @@ export default function SettingsScreen() {
           />
         </View>
         <Text style={styles.hint}>
-          Also available from the hub Voice rail and board seat mic control.
-          Muted mic stays off until you unmute.
+          Also available from the board seat mic control. Muted mic stays off
+          until you unmute. Table voice stays on the board even while you are
+          in a hub.
         </Text>
       </View>
 
@@ -75,8 +76,8 @@ export default function SettingsScreen() {
           />
         </View>
         <Text style={styles.hint}>
-          Board only — hubs stay audio-only. Also toggled from your board seat
-          tile. Camera stays off until you turn it back on.
+          Board only — hubs are pose-only (no hub camera). Also toggled from
+          your board seat tile. Camera stays off until you turn it back on.
         </Text>
       </View>
     </SafeAreaView>

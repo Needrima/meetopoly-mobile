@@ -103,22 +103,18 @@ export default function BoardScreen() {
   const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(worldId);
   const gameQuery = useGame(gameId);
-  /** Leave board SFU only when entering a hub (dual presence). Locations/health keep it. */
-  const [boardPresenceOn, setBoardPresenceOn] = useState(true);
   /** Economy modals only while board focused (hub stack owns toasts). */
   const [boardFocused, setBoardFocused] = useState(true);
   useFocusEffect(
     useCallback(() => {
-      setBoardPresenceOn(true);
       setBoardFocused(true);
       return () => {
         setBoardFocused(false);
-        // Do not tear down board SFU here — Locations/Health stack on top and
-        // must keep cameras. Hub navigation calls setBoardPresenceOn(false).
+        // Keep board SFU alive under Locations, Health, and Hub (pose-only hub PC).
       };
     }, []),
   );
-  const presence = useBoardPresence(gameId, boardPresenceOn);
+  const presence = useBoardPresence(gameId, true);
   const rollDice = useRollDice(gameId);
   const endTurnMut = useEndTurn(gameId);
   const buyMut = useBuyProperty(gameId);
@@ -259,19 +255,20 @@ export default function BoardScreen() {
     layout,
     locations,
     username,
-    enabled: Boolean(layout) && !isLoading && !isError,
+    enabled: Boolean(layout) && boardFocused && !isLoading && !isError,
     restorePoseNorm,
     restoreAccent,
     onAccentReady,
   });
 
-  // Phase 7.1–7.2 — publish local pose ~10 Hz; remotes drawn + interpolated on Board.
+  // Phase 7.1–7.2 — publish local pose ~10 Hz while board focused.
+  // Stop in hub/Locations blur so remotes freeze / show hub-tile synthetic (8.2).
   const getPoseRef = useRef(walk.getPose);
   getPoseRef.current = walk.getPose;
   const sendPoseRef = useRef(presence.sendPose);
   sendPoseRef.current = presence.sendPose;
   useEffect(() => {
-    if (!layout || !presence.dcOpen || !gameId) {
+    if (!layout || !presence.dcOpen || !gameId || !boardFocused) {
       return;
     }
     const size = layout.size;
@@ -285,7 +282,7 @@ export default function BoardScreen() {
     tick();
     const id = setInterval(tick, 100);
     return () => clearInterval(id);
-  }, [layout, presence.dcOpen, gameId]);
+  }, [layout, presence.dcOpen, gameId, boardFocused]);
 
   const remoteAvatars = useMemo(() => {
     if (!layout) {
@@ -449,8 +446,7 @@ export default function BoardScreen() {
         accentKey: walk.accentKey,
         initials: walk.initials,
       });
-      // Phase 8.2: fan out hubId on game WS; 8.0 presence switches on blur.
-      // Phase 8.4: hubRevision + abort so leave cannot lose to a late enter.
+      // Phase 8.2: fan out hubId on game WS. Board SFU stays up (pose-only hub PC).
       const hubId = loc.hubId?.trim();
       if (gameId && hubId) {
         const signal = beginHubEnter();
@@ -468,8 +464,7 @@ export default function BoardScreen() {
           },
         );
       }
-      // Leave board SFU before hub SFU (dual presence). Focus restores it on return.
-      setBoardPresenceOn(false);
+      // Board SFU stays up (cameras + table voice). Hub joins pose-only presence.
       router.push({
         pathname: "/(app)/hub/[slug]",
         params: {

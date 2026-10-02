@@ -1,7 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { BoardPresenceStatus } from '@/hooks/useBoardPresence';
-import { MuteMicButton } from '@/components/voice/MuteMicButton';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -29,8 +28,8 @@ function presenceLabel(
 }
 
 /**
- * Phase 10.3 — left rail voice chrome: Live status + mute CTA (`muteMic`).
- * Cameras stay deferred; no video UI here.
+ * Hub left rail — presence (pose DataChannel) status + optional time bank.
+ * Table mic/camera stay on the board SFU; no hub voice UI.
  */
 export function HubMediaRail({
   presenceStatus,
@@ -41,7 +40,7 @@ export function HubMediaRail({
 
   return (
     <View style={styles.root}>
-      <Text style={styles.eyebrow}>Voice</Text>
+      <Text style={styles.eyebrow}>Presence</Text>
       {live ? (
         <Text
           style={[
@@ -52,8 +51,6 @@ export function HubMediaRail({
           {live}
         </Text>
       ) : null}
-
-      <MuteMicButton style={styles.mute} />
 
       {bankLabel ? (
         <Text style={styles.bank}>Time · {bankLabel}</Text>
@@ -80,10 +77,6 @@ const styles = StyleSheet.create({
   },
   statusError: {
     color: colors.danger,
-  },
-  mute: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
   },
   bank: {
     fontFamily: fonts.body,
