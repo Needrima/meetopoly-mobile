@@ -1369,7 +1369,10 @@ export default function BoardScreen() {
           router.push("/(app)/health");
         }}
         onLocations={() => {
-          router.push("/(app)/locations");
+          router.push({
+            pathname: "/(app)/locations",
+            params: { worldId },
+          });
         }}
       />
     </View>
