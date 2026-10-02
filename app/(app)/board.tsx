@@ -25,7 +25,7 @@ import { TradeOverlay } from "@/components/board/TradeOverlay";
 import { layoutBoardRing } from "@/components/board/boardLayout";
 import { DiceRollOverlay } from "@/components/board/DiceRollOverlay";
 import { InfoModal } from "@/components/ui/InfoModal";
-import { useLogout, useMe } from "@/hooks/useAuth";
+import { useMe } from "@/hooks/useAuth";
 import { useBlockHardwareBack } from "@/hooks/useBlockHardwareBack";
 import { useBoardSession } from "@/hooks/useBoardSession";
 import { useBoardWalk, type AvatarColorKey } from "@/hooks/useBoardWalk";
@@ -100,7 +100,6 @@ export default function BoardScreen() {
       : null;
   const { token, user } = useSession();
   const me = useMe(Boolean(token));
-  const logout = useLogout();
   const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(worldId);
   const gameQuery = useGame(gameId);
@@ -1366,24 +1365,12 @@ export default function BoardScreen() {
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         onLeave={requestLeave}
-        onLogout={() => {
-          void logout.mutateAsync();
+        onHealth={() => {
+          router.push("/(app)/health");
         }}
-        logoutPending={logout.isPending}
-        onHealth={
-          __DEV__
-            ? () => {
-                router.push("/(app)/health");
-              }
-            : undefined
-        }
-        onLocations={
-          __DEV__
-            ? () => {
-                router.push("/(app)/locations");
-              }
-            : undefined
-        }
+        onLocations={() => {
+          router.push("/(app)/locations");
+        }}
       />
     </View>
   );

@@ -14,7 +14,7 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * __DEV__ health debug — reached from board ⋯ menu.
+ * Health debug — board ⋯ drawer.
  */
 export default function HealthScreen() {
   const { data, error, isFetching, isLoading, refetch, isError } = useHealth();

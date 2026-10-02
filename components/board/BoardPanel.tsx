@@ -41,7 +41,7 @@ type BoardPanelProps = {
   accent?: string;
   nearby?: Location | null;
   onEnter?: (loc: Location) => void;
-  /** Opens board ⋯ overflow menu (leave / logout / __DEV__). */
+  /** Opens board ⋯ overflow drawer (leave / health / locations). */
   onMenuPress?: () => void;
   /** Phase 6.0+ authoritative game snapshot. */
   game?: Game | null;

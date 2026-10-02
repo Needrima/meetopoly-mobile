@@ -1,5 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
@@ -8,12 +10,8 @@ export type BoardOverflowMenuProps = {
   visible: boolean;
   onClose: () => void;
   onLeave: () => void;
-  onLogout: () => void;
-  logoutPending?: boolean;
-  /** __DEV__ only — Health debug screen. */
-  onHealth?: () => void;
-  /** __DEV__ only — Locations list. */
-  onLocations?: () => void;
+  onHealth: () => void;
+  onLocations: () => void;
 };
 
 type MenuItem = {
@@ -21,69 +19,54 @@ type MenuItem = {
   label: string;
   onPress: () => void;
   danger?: boolean;
-  disabled?: boolean;
 };
 
+const DRAWER_WIDTH = 300;
+
 /**
- * Board ⋯ menu overlay (absolute, not RN Modal). Leave is the only exit off the board.
+ * Board ⋯ right drawer (absolute overlay, not RN Modal).
+ * Leave board / Health / Locations — Log out lives on the home menu only.
  */
 export function BoardOverflowMenu({
   visible,
   onClose,
   onLeave,
-  onLogout,
-  logoutPending = false,
   onHealth,
   onLocations,
 }: BoardOverflowMenuProps) {
+  const insets = useSafeAreaInsets();
+
   if (!visible) {
     return null;
   }
 
   const items: MenuItem[] = [
     {
-      key: 'leave',
-      label: 'Leave board',
-      onPress: () => {
-        onClose();
-        onLeave();
-      },
-    },
-  ];
-
-  if (__DEV__ && onHealth) {
-    items.push({
       key: 'health',
       label: 'Health',
       onPress: () => {
         onClose();
         onHealth();
       },
-    });
-  }
-  if (__DEV__ && onLocations) {
-    items.push({
+    },
+    {
       key: 'locations',
       label: 'Locations',
       onPress: () => {
         onClose();
         onLocations();
       },
-    });
-  }
-
-  items.push({
-    key: 'logout',
-    label: logoutPending ? 'Signing out…' : 'Log out',
-    danger: true,
-    disabled: logoutPending,
-    onPress: () => {
-      if (!logoutPending) {
-        onClose();
-        onLogout();
-      }
     },
-  });
+    {
+      key: 'leave',
+      label: 'Leave board',
+      danger: true,
+      onPress: () => {
+        onClose();
+        onLeave();
+      },
+    },
+  ];
 
   return (
     <View style={styles.host} pointerEvents="box-none">
@@ -93,29 +76,53 @@ export function BoardOverflowMenu({
         accessibilityLabel="Dismiss menu"
       />
       <MotiView
-        from={{ opacity: 0, translateY: -8 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 160 }}
-        style={styles.sheet}
+        from={{ translateX: DRAWER_WIDTH }}
+        animate={{ translateX: 0 }}
+        transition={{ type: 'timing', duration: 220 }}
+        style={[
+          styles.drawer,
+          {
+            width: DRAWER_WIDTH,
+            paddingTop: Math.max(insets.top, 16),
+            paddingBottom: Math.max(insets.bottom, 24),
+            paddingRight: Math.max(insets.right, 16),
+          },
+        ]}
       >
-        {items.map((item) => (
+        <View style={styles.header}>
           <Pressable
-            key={item.key}
             accessibilityRole="button"
-            disabled={item.disabled}
-            onPress={item.onPress}
+            accessibilityLabel="Close menu"
+            onPress={onClose}
+            hitSlop={10}
             style={({ pressed }) => [
-              styles.row,
-              pressed || item.disabled ? styles.pressed : null,
+              styles.closeBtn,
+              pressed ? styles.pressed : null,
             ]}
           >
-            <Text
-              style={[styles.rowLabel, item.danger ? styles.danger : null]}
-            >
-              {item.label}
-            </Text>
+            <Ionicons name="close" size={26} color={colors.ink} />
           </Pressable>
-        ))}
+        </View>
+
+        <View style={styles.body}>
+          {items.map((item) => (
+            <Pressable
+              key={item.key}
+              accessibilityRole="button"
+              onPress={item.onPress}
+              style={({ pressed }) => [
+                styles.row,
+                pressed ? styles.pressed : null,
+              ]}
+            >
+              <Text
+                style={[styles.rowLabel, item.danger ? styles.danger : null]}
+              >
+                {item.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </MotiView>
     </View>
   );
@@ -125,31 +132,51 @@ const styles = StyleSheet.create({
   host: {
     ...StyleSheet.absoluteFill,
     zIndex: 40,
+    elevation: 40,
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: colors.overlay,
   },
-  sheet: {
+  drawer: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    minWidth: 180,
-    borderRadius: 12,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.surface,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+    paddingLeft: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    minHeight: 44,
+    marginBottom: 8,
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
-    overflow: 'hidden',
-    paddingVertical: 4,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  body: {
+    gap: 4,
+    paddingTop: 4,
   },
   row: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
   },
   rowLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.ink,
+    fontFamily: fonts.displayBold,
+    fontSize: 22,
+    color: colors.brand,
   },
   danger: {
     color: colors.danger,
