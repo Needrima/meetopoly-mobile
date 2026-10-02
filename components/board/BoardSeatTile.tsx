@@ -54,7 +54,7 @@ export type BoardSeatTileProps = {
   contentRotateDeg?: number;
   micMuted?: boolean;
   videoMuted?: boolean;
-  onLongPress: () => void;
+  onPress: () => void;
   onToggleMic?: () => void;
   onToggleCamera?: () => void;
   onFlipCamera?: () => void;
@@ -77,7 +77,7 @@ export function BoardSeatTile({
   contentRotateDeg = 0,
   micMuted = false,
   videoMuted = false,
-  onLongPress,
+  onPress,
   onToggleMic,
   onToggleCamera,
   onFlipCamera,
@@ -154,9 +154,8 @@ export function BoardSeatTile({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${displayName} player info`}
-        onLongPress={onLongPress}
-        delayLongPress={350}
-        style={styles.longPressHit}
+        onPress={onPress}
+        style={styles.pressHit}
       />
 
       {hubCode ? (
@@ -281,7 +280,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#0B1210",
   },
-  longPressHit: {
+  pressHit: {
     ...StyleSheet.absoluteFill,
     zIndex: 1,
   },

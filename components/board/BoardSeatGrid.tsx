@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { Game, GamePlayer } from '@/api/types';
 import { BoardSeatTile } from '@/components/board/BoardSeatTile';
-import { PlayerInfoModal } from '@/components/board/PlayerInfoModal';
 import type { PresenceMediaStream } from '@/hooks/useBoardPresence';
 import { usernameInitials } from '@/hooks/useBoardWalk';
 import { useMuteMic } from '@/hooks/useMuteMic';
@@ -23,6 +22,7 @@ type BoardSeatGridProps = {
   /** Publishers who announced cam-off over the presence DataChannel. */
   remoteVideoMutedByUserId?: Record<string, boolean>;
   onFlipCamera: () => void;
+  onPlayerInfo: (player: GamePlayer) => void;
 };
 
 function hubBadgeCode(
@@ -55,11 +55,11 @@ export function BoardSeatGrid({
   remoteVideoRotationByUserId = {},
   remoteVideoMutedByUserId = {},
   onFlipCamera,
+  onPlayerInfo,
 }: BoardSeatGridProps) {
   void remoteVideoRotationByUserId; // remotes use frame metadata, not CSS rotate
   const { muted: micMuted, setMuted: setMicMuted } = useMuteMic();
   const { muted: videoMuted, setMuted: setVideoMuted } = useMuteVideo();
-  const [infoPlayer, setInfoPlayer] = useState<GamePlayer | null>(null);
 
   const localNameKey = formatUsername(localUsername).toLowerCase();
   const localPlayer =
@@ -112,7 +112,7 @@ export function BoardSeatGrid({
                 contentRotateDeg={contentRotateDeg}
                 micMuted={micMuted}
                 videoMuted={videoMuted}
-                onLongPress={() => setInfoPlayer(p)}
+                onPress={() => onPlayerInfo(p)}
                 onToggleMic={
                   isLocal ? () => setMicMuted(!micMuted) : undefined
                 }
@@ -131,18 +131,6 @@ export function BoardSeatGrid({
             : null}
         </View>
       ))}
-
-      <PlayerInfoModal
-        visible={Boolean(infoPlayer)}
-        player={infoPlayer}
-        isLocal={Boolean(
-          infoPlayer && localPlayer && infoPlayer.userId === localPlayer.userId,
-        )}
-        hubCode={
-          infoPlayer ? hubBadgeCode(infoPlayer.hubId, hubCodeById) : ''
-        }
-        onClose={() => setInfoPlayer(null)}
-      />
     </View>
   );
 }

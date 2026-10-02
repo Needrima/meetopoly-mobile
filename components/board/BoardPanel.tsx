@@ -1,12 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
-import type { Location } from "@/api/types";
-import type { Game } from "@/api/types";
+import type { Game, GamePlayer, Location } from "@/api/types";
 import { BoardDockIcons } from "@/components/board/BoardDockIcons";
 import { BoardSeatGrid } from "@/components/board/BoardSeatGrid";
 import { EconomyActionBar } from "@/components/board/EconomyActionBar";
 import { Joystick } from "@/components/board/Joystick";
+import { PlayerInfoModal } from "@/components/board/PlayerInfoModal";
 import { shortTileName } from "@/components/board/tileLabel";
 import type { PresenceMediaStream } from "@/hooks/useBoardPresence";
 import type { StickInput } from "@/hooks/useBoardWalk";
@@ -18,6 +18,22 @@ import { fonts } from "@/theme/fonts";
 const JOYSTICK_SIZE = 96;
 /** Inset from panel edges so the stick thumb stays on-screen. */
 const DOCK_PAD = 36;
+
+function hubBadgeCode(
+  hubId: string | null | undefined,
+  byHubId: ReadonlyMap<string, string>,
+): string {
+  const id = hubId?.trim();
+  if (!id) {
+    return "";
+  }
+  const known = byHubId.get(id);
+  if (known) {
+    return known;
+  }
+  const slug = id.split(":").pop() ?? "";
+  return slug.slice(0, 3).toUpperCase() || "HUB";
+}
 
 type BoardPanelProps = {
   onStick: (stick: StickInput) => void;
@@ -127,6 +143,7 @@ export function BoardPanel({
   const economyEnabled = Boolean(
     game && game.status === "active" && isMyTurn && onEconomySelect,
   );
+  const [infoPlayer, setInfoPlayer] = useState<GamePlayer | null>(null);
 
   return (
     <View
@@ -173,6 +190,7 @@ export function BoardPanel({
             onFlipCamera={() => {
               void onFlipCamera?.();
             }}
+            onPlayerInfo={setInfoPlayer}
           />
         </View>
       ) : null}
@@ -211,6 +229,18 @@ export function BoardPanel({
           <Joystick onStick={onStick} size={JOYSTICK_SIZE} accent={localPin} />
         </View>
       </View>
+
+      <PlayerInfoModal
+        visible={Boolean(infoPlayer)}
+        player={infoPlayer}
+        isLocal={Boolean(
+          infoPlayer && localPlayer && infoPlayer.userId === localPlayer.userId,
+        )}
+        hubCode={
+          infoPlayer ? hubBadgeCode(infoPlayer.hubId, hubCodeById) : ""
+        }
+        onClose={() => setInfoPlayer(null)}
+      />
     </View>
   );
 }
