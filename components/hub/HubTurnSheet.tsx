@@ -21,7 +21,7 @@ type HubTurnSheetProps = {
 
 /**
  * Phase 8.3 — compact turn UI while in a hub (landscape-safe overlay, same family as InfoModal).
- * Actions are 2×2: Roll | End · Open board | Keep walking.
+ * For now: Open board | Keep walking only (Roll/End on board panel).
  */
 export function HubTurnSheet({
   visible,
@@ -62,7 +62,11 @@ export function HubTurnSheet({
           <Text style={styles.bank}>Time · {bankLabel}</Text>
         ) : null}
         <View style={styles.actions}>
-          <View style={styles.row}>
+          {/*
+            Roll / End turn — hidden for now; dice + end live on the board panel.
+            Props kept so we can restore this row later.
+          */}
+          {/* <View style={styles.row}>
             <View style={styles.half}>
               <Button
                 label="Roll"
@@ -79,7 +83,7 @@ export function HubTurnSheet({
                 loading={endPending}
               />
             </View>
-          </View>
+          </View> */}
           <View style={styles.row}>
             <View style={styles.half}>
               <Button label="Open board" onPress={onOpenBoard} />
