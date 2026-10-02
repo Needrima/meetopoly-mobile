@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -106,9 +106,69 @@ export function BoardSeatTile({
     }
   }, [stream, cameraOff]);
 
-  const showVideo = Boolean(RTCView && streamURL && !cameraOff);
+  const videoTrack = useMemo(() => {
+    if (!stream || cameraOff) {
+      return null;
+    }
+    try {
+      const tracks =
+        typeof stream.getVideoTracks === "function"
+          ? stream.getVideoTracks()
+          : stream.getTracks().filter((t) => t.kind === "video");
+      return tracks[0] ?? null;
+    } catch {
+      return null;
+    }
+  }, [stream, cameraOff]);
+
+  /** Avoid black RTCView after rejoin while the track is still muted/ended. */
+  const [framesReady, setFramesReady] = useState(false);
+  useEffect(() => {
+    if (!videoTrack) {
+      setFramesReady(false);
+      return;
+    }
+    const sync = () => {
+      const ended = videoTrack.readyState === "ended";
+      const muted = videoTrack.muted === true;
+      setFramesReady(!ended && !muted);
+    };
+    sync();
+    const prevUnmute = videoTrack.onunmute;
+    const prevMute = videoTrack.onmute;
+    const prevEnded = videoTrack.onended;
+    videoTrack.onunmute = (ev) => {
+      prevUnmute?.(ev);
+      sync();
+    };
+    videoTrack.onmute = (ev) => {
+      prevMute?.(ev);
+      sync();
+    };
+    videoTrack.onended = (ev) => {
+      prevEnded?.(ev);
+      sync();
+    };
+    // If unmute never fires but frames are flowing, show anyway (no black wait forever).
+    const force = setTimeout(() => {
+      if (videoTrack.readyState !== "ended") {
+        setFramesReady(true);
+      }
+    }, 700);
+    return () => {
+      clearTimeout(force);
+      videoTrack.onunmute = prevUnmute ?? null;
+      videoTrack.onmute = prevMute ?? null;
+      videoTrack.onended = prevEnded ?? null;
+    };
+  }, [videoTrack]);
+
+  const showVideo = Boolean(
+    RTCView && streamURL && !cameraOff && framesReady,
+  );
   const rotate = ((contentRotateDeg % 360) + 360) % 360;
   const needsSwap = rotate === 90 || rotate === 270;
+  const rtcKey = `${streamURL}:${videoTrack?.id ?? ""}:${framesReady ? 1 : 0}`;
 
   const onMediaLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -149,6 +209,7 @@ export function BoardSeatTile({
               }
             >
               <RTCView
+                key={rtcKey}
                 streamURL={streamURL}
                 mirror={mirror}
                 objectFit="cover"

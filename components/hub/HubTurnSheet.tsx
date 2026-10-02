@@ -17,11 +17,16 @@ type HubTurnSheetProps = {
   onEndTurn: () => void;
   onOpenBoard: () => void;
   onDismiss: () => void;
+  /** Body title under “Your turn”. */
+  title?: string;
+  /** Second action label (hub: Keep walking; locations: Close). */
+  dismissLabel?: string;
 };
 
 /**
- * Phase 8.3 — compact turn UI while in a hub (landscape-safe overlay, same family as InfoModal).
- * For now: Open board | Keep walking only (Roll/End on board panel).
+ * Phase 8.3 — compact turn UI (landscape-safe overlay).
+ * For now: Open board | dismiss only (Roll/End on board panel).
+ * Used from hub and locations.
  */
 export function HubTurnSheet({
   visible,
@@ -35,12 +40,19 @@ export function HubTurnSheet({
   onEndTurn,
   onOpenBoard,
   onDismiss,
+  title = 'Open the board to play',
+  dismissLabel = 'Keep walking',
 }: HubTurnSheetProps) {
   if (!visible) {
     return null;
   }
 
   const busy = turnBusy || rollPending || endPending;
+  void canRoll;
+  void canEnd;
+  void busy;
+  void onRoll;
+  void onEndTurn;
 
   return (
     <View style={styles.root} pointerEvents="box-none">
@@ -57,7 +69,7 @@ export function HubTurnSheet({
         style={styles.card}
       >
         <Text style={styles.eyebrow}>Your turn</Text>
-        <Text style={styles.title}>Act from the hub</Text>
+        <Text style={styles.title}>{title}</Text>
         {bankLabel ? (
           <Text style={styles.bank}>Time · {bankLabel}</Text>
         ) : null}
@@ -89,7 +101,7 @@ export function HubTurnSheet({
               <Button label="Open board" onPress={onOpenBoard} />
             </View>
             <View style={styles.half}>
-              <Button label="Keep walking" onPress={onDismiss} />
+              <Button label={dismissLabel} onPress={onDismiss} />
             </View>
           </View>
         </View>

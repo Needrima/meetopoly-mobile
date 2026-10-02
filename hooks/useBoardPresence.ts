@@ -44,9 +44,14 @@ type PresenceMediaTrack = {
   id?: string;
   kind: string;
   enabled: boolean;
+  muted?: boolean;
+  readyState?: string;
   stop: () => void;
   /** react-native-webrtc — board cam upright on iOS (optional). */
   _setVideoEffect?: (name: string) => void;
+  onmute?: ((ev?: unknown) => void) | null;
+  onunmute?: ((ev?: unknown) => void) | null;
+  onended?: ((ev?: unknown) => void) | null;
 };
 
 type PresencePeer = {
@@ -127,6 +132,7 @@ export type BoardPresenceStatus = "idle" | "connecting" | "connected" | "error";
 type TrackEventLike = {
   track?: PresenceMediaTrack | null;
   streams?: PresenceMediaStream[];
+  transceiver?: { mid?: string | null } | null;
 };
 
 /** Minimal WebRTC surface (avoids hard Expo Go import crash). */
@@ -158,6 +164,7 @@ type WebRTCModule = {
 
 type PeerConnectionLike = {
   localDescription: { sdp?: string } | null;
+  remoteDescription?: { sdp?: string } | null;
   connectionState: string;
   onicecandidate: ((ev: { candidate: IceCandidateInit | null }) => void) | null;
   onconnectionstatechange: (() => void) | null;
@@ -174,6 +181,7 @@ type PeerConnectionLike = {
     track: PresenceMediaTrack | null;
     replaceTrack: (track: PresenceMediaTrack | null) => Promise<void>;
   }[];
+  getReceivers?: () => { track: PresenceMediaTrack | null }[];
   createOffer: (opts?: object) => Promise<{ type: string; sdp: string }>;
   createAnswer: (opts?: object) => Promise<{ type: string; sdp: string }>;
   setLocalDescription: (desc: { type: string; sdp: string }) => Promise<void>;
@@ -272,6 +280,61 @@ function publisherIdFromVideoStream(
   }
   const userId = id.slice(BOARD_VIDEO_STREAM_PREFIX.length).trim();
   return userId.length > 0 ? userId : null;
+}
+
+/**
+ * Map SDP a=mid → publisher userId for board video sections
+ * (`a=msid:video-{userId} …`). Used when ontrack omits streams after rejoin.
+ */
+function videoMidToUserId(sdp: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!sdp) {
+    return out;
+  }
+  const sections = sdp.split(/(?=^m=)/m);
+  for (const section of sections) {
+    if (!section.startsWith("m=video")) {
+      continue;
+    }
+    const mid = section.match(/^a=mid:(\S+)/m)?.[1]?.trim();
+    const msid = section.match(/^a=msid:(video-\S+)/m)?.[1]?.trim();
+    if (!mid || !msid) {
+      continue;
+    }
+    const userId = publisherIdFromVideoStream({
+      id: msid,
+    } as PresenceMediaStream);
+    if (userId) {
+      out[mid] = userId;
+    }
+  }
+  return out;
+}
+
+function publisherIdFromTrackEvent(
+  ev: TrackEventLike,
+  remoteSdp: string | undefined,
+): string | null {
+  const fromStream = publisherIdFromVideoStream(ev.streams?.[0]);
+  if (fromStream) {
+    return fromStream;
+  }
+  const mid = ev.transceiver?.mid?.trim();
+  if (mid && remoteSdp) {
+    const mapped = videoMidToUserId(remoteSdp)[mid];
+    if (mapped) {
+      return mapped;
+    }
+  }
+  // Last resort: single unmatched video-* msid in the remote SDP.
+  if (remoteSdp) {
+    const ids = Object.values(videoMidToUserId(remoteSdp));
+    const unique = [...new Set(ids)];
+    if (unique.length === 1) {
+      return unique[0] ?? null;
+    }
+  }
+  return null;
 }
 
 export type PresenceChannelResult = {
@@ -957,21 +1020,58 @@ function usePresenceChannel({
                 return;
               }
               track.enabled = true;
-              const userId = publisherIdFromVideoStream(stream);
+              const userId = publisherIdFromTrackEvent(
+                ev,
+                pc.remoteDescription?.sdp,
+              );
               if (!userId || !stream) {
                 console.warn(
-                  "[presence] remote video missing video-{userId} stream id",
-                  stream?.id,
+                  "[presence] remote video missing video-{userId} mapping",
+                  {
+                    streamId: stream?.id,
+                    mid: ev.transceiver?.mid,
+                  },
                 );
                 return;
               }
               remoteStreamsRef.current.set(stream.id || userId, stream);
-              setRemoteVideoByUserId((prev) => {
-                if (prev[userId] === stream) {
-                  return prev;
+              const boundStream = stream;
+              const commit = () => {
+                if (cancelled || pcRef.current !== pc) {
+                  return;
                 }
-                return { ...prev, [userId]: stream };
-              });
+                setRemoteVideoByUserId((prev) => ({
+                  ...prev,
+                  [userId]: boundStream,
+                }));
+                // Clear stale cam-off from a previous session for this peer.
+                setRemoteVideoMutedByUserId((prev) => {
+                  if (!(userId in prev)) {
+                    return prev;
+                  }
+                  const next = { ...prev };
+                  delete next[userId];
+                  return next;
+                });
+              };
+              commit();
+              // Rejoin can deliver muted tracks until first frame — remount on unmute.
+              track.onunmute = () => {
+                commit();
+              };
+              track.onended = () => {
+                if (cancelled || pcRef.current !== pc) {
+                  return;
+                }
+                setRemoteVideoByUserId((prev) => {
+                  if (prev[userId] !== boundStream) {
+                    return prev;
+                  }
+                  const next = { ...prev };
+                  delete next[userId];
+                  return next;
+                });
+              };
             }
           };
         }
@@ -1022,9 +1122,7 @@ function usePresenceChannel({
             let anyEffect = false;
             for (const track of videoTracks) {
               track.enabled = camOn;
-              if (
-                applyMeetopolyBoardCamEffect(track, facingModeRef.current)
-              ) {
+              if (applyMeetopolyBoardCamEffect(track, facingModeRef.current)) {
                 anyEffect = true;
               }
               pc.addTrack(track, stream);
@@ -1034,6 +1132,21 @@ function usePresenceChannel({
             }
             if (wantVideo && videoTracks.length > 0) {
               setLocalVideoStream(stream);
+              // Rejoin: first frames may arrive muted — nudge React remount on unmute.
+              for (const track of videoTracks) {
+                track.onunmute = () => {
+                  if (cancelled || localStreamRef.current !== stream) {
+                    return;
+                  }
+                  setLocalVideoStream(null);
+                  requestAnimationFrame(() => {
+                    if (cancelled || localStreamRef.current !== stream) {
+                      return;
+                    }
+                    setLocalVideoStream(stream);
+                  });
+                };
+              }
               // CSS/DC orientation only if native frame-tag effect unavailable.
               if (!anyEffect) {
                 announceLocalVideoOrientation();
@@ -1143,6 +1256,8 @@ function usePresenceChannel({
             );
             remoteSetRef.current = true;
             await flushPendingIce(pc);
+            // Rejoin: existing board pubs are in this answer; ontrack should fire.
+            // If streams were omitted, mid→userId mapping in ontrack recovers them.
           } catch (err) {
             console.warn("[presence] setRemoteDescription failed", err);
           }
@@ -1430,8 +1545,9 @@ function usePresenceChannel({
 }
 
 /**
- * Phase 7 board presence. Pass `enabled=false` when the board is blurred (e.g. hub
- * stacked) so Enter leaves the board room without dropping the game WS.
+ * Phase 7 board presence. Pass `enabled=false` when leaving for a hub (dual presence)
+ * so Enter leaves the board room without dropping the game WS. Locations/Health keep
+ * `enabled=true` — board stays mounted under the stack with cameras alive.
  * Phase 10.4 — publishes/plays mic like hub (`muteMic` SoT).
  * Phase 16.1 — publishes/plays board camera (`muteVideo` SoT); hub stays audio-only.
  */

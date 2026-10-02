@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -19,8 +19,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Location } from '@/api/types';
 import { resolveBoardIcon } from '@/components/board/iconRegistry';
 import { tileVisual } from '@/components/board/tileStyle';
+import { HubTurnSheet } from '@/components/hub/HubTurnSheet';
 import { MeetCoinAmount } from '@/components/ui/MeetCoinAmount';
+import { useMe } from '@/hooks/useAuth';
+import { useGame } from '@/hooks/useGame';
 import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
+import { useSession } from '@/hooks/useSession';
+import { useCurrentTurnClock } from '@/hooks/useTurnCountdown';
+import { formatUsername } from '@/lib/formatUsername';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -126,12 +132,94 @@ function LocationCard({
 }
 
 export default function LocationsScreen() {
-  const params = useLocalSearchParams<{ worldId?: string }>();
+  const params = useLocalSearchParams<{ worldId?: string; gameId?: string }>();
   const worldId =
     typeof params.worldId === 'string' && params.worldId.trim().length > 0
       ? params.worldId.trim()
       : DEFAULT_WORLD_ID;
+  const gameId =
+    typeof params.gameId === 'string' && params.gameId.trim().length > 0
+      ? params.gameId.trim()
+      : null;
+
+  const { token, user } = useSession();
+  const me = useMe(Boolean(token));
+  const username = me.data?.username ?? user?.username ?? null;
+  const sessionUserId = me.data?.id ?? user?.id ?? null;
+
   const { data, error, isLoading, isError } = useLocations(worldId);
+  const gameQuery = useGame(gameId);
+  const game = gameQuery.data ?? null;
+  const turnClock = useCurrentTurnClock(game);
+
+  const localUserId = useMemo(() => {
+    if (sessionUserId) {
+      return sessionUserId;
+    }
+    if (!game || !username) {
+      return null;
+    }
+    const key = formatUsername(username).toLowerCase();
+    return (
+      game.players.find(
+        (p) => formatUsername(p.username).toLowerCase() === key,
+      )?.userId ?? null
+    );
+  }, [sessionUserId, game, username]);
+
+  const localPlayer = useMemo(
+    () => game?.players.find((p) => p.userId === localUserId) ?? null,
+    [game?.players, localUserId],
+  );
+
+  const isMyTurn = Boolean(
+    game &&
+      localUserId &&
+      game.status === 'active' &&
+      game.currentUserId === localUserId &&
+      localPlayer &&
+      !localPlayer.resigned,
+  );
+
+  const bankLabel =
+    localUserId && turnClock?.userId === localUserId ? turnClock.label : '';
+
+  const [turnSheetOpen, setTurnSheetOpen] = useState(false);
+  const turnEdgeRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isMyTurn || !game) {
+      return;
+    }
+    const edge = `${game.currentUserId}:${game.turnStartedAt ?? ''}`;
+    if (turnEdgeRef.current === edge) {
+      return;
+    }
+    turnEdgeRef.current = edge;
+    setTurnSheetOpen(true);
+  }, [isMyTurn, game]);
+
+  useEffect(() => {
+    if (!isMyTurn) {
+      setTurnSheetOpen(false);
+    }
+  }, [isMyTurn]);
+
+  const openBoard = useCallback(() => {
+    setTurnSheetOpen(false);
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace({
+      pathname: '/(app)/board',
+      params: {
+        worldId,
+        ...(gameId ? { gameId } : {}),
+      },
+    });
+  }, [worldId, gameId]);
+
   const locations = useMemo(
     () => (data?.locations ?? []).filter((loc) => loc.kind !== 'special'),
     [data?.locations],
@@ -198,6 +286,18 @@ export default function LocationsScreen() {
           })}
         </ScrollView>
       ) : null}
+
+      <HubTurnSheet
+        visible={Boolean(turnSheetOpen && isMyTurn && gameId)}
+        bankLabel={bankLabel}
+        canRoll={false}
+        canEnd={false}
+        onRoll={() => {}}
+        onEndTurn={() => {}}
+        onOpenBoard={openBoard}
+        onDismiss={() => setTurnSheetOpen(false)}
+        dismissLabel="Close"
+      />
     </SafeAreaView>
   );
 }

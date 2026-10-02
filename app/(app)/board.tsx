@@ -103,7 +103,7 @@ export default function BoardScreen() {
   const { snapshot, saveSnapshot } = useBoardSession();
   const { data, error, isLoading, isError } = useLocations(worldId);
   const gameQuery = useGame(gameId);
-  /** Leave board SFU room while hub is stacked; reconnect on Leave hub. */
+  /** Leave board SFU only when entering a hub (dual presence). Locations/health keep it. */
   const [boardPresenceOn, setBoardPresenceOn] = useState(true);
   /** Economy modals only while board focused (hub stack owns toasts). */
   const [boardFocused, setBoardFocused] = useState(true);
@@ -112,8 +112,9 @@ export default function BoardScreen() {
       setBoardPresenceOn(true);
       setBoardFocused(true);
       return () => {
-        setBoardPresenceOn(false);
         setBoardFocused(false);
+        // Do not tear down board SFU here — Locations/Health stack on top and
+        // must keep cameras. Hub navigation calls setBoardPresenceOn(false).
       };
     }, []),
   );
@@ -467,6 +468,8 @@ export default function BoardScreen() {
           },
         );
       }
+      // Leave board SFU before hub SFU (dual presence). Focus restores it on return.
+      setBoardPresenceOn(false);
       router.push({
         pathname: "/(app)/hub/[slug]",
         params: {
@@ -1371,7 +1374,10 @@ export default function BoardScreen() {
         onLocations={() => {
           router.push({
             pathname: "/(app)/locations",
-            params: { worldId },
+            params: {
+              worldId,
+              ...(gameId ? { gameId } : {}),
+            },
           });
         }}
       />

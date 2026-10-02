@@ -200,7 +200,7 @@ export default function HubScreen() {
     notify({
       type: 'info',
       title: 'Your turn',
-      message: 'Roll or open the board from the hub',
+      message: 'Open the board to play',
       visibilityTime: 3200,
     });
   }, [isMyTurn, inHubMarked, game]);
