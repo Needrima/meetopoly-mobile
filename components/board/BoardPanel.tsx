@@ -10,6 +10,7 @@ import { PlayerInfoModal } from "@/components/board/PlayerInfoModal";
 import { shortTileName } from "@/components/board/tileLabel";
 import type { PresenceMediaStream } from "@/hooks/useBoardPresence";
 import type { StickInput } from "@/hooks/useBoardWalk";
+import { useCurrentTurnClock } from "@/hooks/useTurnCountdown";
 import type { EconomyMode } from "@/lib/economyEligibility";
 import { formatUsername } from "@/lib/formatUsername";
 import { colors } from "@/theme/colors";
@@ -144,6 +145,7 @@ export function BoardPanel({
     game && game.status === "active" && isMyTurn && onEconomySelect,
   );
   const [infoPlayer, setInfoPlayer] = useState<GamePlayer | null>(null);
+  const turnClock = useCurrentTurnClock(game);
 
   return (
     <View
@@ -191,6 +193,9 @@ export function BoardPanel({
               void onFlipCamera?.();
             }}
             onPlayerInfo={setInfoPlayer}
+            turnClockUserId={turnClock?.userId ?? null}
+            turnClockRemainingMs={turnClock?.remainingMs ?? 0}
+            turnClockTicking={Boolean(game.turnStartedAt && turnClock)}
           />
         </View>
       ) : null}
@@ -236,9 +241,7 @@ export function BoardPanel({
         isLocal={Boolean(
           infoPlayer && localPlayer && infoPlayer.userId === localPlayer.userId,
         )}
-        hubCode={
-          infoPlayer ? hubBadgeCode(infoPlayer.hubId, hubCodeById) : ""
-        }
+        hubCode={infoPlayer ? hubBadgeCode(infoPlayer.hubId, hubCodeById) : ""}
         onClose={() => setInfoPlayer(null)}
       />
     </View>

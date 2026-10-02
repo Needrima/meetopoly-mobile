@@ -9,6 +9,7 @@ import {
 } from "react-native";
 
 import { AvatarPod } from "@/components/board/AvatarPod";
+import { SeatTurnClockRing } from "@/components/board/SeatTurnClockRing";
 import type { PresenceMediaStream } from "@/hooks/useBoardPresence";
 import { colors } from "@/theme/colors";
 import { fonts } from "@/theme/fonts";
@@ -35,6 +36,7 @@ function loadRTCView(): RTCViewComponent | null {
 
 const RTCView = loadRTCView();
 const ICON_SIZE = 20;
+const TILE_RADIUS = 10;
 
 export type BoardSeatTileProps = {
   displayName: string;
@@ -52,6 +54,12 @@ export type BoardSeatTileProps = {
    * value announced over the presence DC — never applied to Android sources.
    */
   contentRotateDeg?: number;
+  /** Phase 16.3 — this seat is the current turn. */
+  turnClockActive?: boolean;
+  /** False while auction/trade/debt-pay pauses the clock. */
+  turnClockTicking?: boolean;
+  /** Remaining ms on the 3:00 turn clock. */
+  turnClockRemainingMs?: number;
   micMuted?: boolean;
   videoMuted?: boolean;
   onPress: () => void;
@@ -61,7 +69,7 @@ export type BoardSeatTileProps = {
 };
 
 /**
- * Phase 16.2 — Meet-style seat tile. Local-only: mic / flip / cam controls.
+ * Phase 16.2/16.3 — Meet-style seat tile. Local-only: mic / flip / cam controls.
  * Corner slots are plain Views (Pressable absolute styles were stacking top-left).
  */
 export function BoardSeatTile({
@@ -75,6 +83,9 @@ export function BoardSeatTile({
   cameraOff,
   mirror = false,
   contentRotateDeg = 0,
+  turnClockActive = false,
+  turnClockTicking = false,
+  turnClockRemainingMs = 0,
   micMuted = false,
   videoMuted = false,
   onPress,
@@ -110,7 +121,9 @@ export function BoardSeatTile({
     <View
       style={[
         styles.tile,
-        { borderColor: pinColor },
+        {
+          borderColor: turnClockActive ? "transparent" : pinColor,
+        },
         resigned ? styles.tileOut : null,
       ]}
       accessibilityLabel={`${displayName} seat`}
@@ -244,6 +257,14 @@ export function BoardSeatTile({
           </Text>
         </View>
       </View>
+
+      <SeatTurnClockRing
+        active={turnClockActive}
+        ticking={turnClockTicking}
+        remainingMs={turnClockRemainingMs}
+        pinColor={pinColor}
+        borderRadius={TILE_RADIUS}
+      />
     </View>
   );
 }
@@ -252,7 +273,7 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1,
     minHeight: 72,
-    borderRadius: 10,
+    borderRadius: TILE_RADIUS,
     borderWidth: 2,
     overflow: "hidden",
     backgroundColor: "#0B1210",

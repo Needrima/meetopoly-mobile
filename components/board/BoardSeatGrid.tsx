@@ -1,14 +1,14 @@
-import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useMemo } from "react";
+import { StyleSheet, View } from "react-native";
 
-import type { Game, GamePlayer } from '@/api/types';
-import { BoardSeatTile } from '@/components/board/BoardSeatTile';
-import type { PresenceMediaStream } from '@/hooks/useBoardPresence';
-import { usernameInitials } from '@/hooks/useBoardWalk';
-import { useMuteMic } from '@/hooks/useMuteMic';
-import { useMuteVideo } from '@/hooks/useMuteVideo';
-import { boardSeatColumns } from '@/lib/boardSeatLayout';
-import { formatUsername } from '@/lib/formatUsername';
+import type { Game, GamePlayer } from "@/api/types";
+import { BoardSeatTile } from "@/components/board/BoardSeatTile";
+import type { PresenceMediaStream } from "@/hooks/useBoardPresence";
+import { usernameInitials } from "@/hooks/useBoardWalk";
+import { useMuteMic } from "@/hooks/useMuteMic";
+import { useMuteVideo } from "@/hooks/useMuteVideo";
+import { boardSeatColumns } from "@/lib/boardSeatLayout";
+import { formatUsername } from "@/lib/formatUsername";
 
 type BoardSeatGridProps = {
   game: Game;
@@ -23,6 +23,10 @@ type BoardSeatGridProps = {
   remoteVideoMutedByUserId?: Record<string, boolean>;
   onFlipCamera: () => void;
   onPlayerInfo: (player: GamePlayer) => void;
+  /** Phase 16.3 — current turn player for the depleting seat ring. */
+  turnClockUserId?: string | null;
+  turnClockRemainingMs?: number;
+  turnClockTicking?: boolean;
 };
 
 function hubBadgeCode(
@@ -31,14 +35,14 @@ function hubBadgeCode(
 ): string {
   const id = hubId?.trim();
   if (!id) {
-    return '';
+    return "";
   }
   const known = byHubId.get(id);
   if (known) {
     return known;
   }
-  const slug = id.split(':').pop() ?? '';
-  return slug.slice(0, 3).toUpperCase() || 'HUB';
+  const slug = id.split(":").pop() ?? "";
+  return slug.slice(0, 3).toUpperCase() || "HUB";
 }
 
 /**
@@ -56,6 +60,9 @@ export function BoardSeatGrid({
   remoteVideoMutedByUserId = {},
   onFlipCamera,
   onPlayerInfo,
+  turnClockUserId = null,
+  turnClockRemainingMs = 0,
+  turnClockTicking = false,
 }: BoardSeatGridProps) {
   void remoteVideoRotationByUserId; // remotes use frame metadata, not CSS rotate
   const { muted: micMuted, setMuted: setMicMuted } = useMuteMic();
@@ -97,10 +104,13 @@ export function BoardSeatGrid({
               ? videoMuted || !stream
               : !stream || remoteVideoMutedByUserId[p.userId] === true;
             const contentRotateDeg = isLocal ? localVideoRotationDeg : 0;
+            const turnClockActive = Boolean(
+              turnClockUserId && p.userId === turnClockUserId,
+            );
             return (
               <BoardSeatTile
                 key={p.userId}
-                displayName={isLocal ? 'You' : name}
+                displayName={isLocal ? "You" : name}
                 pinColor={p.pinColor}
                 initials={usernameInitials(name)}
                 isLocal={isLocal}
@@ -110,12 +120,15 @@ export function BoardSeatGrid({
                 cameraOff={cameraOff}
                 mirror={isLocal}
                 contentRotateDeg={contentRotateDeg}
+                turnClockActive={turnClockActive}
+                turnClockTicking={turnClockActive && turnClockTicking}
+                turnClockRemainingMs={
+                  turnClockActive ? turnClockRemainingMs : 0
+                }
                 micMuted={micMuted}
                 videoMuted={videoMuted}
                 onPress={() => onPlayerInfo(p)}
-                onToggleMic={
-                  isLocal ? () => setMicMuted(!micMuted) : undefined
-                }
+                onToggleMic={isLocal ? () => setMicMuted(!micMuted) : undefined}
                 onToggleCamera={
                   isLocal ? () => setVideoMuted(!videoMuted) : undefined
                 }
@@ -141,7 +154,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
     minHeight: 84,
   },

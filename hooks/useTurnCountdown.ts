@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
-import type { Game } from '@/api/types';
+import type { Game } from "@/api/types";
 
 /** Format ms as `m:ss` or `h:mm:ss` when ≥ 60 minutes. */
 export function formatBankMs(ms: number): string {
@@ -9,9 +9,9 @@ export function formatBankMs(ms: number): string {
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
   if (h > 0) {
-    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   }
-  return `${m}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 /** Phase 13.2 — panel turns red at ≤1 minute remaining. */
@@ -34,20 +34,15 @@ export function useCurrentTurnClock(
 ): TurnClockHud | null {
   const [hud, setHud] = useState<TurnClockHud | null>(null);
 
-  const currentId = game?.currentUserId ?? '';
+  const currentId = game?.currentUserId ?? "";
   const current = game?.players?.find((p) => p.userId === currentId);
   const playersKey = current
     ? `${current.userId}:${current.timeRemainingMs}:${current.resigned ? 1 : 0}`
-    : '';
-  const turnKey = `${game?.status ?? ''}:${currentId}:${game?.turnStartedAt ?? ''}`;
+    : "";
+  const turnKey = `${game?.status ?? ""}:${currentId}:${game?.turnStartedAt ?? ""}`;
 
   useEffect(() => {
-    if (
-      !game ||
-      game.status !== 'active' ||
-      !current ||
-      current.resigned
-    ) {
+    if (!game || game.status !== "active" || !current || current.resigned) {
       setHud(null);
       return;
     }

@@ -16,13 +16,13 @@ export const BOARD_WALK = {
   nearbyRadiusTileFrac: 0.55,
 } as const;
 
-/** Eight classic Monopoly track colors (no violet) — avatar + pins. */
+/** Avatar / pin accents — violet instead of Monopoly red so ≤1:00 turn ring stays unique. */
 export const AVATAR_COLOR_KEYS = [
   'brown',
   'lightBlue',
   'pink',
   'orange',
-  'red',
+  'violet',
   'yellow',
   'green',
   'darkBlue',
