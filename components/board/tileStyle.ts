@@ -48,7 +48,7 @@ function tileVisualBase(loc: Location | undefined): TileVisual {
     return { fill: colors.surface, bandColor: band, bandFraction: 0.22 };
   }
 
-  if (loc.kind === 'railroad') {
+  if (loc.kind === 'airport') {
     return { fill: '#E8EEF5', bandColor: colors.info, bandFraction: 0.14 };
   }
 

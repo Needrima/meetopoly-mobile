@@ -142,7 +142,7 @@ export type EconomyEvent =
 export function buyModalTitle(
   locKind: Location['kind'] | undefined,
 ): EconomyBuyEvent['title'] {
-  if (locKind === 'railroad') {
+  if (locKind === 'airport') {
     return 'AIRPORT BOUGHT';
   }
   if (locKind === 'utility') {

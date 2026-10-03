@@ -22,7 +22,7 @@ export function buyToastTitle({
   const name = formatUsername(ownerUsername) || 'Someone';
   const n = Math.max(1, ownedOfKind);
 
-  if (kind === 'railroad') {
+  if (kind === 'airport') {
     const noun = n === 1 ? 'airport' : 'airports';
     return iBought
       ? `You now own ${n} ${noun}`

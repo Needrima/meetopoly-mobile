@@ -8,13 +8,16 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.28.0
  */
 
+/**
+ * Location kind. Air hubs use `airport`.
+ */
 export type LocationKind = typeof LocationKind[keyof typeof LocationKind];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const LocationKind = {
   property: 'property',
-  railroad: 'railroad',
+  airport: 'airport',
   utility: 'utility',
   special: 'special',
 } as const;

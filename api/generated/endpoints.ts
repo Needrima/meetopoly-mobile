@@ -687,7 +687,7 @@ export const startDebtPay = async (gameId: string, options?: RequestInit): Promi
 
 /**
  * Phase 6.4 — purchase at list price when the current player occupies an unowned
-property / railroad / utility after landing. To decline, call `start-auction` (Phase 13.0).
+property / airport / utility after landing. To decline, call `start-auction` (Phase 13.0).
 
  * @summary Buy the unowned space you landed on
  */

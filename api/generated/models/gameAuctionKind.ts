@@ -8,12 +8,15 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.28.0
  */
 
+/**
+ * Buyable space kind. Air hubs use `airport`.
+ */
 export type GameAuctionKind = typeof GameAuctionKind[keyof typeof GameAuctionKind];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GameAuctionKind = {
   property: 'property',
-  railroad: 'railroad',
+  airport: 'airport',
   utility: 'utility',
 } as const;

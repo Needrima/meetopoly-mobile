@@ -3,7 +3,7 @@ import { BOARD_WALK } from '@/components/board/boardConstants';
 import type { BoardLayout, TileLayout } from '@/components/board/boardLayout';
 import type { Vec2 } from '@/components/board/boardCollision';
 
-const ENTERABLE = new Set(['property', 'railroad', 'utility']);
+const ENTERABLE = new Set(['property', 'airport', 'utility']);
 
 export function isEnterableLocation(loc: Location | undefined): boolean {
   return Boolean(loc && ENTERABLE.has(loc.kind));

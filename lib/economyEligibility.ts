@@ -230,7 +230,7 @@ export function eligibleTilesForMode(
         }
         const buyable =
           loc.kind === 'property' ||
-          loc.kind === 'railroad' ||
+          loc.kind === 'airport' ||
           loc.kind === 'utility';
         if (!buyable) {
           break;

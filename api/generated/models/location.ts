@@ -19,6 +19,7 @@ export interface Location {
   name: string;
   countryCode?: string;
   region?: string;
+  /** Location kind. Air hubs use `airport`. */
   kind: LocationKind;
   boardIndex: number;
   /**

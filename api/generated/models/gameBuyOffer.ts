@@ -13,6 +13,7 @@ export interface GameBuyOffer {
   boardIndex: number;
   slug: string;
   name: string;
+  /** Buyable space kind. Air hubs use `airport`. */
   kind: GameBuyOfferKind;
   /** List price in MeetCoin */
   price: number;

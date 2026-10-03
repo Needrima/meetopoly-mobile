@@ -14,6 +14,7 @@ export interface GameAuction {
   boardIndex: number;
   slug: string;
   name: string;
+  /** Buyable space kind. Air hubs use `airport`. */
   kind: GameAuctionKind;
   listPrice: number;
   /** 0 when no bids yet */

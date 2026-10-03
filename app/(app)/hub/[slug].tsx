@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -6,50 +6,51 @@ import {
   Text,
   View,
   type LayoutChangeEvent,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useKeepAwake } from 'expo-keep-awake';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useKeepAwake } from "expo-keep-awake";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { GameBuyOffer } from '@/api/types';
-import { Joystick } from '@/components/board/Joystick';
-import { stripWorldNamePrefix } from '@/components/board/deedVisual';
-import { shortTileName } from '@/components/board/tileLabel';
-import { tileVisual } from '@/components/board/tileStyle';
-import { HubBuySheet } from '@/components/hub/HubBuySheet';
-import { HubChatRail } from '@/components/hub/HubChatRail';
-import { HubLocationCopy } from '@/components/hub/HubLocationCopy';
-import { HubMediaRail } from '@/components/hub/HubMediaRail';
-import { HubRoster, type HubRosterRow } from '@/components/hub/HubRoster';
-import { HubScene } from '@/components/hub/HubScene';
-import { HubTurnSheet } from '@/components/hub/HubTurnSheet';
-import { useMe } from '@/hooks/useAuth';
-import { useBlockHardwareBack } from '@/hooks/useBlockHardwareBack';
-import { useHubPresence } from '@/hooks/useBoardPresence';
+import type { GameBuyOffer, GamePlayer } from "@/api/types";
+import { Joystick } from "@/components/board/Joystick";
+import { PlayerInfoModal } from "@/components/board/PlayerInfoModal";
+import { stripWorldNamePrefix } from "@/components/board/deedVisual";
+import { shortTileName } from "@/components/board/tileLabel";
+import { tileVisual } from "@/components/board/tileStyle";
+import { HubBuySheet } from "@/components/hub/HubBuySheet";
+import { HubChatRail } from "@/components/hub/HubChatRail";
+import { HubLocationCopy } from "@/components/hub/HubLocationCopy";
+import { HubMediaRail } from "@/components/hub/HubMediaRail";
+import { HubRoster, type HubRosterRow } from "@/components/hub/HubRoster";
+import { HubScene } from "@/components/hub/HubScene";
+import { HubTurnSheet } from "@/components/hub/HubTurnSheet";
+import { useMe } from "@/hooks/useAuth";
+import { useBlockHardwareBack } from "@/hooks/useBlockHardwareBack";
+import { useHubPresence } from "@/hooks/useBoardPresence";
 import {
   useBuyProperty,
   useEndTurn,
   useGame,
   useLeaveHub,
   useRollDice,
-} from '@/hooks/useGame';
-import { useEconomyFeedback } from '@/hooks/useEconomyFeedback';
-import { useHubTurnBusy } from '@/hooks/useHubTurnBusy';
-import { useHubWalk } from '@/hooks/useHubWalk';
+} from "@/hooks/useGame";
+import { useEconomyFeedback } from "@/hooks/useEconomyFeedback";
+import { useHubTurnBusy } from "@/hooks/useHubTurnBusy";
+import { useHubWalk } from "@/hooks/useHubWalk";
 import {
   DEFAULT_WORLD_ID,
   useLocationBySlug,
   useLocations,
-} from '@/hooks/useLocations';
-import { useSession } from '@/hooks/useSession';
-import { useCurrentTurnClock } from '@/hooks/useTurnCountdown';
-import { formatUsername } from '@/lib/formatUsername';
-import { abortHubEnter } from '@/lib/hubEnterGuard';
-import { accentAgainstFloor } from '@/lib/hubFloorContrast';
-import { notify } from '@/lib/notify';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/fonts';
+} from "@/hooks/useLocations";
+import { useSession } from "@/hooks/useSession";
+import { useCurrentTurnClock } from "@/hooks/useTurnCountdown";
+import { formatUsername } from "@/lib/formatUsername";
+import { abortHubEnter } from "@/lib/hubEnterGuard";
+import { accentAgainstFloor } from "@/lib/hubFloorContrast";
+import { notify } from "@/lib/notify";
+import { colors } from "@/theme/colors";
+import { fonts } from "@/theme/fonts";
 
 const JOYSTICK_SIZE = 96;
 /** Match board `BoardPanel` dock offset. */
@@ -63,20 +64,20 @@ const CENTER_EDGE = 2;
  */
 export default function HubScreen() {
   useBlockHardwareBack(true);
-  useKeepAwake('meetopoly-hub', { suppressDeactivateWarnings: true });
+  useKeepAwake("meetopoly-hub", { suppressDeactivateWarnings: true });
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     slug?: string;
     worldId?: string;
     gameId?: string;
   }>();
-  const slug = typeof params.slug === 'string' ? params.slug : '';
+  const slug = typeof params.slug === "string" ? params.slug : "";
   const worldId =
-    typeof params.worldId === 'string' && params.worldId.length > 0
+    typeof params.worldId === "string" && params.worldId.length > 0
       ? params.worldId
       : DEFAULT_WORLD_ID;
   const gameId =
-    typeof params.gameId === 'string' && params.gameId.trim().length > 0
+    typeof params.gameId === "string" && params.gameId.trim().length > 0
       ? params.gameId.trim()
       : null;
 
@@ -115,9 +116,8 @@ export default function HubScreen() {
     }
     const key = formatUsername(username).toLowerCase();
     return (
-      game.players.find(
-        (p) => formatUsername(p.username).toLowerCase() === key,
-      )?.userId ?? null
+      game.players.find((p) => formatUsername(p.username).toLowerCase() === key)
+        ?.userId ?? null
     );
   }, [sessionUserId, game, username]);
 
@@ -129,10 +129,9 @@ export default function HubScreen() {
   const [surfaceBox, setSurfaceBox] = useState({ w: 0, h: 0 });
   const [turnSheetOpen, setTurnSheetOpen] = useState(false);
   const [buySheetOpen, setBuySheetOpen] = useState(false);
-  const [buySheetOffer, setBuySheetOffer] = useState<GameBuyOffer | null>(
-    null,
-  );
+  const [buySheetOffer, setBuySheetOffer] = useState<GameBuyOffer | null>(null);
   const [awaitingEndAfterBuy, setAwaitingEndAfterBuy] = useState(false);
+  const [infoPlayer, setInfoPlayer] = useState<GamePlayer | null>(null);
   const buyOfferKeyRef = useRef<string | null>(null);
   const surfaceW = Math.max(0, Math.floor(surfaceBox.w));
   const surfaceH = Math.max(0, Math.floor(surfaceBox.h));
@@ -145,7 +144,7 @@ export default function HubScreen() {
     locations: boardLocations,
     localUserId,
     waitIdle: turnBusy,
-    surface: 'hub',
+    surface: "hub",
   });
 
   const walk = useHubWalk({
@@ -170,7 +169,7 @@ export default function HubScreen() {
           abortHubEnter();
           leaveHubRef.current(undefined, {
             onError: (err) => {
-              console.warn('[hub] leave-hub failed', err);
+              console.warn("[hub] leave-hub failed", err);
             },
           });
         }
@@ -180,11 +179,11 @@ export default function HubScreen() {
 
   const isMyTurn = Boolean(
     game &&
-      localUserId &&
-      game.status === 'active' &&
-      game.currentUserId === localUserId &&
-      localPlayer &&
-      !localPlayer.resigned,
+    localUserId &&
+    game.status === "active" &&
+    game.currentUserId === localUserId &&
+    localPlayer &&
+    !localPlayer.resigned,
   );
   const inHubMarked = Boolean(localPlayer?.hubId?.trim());
 
@@ -192,16 +191,16 @@ export default function HubScreen() {
     if (!isMyTurn || !inHubMarked || !game) {
       return;
     }
-    const edge = `${game.currentUserId}:${game.turnStartedAt ?? ''}`;
+    const edge = `${game.currentUserId}:${game.turnStartedAt ?? ""}`;
     if (turnEdgeRef.current === edge) {
       return;
     }
     turnEdgeRef.current = edge;
     setTurnSheetOpen(true);
     notify({
-      type: 'info',
-      title: 'Your turn',
-      message: 'Open the board to play',
+      type: "info",
+      title: "Your turn",
+      message: "Open the board to play",
       visibilityTime: 3200,
     });
   }, [isMyTurn, inHubMarked, game]);
@@ -227,19 +226,19 @@ export default function HubScreen() {
     return () => clearInterval(id);
   }, [presence.dcOpen, surfaceReady, surfaceW, surfaceH]);
 
-  const code = location ? shortTileName(location) : '';
+  const code = location ? shortTileName(location) : "";
   const hubDisplayName = location
     ? stripWorldNamePrefix(location.name)
     : isLoading
-      ? '…'
-      : slug || 'Hub';
+      ? "…"
+      : slug || "Hub";
   const tile = tileVisual(location ?? undefined);
   const floorColor = tile.bandColor ?? tile.fill;
   const hubBlurb =
     location?.about?.trim() ||
     location?.aboutShort?.trim() ||
     location?.description?.trim() ||
-    '';
+    "";
   const copyPadTop = 12 + insets.top;
   /** Title (≤2 lines) + code + gaps ≈ 56; keep about inside remaining pane height. */
   const blurbLines = Math.max(
@@ -268,7 +267,7 @@ export default function HubScreen() {
     return accentAgainstFloor(
       preferred,
       floorColor,
-      localUserId ?? username ?? 'local',
+      localUserId ?? username ?? "local",
     );
   }, [localPlayer?.pinColor, walk.accent, floorColor, localUserId, username]);
 
@@ -279,16 +278,16 @@ export default function HubScreen() {
       if (p.pinColor) {
         pinByUser.set(p.userId, p.pinColor);
       }
-      if (typeof p.country === 'string' && p.country.trim()) {
+      if (typeof p.country === "string" && p.country.trim()) {
         countryByUser.set(p.userId, p.country.trim().toUpperCase());
       }
     }
     const localCountry =
-      (typeof localPlayer?.country === 'string' &&
+      (typeof localPlayer?.country === "string" &&
         localPlayer.country.trim().toUpperCase()) ||
-      (typeof me.data?.country === 'string' &&
+      (typeof me.data?.country === "string" &&
         me.data.country.trim().toUpperCase()) ||
-      '';
+      "";
 
     const byId = new Map<string, HubRosterRow>();
     for (const entry of presence.roster) {
@@ -297,9 +296,9 @@ export default function HubScreen() {
       }
       const preferred = pinByUser.get(entry.userId) ?? colors.muted;
       const country =
-        (typeof entry.country === 'string' && entry.country.trim()
+        (typeof entry.country === "string" && entry.country.trim()
           ? entry.country.trim().toUpperCase()
-          : '') ||
+          : "") ||
         countryByUser.get(entry.userId) ||
         undefined;
       byId.set(entry.userId, {
@@ -315,7 +314,7 @@ export default function HubScreen() {
       const existing = byId.get(localUserId);
       byId.set(localUserId, {
         userId: localUserId,
-        username: existing?.username || username || 'Player',
+        username: existing?.username || username || "Player",
         country: existing?.country || localCountry || undefined,
         accent: localAccent,
         isLocal: true,
@@ -362,7 +361,7 @@ export default function HubScreen() {
   }, [rosterRows, remotes, localUserId, localAccent]);
 
   const bankLabel =
-    localUserId && turnClock?.userId === localUserId ? turnClock.label : '';
+    localUserId && turnClock?.userId === localUserId ? turnClock.label : "";
   const canRoll = Boolean(isMyTurn && game?.canRoll);
   const canEnd = Boolean(isMyTurn && game?.canEndTurn);
   const buyOffer = game?.buyOffer ?? null;
@@ -375,11 +374,11 @@ export default function HubScreen() {
   );
   const showBuySheet = Boolean(
     buySheetOpen &&
-      isMyTurn &&
-      inHubMarked &&
-      !turnBusy &&
-      buySheetOffer &&
-      (canBuyOffer || awaitingEndAfterBuy),
+    isMyTurn &&
+    inHubMarked &&
+    !turnBusy &&
+    buySheetOffer &&
+    (canBuyOffer || awaitingEndAfterBuy),
   );
 
   useEffect(() => {
@@ -421,7 +420,7 @@ export default function HubScreen() {
       router.back();
     } else {
       router.replace({
-        pathname: '/(app)/board',
+        pathname: "/(app)/board",
         params: {
           worldId,
           ...(gameId ? { gameId } : {}),
@@ -436,6 +435,34 @@ export default function HubScreen() {
     // Focus cleanup will leave-hub; navigate now.
     goBackToBoard();
   }, [goBackToBoard]);
+
+  const onPressRosterPerson = useCallback(
+    (row: HubRosterRow) => {
+      const seated = game?.players.find((p) => p.userId === row.userId);
+      if (seated) {
+        setInfoPlayer(seated);
+        return;
+      }
+      setInfoPlayer({
+        userId: row.userId,
+        username: row.username,
+        seatIndex: 0,
+        turnOrder: 0,
+        cash: 0,
+        boardIndex: 0,
+        pinColor: row.accent,
+        resigned: false,
+        timeRemainingMs: 0,
+        turnTimeouts: 0,
+        country: row.country,
+        hubId,
+        inJail: false,
+        jailTurns: 0,
+        getOutOfJailFree: 0,
+      });
+    },
+    [game?.players, hubId],
+  );
 
   const openBoard = useCallback(() => {
     skipLeaveOnBlurRef.current = true;
@@ -467,9 +494,9 @@ export default function HubScreen() {
     setBuySheetOpen(false);
     setTurnSheetOpen(false);
     notify({
-      type: 'info',
-      title: 'Auction started',
-      message: 'Opening board for bidding…',
+      type: "info",
+      title: "Auction started",
+      message: "Opening board for bidding…",
     });
     openBoard();
   }, [game?.auction, inHubMarked, openBoard, turnBusy]);
@@ -498,12 +525,12 @@ export default function HubScreen() {
     setBuySheetOpen(false);
     setTurnSheetOpen(false);
     notify({
-      type: 'info',
-      title: 'Trade offer',
+      type: "info",
+      title: "Trade offer",
       message:
         t.toUserId === localUserId
-          ? 'Opening board to review the trade…'
-          : 'Opening board — waiting for a reply…',
+          ? "Opening board to review the trade…"
+          : "Opening board — waiting for a reply…",
     });
     openBoard();
   }, [game?.trade, inHubMarked, openBoard, turnBusy, localUserId]);
@@ -511,7 +538,7 @@ export default function HubScreen() {
   // Phase 14.2 — debtor must settle on board (Pay | Bankruptcy / debt-pay).
   const debtKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!inHubMarked || !localUserId || !game || game.status !== 'active') {
+    if (!inHubMarked || !localUserId || !game || game.status !== "active") {
       if (!game?.pendingPayment && !game?.debtPay) {
         debtKeyRef.current = null;
       }
@@ -524,19 +551,17 @@ export default function HubScreen() {
     const pending = game.pendingPayment;
     const iAmDebtor = Boolean(
       pending &&
-        pending.amount > 0 &&
-        (pending.fromUserId === localUserId ||
-          (!pending.fromUserId && game.currentUserId === localUserId)),
+      pending.amount > 0 &&
+      (pending.fromUserId === localUserId ||
+        (!pending.fromUserId && game.currentUserId === localUserId)),
     );
     const choiceGate =
       iAmDebtor &&
       !debtPay &&
-      game.turnPhase === 'awaiting_roll' &&
+      game.turnPhase === "awaiting_roll" &&
       game.currentUserId === localUserId &&
       (game.canStartDebtPay || game.canBankrupt);
-    const payingMine = Boolean(
-      debtPay && debtPay.userId === localUserId,
-    );
+    const payingMine = Boolean(debtPay && debtPay.userId === localUserId);
     if (!choiceGate && !payingMine) {
       if (!pending && !debtPay) {
         debtKeyRef.current = null;
@@ -553,11 +578,11 @@ export default function HubScreen() {
     setBuySheetOpen(false);
     setTurnSheetOpen(false);
     notify({
-      type: 'warning',
-      title: choiceGate ? 'Settle debt' : 'Paying debt',
+      type: "warning",
+      title: choiceGate ? "Settle debt" : "Paying debt",
       message: choiceGate
-        ? 'Opening board — Pay or Bankruptcy…'
-        : 'Opening board to raise funds…',
+        ? "Opening board — Pay or Bankruptcy…"
+        : "Opening board to raise funds…",
     });
     openBoard();
   }, [
@@ -587,9 +612,9 @@ export default function HubScreen() {
     rollDice.mutate(undefined, {
       onError: (err: Error) => {
         notify({
-          type: 'error',
-          title: 'Roll failed',
-          message: err.message || 'Could not roll',
+          type: "error",
+          title: "Roll failed",
+          message: err.message || "Could not roll",
         });
       },
     });
@@ -609,9 +634,9 @@ export default function HubScreen() {
       },
       onError: (err: Error) => {
         notify({
-          type: 'error',
-          title: 'End turn failed',
-          message: err.message || 'Could not end turn',
+          type: "error",
+          title: "End turn failed",
+          message: err.message || "Could not end turn",
         });
       },
     });
@@ -627,9 +652,9 @@ export default function HubScreen() {
       },
       onError: (err: Error) => {
         notify({
-          type: 'error',
-          title: 'Buy failed',
-          message: err.message || 'Could not buy',
+          type: "error",
+          title: "Buy failed",
+          message: err.message || "Could not buy",
         });
       },
     });
@@ -676,7 +701,7 @@ export default function HubScreen() {
         >
           {isError ? (
             <Text style={styles.error}>
-              {error instanceof Error ? error.message : 'Failed to load hub'}
+              {error instanceof Error ? error.message : "Failed to load hub"}
             </Text>
           ) : null}
           {isLoading && !location ? (
@@ -721,6 +746,7 @@ export default function HubScreen() {
         >
           <HubRoster
             rows={rosterRows}
+            onPressPerson={onPressRosterPerson}
             statusSlot={
               <HubMediaRail
                 presenceStatus={presence.status}
@@ -794,6 +820,16 @@ export default function HubScreen() {
           onDismiss={dismissBuySheet}
         />
       ) : null}
+
+      <PlayerInfoModal
+        visible={Boolean(infoPlayer)}
+        player={infoPlayer}
+        isLocal={Boolean(
+          infoPlayer && localUserId && infoPlayer.userId === localUserId,
+        )}
+        hubCode={code}
+        onClose={() => setInfoPlayer(null)}
+      />
     </View>
   );
 }
@@ -805,23 +841,23 @@ const styles = StyleSheet.create({
   },
   main: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     minHeight: 0,
   },
   mediaRail: {
     flexShrink: 0,
-    alignSelf: 'stretch',
+    alignSelf: "stretch",
     backgroundColor: colors.surface,
     paddingHorizontal: 0,
     gap: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   centerRail: {
     flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     minHeight: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderLeftWidth: CENTER_EDGE,
     borderRightWidth: CENTER_EDGE,
   },
@@ -832,8 +868,12 @@ const styles = StyleSheet.create({
   },
   panelRail: {
     flexShrink: 0,
+    alignSelf: "stretch",
+    minHeight: 0,
     backgroundColor: colors.surface,
     paddingHorizontal: 10,
+    overflow: "hidden",
+    position: "relative",
   },
   closeBtn: {
     width: 36,
@@ -842,8 +882,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   pressed: {
     opacity: 0.7,
@@ -852,11 +892,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.danger,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 8,
   },
   joystickDock: {
-    position: 'absolute',
+    position: "absolute",
     zIndex: 30,
   },
 });

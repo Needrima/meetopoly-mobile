@@ -18,7 +18,7 @@ const GROUP_HEX: Record<string, string> = {
 export type DeedRentRow = { label: string; value: string };
 
 /**
- * Seed names for utilities/railroads often include the world pack
+ * Seed names for utilities/airports often include the world pack
  * ("Europe 3 Water Works"). Strip that for player-facing UI.
  */
 export function stripWorldNamePrefix(name: string): string {
@@ -38,7 +38,7 @@ export function stripColorFor(
   if (loc?.kind === 'property' && loc.colorGroup) {
     return GROUP_HEX[loc.colorGroup] ?? colorGroups.brown;
   }
-  if (kind === 'railroad') {
+  if (kind === 'airport') {
     return colors.info;
   }
   if (kind === 'utility') {
@@ -86,7 +86,7 @@ export function rentRowsFor(
   const rents =
     location?.rents?.filter((n): n is number => typeof n === 'number') ?? [];
 
-  if (kind === 'railroad') {
+  if (kind === 'airport') {
     return rents.map((v, i) => ({
       label: i === 0 ? '1 airport' : `${i + 1} airports`,
       value: String(v),
@@ -108,7 +108,7 @@ export function rentRowsFor(
 }
 
 export function kindFallbackLabel(kind: string): string {
-  if (kind === 'railroad') {
+  if (kind === 'airport') {
     return 'Air hub';
   }
   if (kind === 'utility') {
@@ -118,5 +118,7 @@ export function kindFallbackLabel(kind: string): string {
 }
 
 export function isBuyableKind(kind: string | undefined): boolean {
-  return kind === 'property' || kind === 'railroad' || kind === 'utility';
+  return (
+    kind === 'property' || kind === 'airport' || kind === 'utility'
+  );
 }
