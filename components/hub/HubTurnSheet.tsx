@@ -19,7 +19,7 @@ type HubTurnSheetProps = {
   onDismiss: () => void;
   /** Body title under “Your turn”. */
   title?: string;
-  /** Second action label (hub: Keep walking; locations: Close). */
+  /** Second action label (hub: Stay in {code}; locations: Close). */
   dismissLabel?: string;
 };
 
@@ -41,7 +41,7 @@ export function HubTurnSheet({
   onOpenBoard,
   onDismiss,
   title = 'Open the board to play',
-  dismissLabel = 'Keep walking',
+  dismissLabel = 'Stay in hub',
 }: HubTurnSheetProps) {
   if (!visible) {
     return null;
@@ -98,7 +98,7 @@ export function HubTurnSheet({
           </View> */}
           <View style={styles.row}>
             <View style={styles.half}>
-              <Button label="Open board" onPress={onOpenBoard} />
+              <Button label="Go to board" onPress={onOpenBoard} />
             </View>
             <View style={styles.half}>
               <Button label={dismissLabel} onPress={onDismiss} />

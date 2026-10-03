@@ -685,6 +685,7 @@ export default function HubScreen() {
             messages={presence.chatMessages}
             localUserId={localUserId}
             accentByUserId={chatAccentByUserId}
+            locationName={hubDisplayName}
             dcOpen={presence.dcOpen}
             onSend={presence.sendChat}
           />
@@ -810,6 +811,7 @@ export default function HubScreen() {
         onEndTurn={onEndTurn}
         onOpenBoard={openBoard}
         onDismiss={() => setTurnSheetOpen(false)}
+        dismissLabel={`Stay in ${code || "hub"}`}
       />
 
       {buySheetOffer ? (

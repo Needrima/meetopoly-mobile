@@ -20,6 +20,8 @@ type HubChatRailProps = {
   localUserId: string | null;
   /** Avatar/pin accent per userId — fills bubble background. */
   accentByUserId?: Record<string, string>;
+  /** Location display name for empty-state copy. */
+  locationName?: string;
   dcOpen: boolean;
   onSend: (text: string) => boolean;
 };
@@ -33,6 +35,7 @@ export function HubChatRail({
   messages,
   localUserId,
   accentByUserId,
+  locationName,
   dcOpen,
   onSend,
 }: HubChatRailProps) {
@@ -41,6 +44,7 @@ export function HubChatRail({
   const localAccent =
     (localUserId && accentByUserId?.[localUserId]?.trim()) || colors.brand;
   const sendColor = canSend ? localAccent : colors.muted;
+  const place = locationName?.trim() || "this hub";
 
   const submit = useCallback(() => {
     const ok = onSend(draft);
@@ -81,7 +85,9 @@ export function HubChatRail({
         <View style={styles.listWrap}>
           {messages.length === 0 ? (
             <Text style={styles.empty}>
-              {dcOpen ? "Type something below to send a message to everyone" : "Connecting…"}
+              {dcOpen
+                ? `Type something below to send a message to everyone in ${place}`
+                : "Connecting…"}
             </Text>
           ) : (
             <FlashList
@@ -160,6 +166,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
     paddingVertical: 8,
+    textAlign: "center",
+    fontWeight: "500",
   },
   bubble: {
     alignSelf: "flex-start",
