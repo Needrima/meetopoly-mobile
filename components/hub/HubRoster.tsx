@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, type ReactNode } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 
 import { AvatarPod } from "@/components/board/AvatarPod";
 import type { PresenceRosterEntry } from "@/hooks/useBoardPresence";
@@ -41,14 +42,53 @@ export function HubRoster({
   onPressPerson,
 }: HubRosterProps) {
   const shown = rows.slice(0, maxPeers);
-  const cells: (HubRosterRow | null)[] = [...shown];
-  while (cells.length % COLS !== 0) {
-    cells.push(null);
-  }
-  const gridRows: (HubRosterRow | null)[][] = [];
-  for (let i = 0; i < cells.length; i += COLS) {
-    gridRows.push(cells.slice(i, i + COLS));
-  }
+
+  const renderItem = useCallback<ListRenderItem<HubRosterRow>>(
+    ({ item }) => {
+      const country =
+        typeof item.country === "string" && item.country.trim()
+          ? item.country.trim().toUpperCase()
+          : "";
+      const who = item.isLocal
+        ? "You"
+        : formatUsername(item.username) || "Player";
+      const label = country ? `${who} · ${country}` : who;
+      const initials = usernameInitials(
+        item.isLocal
+          ? formatUsername(item.username) || "You"
+          : item.username,
+      );
+      const tile = rosterCellColors(item.userId, item.accent);
+      return (
+        <View style={styles.cellWrap}>
+          <View
+            style={[styles.cell, { backgroundColor: tile.backgroundColor }]}
+          >
+            <View style={styles.avatarWrap} pointerEvents="none">
+              <AvatarPod
+                initials={initials}
+                accent={item.accent}
+                radius={AVATAR_RADIUS}
+              />
+            </View>
+            <Text
+              style={[styles.label, { color: tile.labelColor }]}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${who} player info`}
+              onPress={() => onPressPerson?.(item)}
+              style={styles.pressHit}
+            />
+          </View>
+        </View>
+      );
+    },
+    [onPressPerson],
+  );
 
   return (
     <View style={styles.root}>
@@ -61,80 +101,19 @@ export function HubRoster({
         </View>
         {headerRight}
       </View>
-      <ScrollView
+      <FlashList
+        data={shown}
+        numColumns={COLS}
         style={styles.list}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        nestedScrollEnabled
-        bounces
-      >
-        {shown.length === 0 ? (
+        keyExtractor={(item) => item.userId}
+        extraData={onPressPerson}
+        ListEmptyComponent={
           <Text style={styles.empty}>Just you for now</Text>
-        ) : (
-          <View style={styles.grid}>
-            {gridRows.map((row, rowIndex) => (
-              <View
-                key={`r${rowIndex}-${row.map((c) => c?.userId ?? "_").join("-")}`}
-                style={styles.gridRow}
-              >
-                {row.map((cell, colIndex) => {
-                  if (!cell) {
-                    return (
-                      <View
-                        key={`empty-${rowIndex}-${colIndex}`}
-                        style={styles.cellEmpty}
-                      />
-                    );
-                  }
-                  const country =
-                    typeof cell.country === "string" && cell.country.trim()
-                      ? cell.country.trim().toUpperCase()
-                      : "";
-                  const who = cell.isLocal
-                    ? "You"
-                    : formatUsername(cell.username) || "Player";
-                  const label = country ? `${who} · ${country}` : who;
-                  const initials = usernameInitials(
-                    cell.isLocal
-                      ? formatUsername(cell.username) || "You"
-                      : cell.username,
-                  );
-                  const tile = rosterCellColors(cell.userId, cell.accent);
-                  return (
-                    <View
-                      key={cell.userId}
-                      style={[
-                        styles.cell,
-                        { backgroundColor: tile.backgroundColor },
-                      ]}
-                    >
-                      <View style={styles.avatarWrap} pointerEvents="none">
-                        <AvatarPod
-                          initials={initials}
-                          accent={cell.accent}
-                          radius={AVATAR_RADIUS}
-                        />
-                      </View>
-                      <Text
-                        style={[styles.label, { color: tile.labelColor }]}
-                        numberOfLines={1}
-                      >
-                        {label}
-                      </Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`${who} player info`}
-                        onPress={() => onPressPerson?.(cell)}
-                        style={styles.pressHit}
-                      />
-                    </View>
-                  );
-                })}
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+        }
+        renderItem={renderItem}
+      />
     </View>
   );
 }
@@ -168,7 +147,6 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   listContent: {
-    flexGrow: 0,
     paddingBottom: 8,
   },
   empty: {
@@ -176,27 +154,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
   },
-  grid: {
-    gap: 10,
-  },
-  gridRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 6,
+  /** Half of former row gap (6) / vertical gap (~10). */
+  cellWrap: {
+    flex: 1,
+    paddingHorizontal: 3,
+    paddingBottom: 10,
   },
   cell: {
-    flex: 1,
-    minWidth: 0,
+    width: "100%",
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
     overflow: "hidden",
-  },
-  cellEmpty: {
-    flex: 1,
-    minWidth: 0,
-    aspectRatio: 1,
   },
   avatarWrap: {
     ...(StyleSheet.absoluteFill as object),

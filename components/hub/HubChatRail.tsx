@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { AntDesign } from "@expo/vector-icons";
-import { FlashList } from "@shopify/flash-list";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 
 import type { HubChatMessage } from "@/lib/hubChat";
 import { MAX_HUB_CHAT_RUNES } from "@/lib/hubChat";
@@ -49,6 +49,31 @@ export function HubChatRail({
     }
   }, [draft, onSend]);
 
+  const renderItem = useCallback<ListRenderItem<HubChatMessage>>(
+    ({ item }) => {
+      const mine = Boolean(localUserId) && item.userId === localUserId;
+      const who = mine
+        ? "You"
+        : formatUsername(item.username) || "Player";
+      const fill = accentByUserId?.[item.userId]?.trim() || colors.muted;
+      return (
+        <View
+          style={[
+            styles.bubble,
+            mine ? styles.bubbleMine : null,
+            { backgroundColor: fill, borderColor: fill },
+          ]}
+        >
+          <Text style={styles.who} numberOfLines={1}>
+            {who}
+          </Text>
+          <Text style={styles.body}>{item.text}</Text>
+        </View>
+      );
+    },
+    [accentByUserId, localUserId],
+  );
+
   return (
     <View style={styles.root}>
       <View style={styles.padded}>
@@ -70,29 +95,7 @@ export function HubChatRail({
                 autoscrollToBottomThreshold: 80,
                 startRenderingFromBottom: true,
               }}
-              renderItem={({ item }) => {
-                const mine =
-                  Boolean(localUserId) && item.userId === localUserId;
-                const who = mine
-                  ? "You"
-                  : formatUsername(item.username) || "Player";
-                const fill =
-                  accentByUserId?.[item.userId]?.trim() || colors.muted;
-                return (
-                  <View
-                    style={[
-                      styles.bubble,
-                      mine ? styles.bubbleMine : null,
-                      { backgroundColor: fill, borderColor: fill },
-                    ]}
-                  >
-                    <Text style={styles.who} numberOfLines={1}>
-                      {who}
-                    </Text>
-                    <Text style={styles.body}>{item.text}</Text>
-                  </View>
-                );
-              }}
+              renderItem={renderItem}
             />
           )}
         </View>
