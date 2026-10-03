@@ -1,10 +1,7 @@
-import type { Location } from '@/api/types';
-import type { GamePlayer } from '@/api/types';
-import type { BoardLayout } from '@/components/board/boardLayout';
-import {
-  PRESENCE_POSE_TYPE,
-  type PresencePose,
-} from '@/lib/presencePose';
+import type { Location } from "@/api/types";
+import type { GamePlayer } from "@/api/types";
+import type { BoardLayout } from "@/components/board/boardLayout";
+import { PRESENCE_POSE_TYPE, type PresencePose } from "@/lib/presencePose";
 
 export type BoardRemoteDraw = {
   pose: PresencePose;

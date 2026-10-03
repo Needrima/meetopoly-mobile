@@ -1,4 +1,4 @@
-import type { CenterDeckLayout } from '@/components/board/boardLayout';
+import type { CenterDeckLayout } from "@/components/board/boardLayout";
 
 export type Vec2 = { x: number; y: number };
 
@@ -101,11 +101,20 @@ export function resolveCircleObstacle(
 ): Vec2 {
   const minDist = radius + obstacle.radius;
   const strength = obstacle.soft ? 0.35 : 1;
-  return pushFromPoint(pos, { x: obstacle.x, y: obstacle.y }, minDist, strength);
+  return pushFromPoint(
+    pos,
+    { x: obstacle.x, y: obstacle.y },
+    minDist,
+    strength,
+  );
 }
 
 /** Keep avatar circle inside the square board. */
-export function clampToBoard(pos: Vec2, radius: number, boardSize: number): Vec2 {
+export function clampToBoard(
+  pos: Vec2,
+  radius: number,
+  boardSize: number,
+): Vec2 {
   return {
     x: Math.max(radius, Math.min(boardSize - radius, pos.x)),
     y: Math.max(radius, Math.min(boardSize - radius, pos.y)),

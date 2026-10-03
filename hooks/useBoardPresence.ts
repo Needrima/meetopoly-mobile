@@ -731,6 +731,14 @@ function usePresenceChannel({
      * that arrive mid-join are queued (not dropped).
      */
     let joining = false;
+    /**
+     * When true, DataChannel/PC close must not schedule recover (intentional
+     * teardown during rejoin). Without this, teardown → dc.onclose → recover
+     * races a second client offer and the SFU returns "offer failed".
+     */
+    let suppressDcRecover = false;
+    /** Bumps on each startWebRTC; stale async getUserMedia must not finish. */
+    let startGeneration = 0;
     let pendingSfuOffer: string | null = null;
     const webrtc = loadWebRTC();
 
@@ -815,10 +823,12 @@ function usePresenceChannel({
     };
 
     const teardownPeer = () => {
+      // Do not clear `joining` here — startWebRTC owns that flag. Clearing it
+      // before dc.close() allowed onclose → scheduleRecover mid-rejoin.
+      suppressDcRecover = true;
       remoteSetRef.current = false;
       pendingIceRef.current = [];
       pendingSfuOffer = null;
-      joining = false;
       stopLocalMedia();
       stopRemoteMedia();
       const dc = dcRef.current;
@@ -864,7 +874,7 @@ function usePresenceChannel({
     };
 
     const scheduleRecover = (reason: string) => {
-      if (cancelled || joining || recoverTimer) {
+      if (cancelled || joining || suppressDcRecover || recoverTimer) {
         return;
       }
       const ws = wsRef.current;
@@ -876,7 +886,7 @@ function usePresenceChannel({
       console.warn("[presence] schedule WebRTC recover", reason, delay);
       recoverTimer = setTimeout(() => {
         recoverTimer = undefined;
-        if (cancelled) {
+        if (cancelled || suppressDcRecover || joining) {
           return;
         }
         const openWs = wsRef.current;
@@ -936,6 +946,7 @@ function usePresenceChannel({
       dc.onopen = () => {
         if (!cancelled) {
           recoverAttempt = 0;
+          suppressDcRecover = false;
           setDcOpen(true);
           setStatus("connected");
           announceLocalVideoOrientation();
@@ -949,7 +960,7 @@ function usePresenceChannel({
         if (!cancelled) {
           setDcOpen(false);
         }
-        if (!cancelled && !joining) {
+        if (!cancelled && !joining && !suppressDcRecover) {
           scheduleRecover("dc-close");
         }
       };
@@ -1027,11 +1038,21 @@ function usePresenceChannel({
         setStatus("connected");
         return;
       }
+      const gen = ++startGeneration;
       joining = true;
+      suppressDcRecover = true;
       pendingSfuOffer = null;
+      if (recoverTimer) {
+        clearTimeout(recoverTimer);
+        recoverTimer = undefined;
+      }
       try {
         teardownPeer();
         joining = true;
+        suppressDcRecover = true;
+        if (gen !== startGeneration) {
+          return;
+        }
         const pc = new webrtc.RTCPeerConnection({
           iceServers: iceServersFromWelcome(iceServers),
         });
@@ -1185,7 +1206,11 @@ function usePresenceChannel({
                 ? boardVideoConstraints(facingModeRef.current)
                 : false,
             });
-            if (cancelled || pcRef.current !== pc) {
+            if (
+              cancelled ||
+              gen !== startGeneration ||
+              pcRef.current !== pc
+            ) {
               for (const track of stream.getTracks()) {
                 try {
                   track.stop();
@@ -1194,7 +1219,10 @@ function usePresenceChannel({
                 }
               }
               stream.release?.(true);
-              joining = false;
+              if (gen === startGeneration) {
+                joining = false;
+                suppressDcRecover = false;
+              }
               return;
             }
             localStreamRef.current = stream;
@@ -1256,28 +1284,40 @@ function usePresenceChannel({
         }
 
         const offer = await pc.createOffer({});
-        if (cancelled || pcRef.current !== pc) {
-          joining = false;
+        if (cancelled || gen !== startGeneration || pcRef.current !== pc) {
+          if (gen === startGeneration) {
+            joining = false;
+            suppressDcRecover = false;
+          }
           return;
         }
         await pc.setLocalDescription(offer);
         if (
           cancelled ||
+          gen !== startGeneration ||
           pcRef.current !== pc ||
           ws.readyState !== WebSocket.OPEN
         ) {
-          joining = false;
+          if (gen === startGeneration) {
+            joining = false;
+            suppressDcRecover = false;
+          }
           return;
         }
         const local = pc.localDescription;
         if (!local?.sdp) {
           joining = false;
+          suppressDcRecover = false;
           return;
         }
         ws.send(JSON.stringify({ type: "offer", sdp: local.sdp }));
         // Keep joining=true until the SFU join answer is applied.
+        // suppressDcRecover clears on dc.onopen (or answer failure below).
       } catch (err) {
-        joining = false;
+        if (gen === startGeneration) {
+          joining = false;
+          suppressDcRecover = false;
+        }
         throw err;
       }
     };
@@ -1297,11 +1337,7 @@ function usePresenceChannel({
       }
       const pc = pcRef.current;
       const openWs = wsRef.current;
-      if (
-        !pc ||
-        !openWs ||
-        openWs.readyState !== WebSocket.OPEN
-      ) {
+      if (!pc || !openWs || openWs.readyState !== WebSocket.OPEN) {
         return;
       }
       try {
@@ -1415,12 +1451,17 @@ function usePresenceChannel({
             );
             remoteSetRef.current = true;
             joining = false;
+            // DC may already be open; allow unexpected closes to recover again.
+            if (dcRef.current) {
+              suppressDcRecover = false;
+            }
             await flushPendingIce(pc);
             await flushPendingSfuOffer();
             // Rejoin: existing board pubs are in this answer; ontrack should fire.
             // If streams were omitted, mid→userId mapping in ontrack recovers them.
           } catch (err) {
             joining = false;
+            suppressDcRecover = false;
             console.warn("[presence] setRemoteDescription failed", err);
           }
           break;
