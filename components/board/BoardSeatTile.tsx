@@ -234,7 +234,7 @@ export function BoardSeatTile({
 
       {hubCode ? (
         <View style={styles.hubChip} pointerEvents="none">
-          <Text style={styles.hubChipText}>{hubCode}</Text>
+          <Text style={styles.hubChipText}>In {hubCode}</Text>
         </View>
       ) : null}
 
