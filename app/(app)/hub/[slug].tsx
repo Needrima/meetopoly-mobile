@@ -7,7 +7,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useKeepAwake } from "expo-keep-awake";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -239,11 +239,14 @@ export default function HubScreen() {
     location?.aboutShort?.trim() ||
     location?.description?.trim() ||
     "";
-  const copyPadTop = 12 + insets.top;
-  /** Title (≤2 lines) + code + gaps ≈ 56; keep about inside remaining pane height. */
+  /** Symmetric inset so centered stack stays clear of the notch. */
+  const copyPadV = 12 + insets.top;
+  /** Icon (~52) + gaps + title/code (~56); keep about inside remaining pane height. */
   const blurbLines = Math.max(
     2,
-    Math.floor((Math.max(0, surfaceBox.h) - copyPadTop - 16 - 56) / 18),
+    Math.floor(
+      (Math.max(0, surfaceBox.h) - copyPadV * 2 - 52 - 10 - 56) / 18,
+    ),
   );
 
   const remotes = useMemo(() => {
@@ -713,7 +716,8 @@ export default function HubScreen() {
             shortName={code}
             blurb={hubBlurb}
             blurbLines={blurbLines}
-            paddingTop={copyPadTop}
+            iconPath={location?.assets?.icon}
+            paddingVertical={copyPadV}
           />
           {surfaceReady ? (
             <View style={styles.avatarLayer} pointerEvents="box-none">
@@ -746,6 +750,7 @@ export default function HubScreen() {
         >
           <HubRoster
             rows={rosterRows}
+            locationName={hubDisplayName}
             onPressPerson={onPressRosterPerson}
             statusSlot={
               <HubMediaRail
@@ -765,7 +770,11 @@ export default function HubScreen() {
                   pressed ? styles.pressed : null,
                 ]}
               >
-                <Ionicons name="close" size={22} color={colors.ink} />
+                <MaterialCommunityIcons
+                  name="location-exit"
+                  size={22}
+                  color={colors.ink}
+                />
               </Pressable>
             }
           />

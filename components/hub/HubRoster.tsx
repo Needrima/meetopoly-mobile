@@ -18,7 +18,9 @@ export type HubRosterRow = PresenceRosterEntry & {
 type HubRosterProps = {
   rows: HubRosterRow[];
   maxPeers?: number;
-  /** Live / timer strip under the In hub count (Phase 17.1). */
+  /** Location display name for “In {name}” (ellipsizes; count stays visible). */
+  locationName?: string;
+  /** Live / timer strip under the title (Phase 17.1). */
   statusSlot?: ReactNode;
   /** Leave control (top-right of this rail). */
   headerRight?: ReactNode;
@@ -30,18 +32,20 @@ const COLS = 2;
 const AVATAR_RADIUS = 22;
 
 /**
- * Phase 17.2 — right-rail hub roster: In hub count + Live/timer + 2-col people grid.
+ * Phase 17.2 — right-rail hub roster: In {location} + count + Live/timer + 2-col grid.
  * Cell: AvatarPod center; name · country bottom-right. Local shows as `You`.
  * Cell bg is stable per userId and contrasts with the avatar accent.
  */
 export function HubRoster({
   rows,
   maxPeers = 16,
+  locationName,
   statusSlot,
   headerRight,
   onPressPerson,
 }: HubRosterProps) {
   const shown = rows.slice(0, maxPeers);
+  const place = locationName?.trim() || "hub";
 
   const renderItem = useCallback<ListRenderItem<HubRosterRow>>(
     ({ item }) => {
@@ -94,9 +98,19 @@ export function HubRoster({
     <View style={styles.root}>
       <View style={styles.header}>
         <View style={styles.headerMain}>
-          <Text style={styles.eyebrow}>
-            In hub · {shown.length}/{maxPeers}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text
+              style={styles.eyebrow}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              In {place}
+            </Text>
+            <Text style={styles.count} numberOfLines={1}>
+              {" "}
+              · {shown.length}/{maxPeers}
+            </Text>
+          </View>
           {statusSlot}
         </View>
         {headerRight}
@@ -135,11 +149,27 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 4,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    minWidth: 0,
+    width: "100%",
+  },
   eyebrow: {
+    flexShrink: 1,
+    minWidth: 0,
     fontFamily: fonts.bodySemiBold,
     fontSize: 11,
     letterSpacing: 1,
-    textTransform: "uppercase",
+    textTransform: "capitalize",
+    color: colors.muted,
+  },
+  count: {
+    flexShrink: 0,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: "capitalize",
     color: colors.muted,
   },
   list: {

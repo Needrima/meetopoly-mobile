@@ -1,8 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { isLightHex } from '@/components/board/deedVisual';
+import { resolveBoardIcon } from '@/components/board/iconRegistry';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
+
+const ICON_SIZE = 42;
 
 type HubLocationCopyProps = {
   floorColor: string;
@@ -11,12 +14,15 @@ type HubLocationCopyProps = {
   blurb: string;
   /** Max lines for about — height-based ellipsis (Phase 9.0c). */
   blurbLines: number;
-  paddingTop?: number;
+  /** Seed `assets.icon` path — resolved via board icon registry. */
+  iconPath?: string | null;
+  /** Symmetric vertical inset (e.g. safe-area top) so centering stays balanced. */
+  paddingVertical?: number;
 };
 
 /**
- * Location copy on the hub center rail — title/code always stay on-screen;
- * about ellipsizes below. pointerEvents none so avatars walk over it.
+ * Location copy on the hub center rail — icon + title/code + about, vertically
+ * centered. pointerEvents none so avatars walk over it.
  */
 export function HubLocationCopy({
   floorColor,
@@ -24,42 +30,52 @@ export function HubLocationCopy({
   shortName,
   blurb,
   blurbLines,
-  paddingTop = 12,
+  iconPath,
+  paddingVertical = 12,
 }: HubLocationCopyProps) {
   const onFloor = isLightHex(floorColor) ? colors.ink : colors.onBrand;
   const mutedOnFloor = isLightHex(floorColor)
     ? colors.muted
     : 'rgba(255,255,255,0.9)';
+  const Icon = resolveBoardIcon(iconPath);
 
-  if (!title && !shortName && !blurb) {
+  if (!Icon && !title && !shortName && !blurb) {
     return null;
   }
 
   const lines = Math.max(1, Math.floor(blurbLines));
 
   return (
-    <View style={[styles.root, { paddingTop }]} pointerEvents="none">
-      <View style={styles.header} pointerEvents="none">
-        {title ? (
-          <Text style={[styles.title, { color: onFloor }]} numberOfLines={2}>
-            {title}
-          </Text>
+    <View
+      style={[styles.root, { paddingVertical }]}
+      pointerEvents="none"
+    >
+      <View style={styles.stack} pointerEvents="none">
+        {Icon ? (
+          <Icon width={ICON_SIZE} height={ICON_SIZE} color={onFloor} />
         ) : null}
-        {shortName ? (
-          <Text style={[styles.shortName, { color: onFloor }]}>
-            {shortName}
+        <View style={styles.header} pointerEvents="none">
+          {title ? (
+            <Text style={[styles.title, { color: onFloor }]} numberOfLines={2}>
+              {title}
+            </Text>
+          ) : null}
+          {shortName ? (
+            <Text style={[styles.shortName, { color: onFloor }]}>
+              {shortName}
+            </Text>
+          ) : null}
+        </View>
+        {blurb ? (
+          <Text
+            style={[styles.body, { color: mutedOnFloor }]}
+            numberOfLines={lines}
+            ellipsizeMode="tail"
+          >
+            {blurb}
           </Text>
         ) : null}
       </View>
-      {blurb ? (
-        <Text
-          style={[styles.body, { color: mutedOnFloor }]}
-          numberOfLines={lines}
-          ellipsizeMode="tail"
-        >
-          {blurb}
-        </Text>
-      ) : null}
     </View>
   );
 }
@@ -70,11 +86,14 @@ const styles = StyleSheet.create({
     zIndex: 1,
     elevation: 0,
     paddingHorizontal: 14,
-    paddingBottom: 16,
-    gap: 8,
     alignItems: 'center',
-    // Top-anchored so long about never pushes the name off-screen.
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
+  },
+  stack: {
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+    maxHeight: '100%',
   },
   header: {
     alignItems: 'center',
@@ -84,7 +103,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.displayBold,
-    fontSize: 18,
+    fontSize: 16,
     textAlign: 'center',
   },
   shortName: {
@@ -96,7 +115,7 @@ const styles = StyleSheet.create({
   },
   body: {
     fontFamily: fonts.bodyBold,
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
     alignSelf: 'stretch',

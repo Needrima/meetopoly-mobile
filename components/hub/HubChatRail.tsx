@@ -81,7 +81,7 @@ export function HubChatRail({
         <View style={styles.listWrap}>
           {messages.length === 0 ? (
             <Text style={styles.empty}>
-              {dcOpen ? "Say hi to the hub" : "Connecting…"}
+              {dcOpen ? "Type something below to send a message to everyone" : "Connecting…"}
             </Text>
           ) : (
             <FlashList
