@@ -27,6 +27,7 @@ import { DEFAULT_WORLD_ID, useLocations } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
 import { useCurrentTurnClock } from '@/hooks/useTurnCountdown';
 import { formatUsername } from '@/lib/formatUsername';
+import { formatWorldLabel } from '@/lib/worldDisplay';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -137,6 +138,7 @@ export default function LocationsScreen() {
     typeof params.worldId === 'string' && params.worldId.trim().length > 0
       ? params.worldId.trim()
       : DEFAULT_WORLD_ID;
+  const worldLabel = formatWorldLabel(worldId);
   const gameId =
     typeof params.gameId === 'string' && params.gameId.trim().length > 0
       ? params.gameId.trim()
@@ -246,7 +248,7 @@ export default function LocationsScreen() {
         <View style={styles.headerText}>
           <Text style={styles.title}>Locations</Text>
           <Text style={styles.subtitle}>
-            {worldId} · {locations.length} spaces
+            {worldLabel} · {locations.length} spaces
           </Text>
         </View>
       </View>
@@ -254,7 +256,7 @@ export default function LocationsScreen() {
       {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.brand} />
-          <Text style={styles.muted}>Loading {worldId}…</Text>
+          <Text style={styles.muted}>Loading {worldLabel}…</Text>
         </View>
       ) : null}
 

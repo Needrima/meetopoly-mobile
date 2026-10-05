@@ -1,153 +1,145 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { WorldSummary } from '@/api/types';
 import { Button } from '@/components/ui/Button';
+import { WorldCard } from '@/components/worlds/WorldCard';
 import { useWorlds } from '@/hooks/useLocations';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * Phase 5.0 — pick a World; Continue → lobby (5.1+).
+ * Phase 5.0 — pick a World; Proceed → lobby; See locations → browse board spaces.
  */
 export default function WorldsScreen() {
-  const { data, error, isLoading, isError, isFetching, refetch } = useWorlds();
+  const { data, error, isLoading, isError } = useWorlds();
   const worlds = data?.worlds ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
   const selected = worlds.find((w) => w.worldId === selectedId) ?? null;
+  const canAct = selected != null;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(app)');
-            }
-          }}
-          style={({ pressed }) => [styles.back, pressed ? styles.pressed : null]}
-        >
-          <Text style={styles.backLabel}>Back</Text>
-        </Pressable>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Choose a World</Text>
-          <Text style={styles.subtitle}>
-            Board packs to play · lobby matchmaking next
+    <GestureHandlerRootView style={styles.flex}>
+      <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(app)');
+              }
+            }}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.backBtn,
+              pressed ? styles.pressed : null,
+            ]}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.brand} />
+          </Pressable>
+          <Text style={styles.title} pointerEvents="none">
+            Choose a World
           </Text>
+          <View style={styles.headerSpacer} />
         </View>
-        <Pressable
-          accessibilityRole="button"
-          disabled={isFetching}
-          onPress={() => {
-            void refetch();
-          }}
-          style={({ pressed }) => [
-            styles.refresh,
-            pressed || isFetching ? styles.pressed : null,
-          ]}
-        >
-          <Text style={styles.refreshLabel}>{isFetching ? '…' : 'Refresh'}</Text>
-        </Pressable>
-      </View>
 
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.brand} />
-          <Text style={styles.muted}>Loading worlds…</Text>
-        </View>
-      ) : null}
+        {isLoading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.brand} />
+            <Text style={styles.muted}>Loading worlds…</Text>
+          </View>
+        ) : null}
 
-      {isError ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>
-            {error instanceof Error ? error.message : 'Failed to load worlds'}
-          </Text>
-        </View>
-      ) : null}
+        {isError ? (
+          <View style={styles.center}>
+            <Text style={styles.error}>
+              {error instanceof Error ? error.message : 'Failed to load worlds'}
+            </Text>
+          </View>
+        ) : null}
 
-      {!isLoading && !isError ? (
-        <FlatList
-          data={worlds}
-          keyExtractor={(item) => item.worldId}
-          contentContainerStyle={styles.list}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          ListEmptyComponent={
-            <Text style={styles.muted}>No worlds returned from the API.</Text>
-          }
-          renderItem={({ item }) => (
-            <WorldCard
-              world={item}
-              selected={item.worldId === selectedId}
-              onPress={() => setSelectedId(item.worldId)}
+        {!isLoading && !isError ? (
+          <ScrollView
+            contentContainerStyle={styles.grid}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={scrollEnabled}
+          >
+            {worlds.length === 0 ? (
+              <Text style={styles.muted}>No worlds returned from the API.</Text>
+            ) : null}
+            {worlds.map((item) => (
+              <View key={item.worldId} style={styles.cardCell}>
+                <WorldCard
+                  world={item}
+                  selected={item.worldId === selectedId}
+                  onSelect={() =>
+                    setSelectedId((prev) =>
+                      prev === item.worldId ? null : item.worldId,
+                    )
+                  }
+                  onDragActiveChange={(active) => {
+                    setScrollEnabled(!active);
+                  }}
+                />
+              </View>
+            ))}
+          </ScrollView>
+        ) : null}
+
+        <View style={styles.footer}>
+          <View style={styles.footerBtn}>
+            <Button
+              label="See locations"
+              variant="outline"
+              disabled={!canAct}
+              onPress={() => {
+                if (!selected) {
+                  return;
+                }
+                router.push({
+                  pathname: '/(app)/locations',
+                  params: { worldId: selected.worldId },
+                });
+              }}
             />
-          )}
-        />
-      ) : null}
-
-      <View style={styles.footer}>
-        <Text style={styles.footerHint} numberOfLines={2}>
-          {selected
-            ? `Selected ${selected.worldId} · ${selected.count} spaces`
-            : 'Select a World to continue'}
-        </Text>
-        <Button
-          label="Continue"
-          disabled={!selected}
-          onPress={() => {
-            if (!selected) {
-              return;
-            }
-            router.push(`/(app)/lobby/${selected.worldId}`);
-          }}
-        />
-      </View>
-    </SafeAreaView>
-  );
-}
-
-function WorldCard({
-  world,
-  selected,
-  onPress,
-}: {
-  world: WorldSummary;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        selected ? styles.cardSelected : null,
-        pressed ? styles.pressed : null,
-      ]}
-    >
-      <Text style={styles.cardId} numberOfLines={1}>
-        {world.worldId}
-      </Text>
-      <Text style={styles.cardMeta}>{world.count} spaces</Text>
-    </Pressable>
+          </View>
+          <View style={styles.footerBtn}>
+            <Button
+              label="Proceed"
+              disabled={!canAct}
+              onPress={() => {
+                if (!selected) {
+                  return;
+                }
+                router.push(`/(app)/lobby/${selected.worldId}`);
+              }}
+            />
+          </View>
+        </View>
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -155,94 +147,52 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 12,
+    borderBottomColor: colors.border,
   },
-  back: {
+  backBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
-  backLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.ink,
-  },
-  headerText: {
-    flex: 1,
+  headerSpacer: {
+    width: 40,
+    height: 40,
   },
   title: {
+    flex: 1,
+    textAlign: 'center',
     fontFamily: fonts.displayBold,
-    fontSize: 26,
+    fontSize: 24,
     color: colors.brand,
   },
-  subtitle: {
-    marginTop: 2,
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.muted,
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    flexGrow: 1,
   },
-  refresh: {
-    borderRadius: 10,
-    backgroundColor: colors.brand,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  refreshLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
-    color: colors.onBrand,
-  },
-  list: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 12,
-  },
-  row: {
-    gap: 12,
-  },
-  card: {
-    flex: 1,
-    minWidth: '45%',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: 16,
-    marginBottom: 4,
-  },
-  cardSelected: {
-    borderColor: colors.brand,
-    borderWidth: 2,
-    backgroundColor: colors.brandMuted,
-  },
-  cardId: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 16,
-    color: colors.ink,
-  },
-  cardMeta: {
-    marginTop: 6,
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.muted,
+  cardCell: {
+    width: '33.333%',
+    padding: 6,
   },
   footer: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 14,
-    gap: 10,
-    backgroundColor: colors.surface,
   },
-  footerHint: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.muted,
+  footerBtn: {
+    flex: 1,
   },
   center: {
     flex: 1,
@@ -256,6 +206,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.muted,
     textAlign: 'center',
+    width: '100%',
+    paddingVertical: 24,
   },
   error: {
     fontFamily: fonts.body,
@@ -264,6 +216,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pressed: {
-    opacity: 0.8,
+    opacity: 0.85,
   },
 });
