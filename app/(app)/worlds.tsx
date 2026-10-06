@@ -240,10 +240,7 @@ export default function WorldsScreen() {
                     </View>
                   )}
                 />
-                <View
-                  pointerEvents="box-none"
-                  style={styles.navOverlay}
-                >
+                <View pointerEvents="box-none" style={styles.navOverlay}>
                   <View style={styles.navRailLeft} pointerEvents="box-none">
                     <Pressable
                       accessibilityRole="button"
@@ -309,7 +306,7 @@ export default function WorldsScreen() {
           </View>
           <View style={styles.footerBtn}>
             <Button
-              label={lobbyMode === "private" ? "Start lobby" : "Proceed"}
+              label={"Proceed"}
               disabled={!canAct || entering}
               loading={entering}
               onPress={() => {
