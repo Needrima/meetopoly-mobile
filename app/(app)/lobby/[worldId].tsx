@@ -12,6 +12,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LobbyExpiryBanner } from '@/components/lobby/LobbyExpiryBanner';
 import { SeatSlot } from '@/components/lobby/SeatSlot';
 import { Button } from '@/components/ui/Button';
 import { useSession } from '@/hooks/useSession';
@@ -193,21 +194,8 @@ export default function LobbyScreen() {
         </View>
       ) : null}
 
-      {lobby.expiresLabel && !lobby.joining && !lobby.allReady ? (
-        <View style={styles.expiryBanner}>
-          <Text style={styles.expiryLabel}>Lobby closes in</Text>
-          <Text
-            style={[
-              styles.expiryValue,
-              lobby.expiresInSec != null && lobby.expiresInSec <= 60
-                ? styles.expiryUrgent
-                : null,
-            ]}
-            accessibilityLabel={`Lobby closes in ${lobby.expiresLabel}`}
-          >
-            {lobby.expiresLabel}
-          </Text>
-        </View>
+      {lobby.expiresAt && !lobby.allReady ? (
+        <LobbyExpiryBanner expiresAt={lobby.expiresAt} />
       ) : null}
 
       {lobby.private && lobby.inviteCode && !lobby.joining ? (
@@ -425,35 +413,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.danger,
-  },
-  expiryBanner: {
-    marginHorizontal: 16,
-    marginBottom: 4,
-    borderRadius: 10,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  expiryLabel: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.muted,
-  },
-  expiryValue: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 18,
-    letterSpacing: 1,
-    color: colors.ink,
-    fontVariant: ['tabular-nums'],
-  },
-  expiryUrgent: {
-    color: colors.warn,
   },
   expiredHint: {
     fontFamily: fonts.body,

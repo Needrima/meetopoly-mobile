@@ -244,26 +244,23 @@ export function useTableLobby({
   }, [worldId, token, localPlayerId, mode, inviteCode]);
 
   const expiresAtMs = parseExpiresAtMs(table?.expiresAt);
-  const needsTick =
-    Boolean(table) &&
-    !joining &&
-    !started &&
-    !expired &&
-    (Boolean(expiresAtMs) || Boolean(table?.seats.some((s) => s.holding)));
+  const anyHolding = Boolean(table?.seats.some((s) => s.holding));
 
+  // Hold countdowns only — lobby expiry ticks live in LobbyExpiryBanner.
   useEffect(() => {
-    if (!needsTick) {
+    if (!anyHolding || joining || started || expired) {
       return;
     }
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [needsTick]);
+  }, [anyHolding, joining, started, expired]);
 
   useEffect(() => {
     if (expired || started || joining || expiresAtMs == null) {
       return;
     }
-    if (expiresAtMs <= nowMs) {
+    const delay = Math.max(0, expiresAtMs - Date.now());
+    const id = setTimeout(() => {
       setExpired(true);
       setError('Lobby expired');
       intentionalLeave.current = false;
@@ -272,8 +269,9 @@ export function useTableLobby({
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
-    }
-  }, [expiresAtMs, nowMs, expired, started, joining]);
+    }, delay);
+    return () => clearTimeout(id);
+  }, [expiresAtMs, expired, started, joining]);
 
   const leave = () => {
     intentionalLeave.current = !expired;
@@ -349,10 +347,10 @@ export function useTableLobby({
     return Math.max(0, Math.ceil((holdEndsAt - nowMs) / 1000));
   };
 
-  const expiresInSec =
-    expiresAtMs == null || expired || started
-      ? null
-      : Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));
+  const expiresAt =
+    !expired && !started && !joining && typeof table?.expiresAt === 'string'
+      ? table.expiresAt
+      : null;
 
   return {
     tableId: table?.id ?? null,
@@ -374,9 +372,8 @@ export function useTableLobby({
     joining,
     error,
     expired,
-    expiresInSec,
-    expiresLabel:
-      expiresInSec == null ? null : formatLobbyCountdown(expiresInSec),
+    /** Server `expiresAt` for LobbyExpiryBanner (null when hidden). */
+    expiresAt,
     minSeats: LOBBY_MIN_SEATS,
     maxSeats: LOBBY_MAX_SEATS,
     holdMs: DISCONNECT_HOLD_MS,
