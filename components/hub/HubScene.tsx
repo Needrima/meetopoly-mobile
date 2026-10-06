@@ -16,6 +16,7 @@ type HubSceneProps = {
     radius: number;
     initials: string;
     accent: string;
+    imageUrl?: string | null;
   } | null;
   remotes: Omit<RemoteAvatarModel, 'boardSize' | 'radius'>[];
   remoteRadius: number;
@@ -48,6 +49,7 @@ export function HubScene({
           radius={remoteRadius}
           boardSize={width}
           boardHeight={height}
+          imageUrl={r.imageUrl}
         />
       ))}
       {local ? (
@@ -57,6 +59,7 @@ export function HubScene({
           radius={local.radius}
           initials={local.initials}
           accent={local.accent}
+          imageUrl={local.imageUrl}
           zIndex={20}
         />
       ) : null}

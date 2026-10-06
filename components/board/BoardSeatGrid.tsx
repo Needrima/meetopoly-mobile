@@ -116,6 +116,7 @@ export function BoardSeatGrid({
                 isLocal={isLocal}
                 resigned={p.resigned}
                 hubCode={hubBadgeCode(p.hubId, hubCodeById)}
+                imageUrl={p.avatarUrl}
                 stream={stream}
                 cameraOff={cameraOff}
                 mirror={isLocal}

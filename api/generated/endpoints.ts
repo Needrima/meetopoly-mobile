@@ -27,6 +27,7 @@ import type {
   PasswordResetStartResponse,
   PasswordResetVerifyRequest,
   PasswordResetVerifyResponse,
+  PatchMeRequest,
   RedeemRequest,
   SellBuildingRequest,
   SetPinColorRequest,
@@ -40,6 +41,7 @@ import type {
   Table,
   TradeAcceptBody,
   TradeProposeBody,
+  UploadAvatarBody,
   UserProfile,
   WorldsResponse
 } from './models';
@@ -357,6 +359,87 @@ export const getMe = async ( options?: RequestInit): Promise<UserProfile> => {
   {      
     ...options,
     method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * Phase 19.0 — change username (same rules as signup profile).
+ * @summary Update current user profile fields
+ */
+export const getPatchMeUrl = () => {
+
+
+  
+
+  return `/me`
+}
+
+export const patchMe = async (patchMeRequest: PatchMeRequest, options?: RequestInit): Promise<UserProfile> => {
+  
+  return apiMutator<UserProfile>(getPatchMeUrl(),
+  {      
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      patchMeRequest,)
+  }
+);}
+
+
+
+/**
+ * Phase 19.0 — multipart field `file` (JPEG/PNG/WebP, max 1 MiB).
+Stored in Supabase Storage; returns updated UserProfile with `avatarUrl`.
+
+ * @summary Upload profile avatar
+ */
+export const getUploadAvatarUrl = () => {
+
+
+  
+
+  return `/me/avatar`
+}
+
+export const uploadAvatar = async (uploadAvatarBody: UploadAvatarBody, options?: RequestInit): Promise<UserProfile> => {
+    const formData = new FormData();
+formData.append(`file`, uploadAvatarBody.file)
+
+  return apiMutator<UserProfile>(getUploadAvatarUrl(),
+  {      
+    ...options,
+    method: 'POST'
+    ,
+    body: 
+      formData,
+  }
+);}
+
+
+
+/**
+ * Phase 19.0 — clears `avatarUrl` and deletes the Storage object.
+ * @summary Remove profile avatar
+ */
+export const getDeleteAvatarUrl = () => {
+
+
+  
+
+  return `/me/avatar`
+}
+
+export const deleteAvatar = async ( options?: RequestInit): Promise<UserProfile> => {
+  
+  return apiMutator<UserProfile>(getDeleteAvatarUrl(),
+  {      
+    ...options,
+    method: 'DELETE'
     
     
   }

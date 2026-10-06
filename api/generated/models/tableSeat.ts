@@ -24,6 +24,11 @@ export interface TableSeat {
    * @pattern ^#[0-9A-Fa-f]{6}$
    */
   pinColor?: string | null;
+  /**
+   * Public profile photo URL from the user profile (Phase 19.0)
+   * @nullable
+   */
+  avatarUrl?: string | null;
   ready: boolean;
   holding: boolean;
   /** @nullable */

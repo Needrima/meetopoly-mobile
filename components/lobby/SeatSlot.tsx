@@ -1,5 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { AvatarPod } from '@/components/board/AvatarPod';
+import { usernameInitials } from '@/hooks/useBoardWalk';
 import { formatUsername } from '@/lib/formatUsername';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
@@ -11,6 +13,8 @@ export type SeatSlotProps = {
   displayName?: string | null;
   /** Unique seat accent from lobby. */
   pinColor?: string | null;
+  /** Profile photo URL (Phase 19.1). */
+  avatarUrl?: string | null;
   /** Highlight the local player's seat. */
   isYou?: boolean;
   ready?: boolean;
@@ -25,6 +29,7 @@ export function SeatSlot({
   seatNumber,
   displayName,
   pinColor,
+  avatarUrl = null,
   isYou = false,
   ready = false,
   holding = false,
@@ -34,6 +39,8 @@ export function SeatSlot({
   const occupied = Boolean(label);
   const numColor = occupied ? styles.seatNumFilled : styles.seatNumEmpty;
   const nameColor = occupied ? styles.nameFilled : styles.nameEmpty;
+  const accent = pinColor?.trim() || colors.brand;
+  const initials = usernameInitials(label || `S${seatNumber}`);
 
   return (
     <View
@@ -55,10 +62,17 @@ export function SeatSlot({
         holding ? styles.slotHolding : null,
       ]}
     >
+      {occupied ? (
+        <View style={styles.avatarWrap}>
+          <AvatarPod
+            initials={initials}
+            accent={accent}
+            radius={16}
+            imageUrl={avatarUrl}
+          />
+        </View>
+      ) : null}
       <View style={styles.nameRow}>
-        {occupied && pinColor ? (
-          <View style={[styles.pinDot, { backgroundColor: pinColor }]} />
-        ) : null}
         <Text style={[styles.seatNum, numColor]}>Seat {seatNumber}</Text>
       </View>
       <Text style={[styles.name, nameColor]} numberOfLines={1}>
@@ -83,7 +97,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: '30%',
     maxWidth: '32%',
-    minHeight: 76,
+    minHeight: 96,
     borderRadius: 12,
     borderWidth: 1,
     paddingVertical: 10,
@@ -110,15 +124,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     opacity: 0.92,
   },
+  avatarWrap: {
+    marginBottom: 2,
+  },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  pinDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
   },
   seatNum: {
     fontFamily: fonts.body,

@@ -19,6 +19,11 @@ export interface UserProfile {
    * @nullable
    */
   country?: string | null;
+  /**
+   * Public Supabase Storage URL when a profile photo is set (Phase 19.0)
+   * @nullable
+   */
+  avatarUrl?: string | null;
   emailVerified: boolean;
   /** True when username and country are set */
   profileComplete: boolean;

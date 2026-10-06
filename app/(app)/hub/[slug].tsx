@@ -251,9 +251,21 @@ export default function HubScreen() {
 
   const remotes = useMemo(() => {
     const colorByUser = new Map<string, string>();
+    const avatarByUser = new Map<string, string>();
     for (const p of game?.players ?? []) {
       if (p.pinColor) {
         colorByUser.set(p.userId, p.pinColor);
+      }
+      const url = typeof p.avatarUrl === "string" ? p.avatarUrl.trim() : "";
+      if (url) {
+        avatarByUser.set(p.userId, url);
+      }
+    }
+    for (const entry of presence.roster) {
+      const url =
+        typeof entry.avatarUrl === "string" ? entry.avatarUrl.trim() : "";
+      if (url && !avatarByUser.has(entry.userId)) {
+        avatarByUser.set(entry.userId, url);
       }
     }
     return Object.values(presence.remotes).map((pose) => {
@@ -261,9 +273,10 @@ export default function HubScreen() {
       return {
         pose,
         accent: accentAgainstFloor(preferred, floorColor, pose.userId),
+        imageUrl: avatarByUser.get(pose.userId) ?? null,
       };
     });
-  }, [presence.remotes, game?.players, floorColor]);
+  }, [presence.remotes, presence.roster, game?.players, floorColor]);
 
   const localAccent = useMemo(() => {
     const preferred = localPlayer?.pinColor?.trim() || walk.accent;
@@ -277,6 +290,7 @@ export default function HubScreen() {
   const rosterRows = useMemo((): HubRosterRow[] => {
     const pinByUser = new Map<string, string>();
     const countryByUser = new Map<string, string>();
+    const avatarByUser = new Map<string, string>();
     for (const p of game?.players ?? []) {
       if (p.pinColor) {
         pinByUser.set(p.userId, p.pinColor);
@@ -284,12 +298,28 @@ export default function HubScreen() {
       if (typeof p.country === "string" && p.country.trim()) {
         countryByUser.set(p.userId, p.country.trim().toUpperCase());
       }
+      const url = typeof p.avatarUrl === "string" ? p.avatarUrl.trim() : "";
+      if (url) {
+        avatarByUser.set(p.userId, url);
+      }
+    }
+    for (const entry of presence.roster) {
+      const url =
+        typeof entry.avatarUrl === "string" ? entry.avatarUrl.trim() : "";
+      if (url) {
+        avatarByUser.set(entry.userId, url);
+      }
     }
     const localCountry =
       (typeof localPlayer?.country === "string" &&
         localPlayer.country.trim().toUpperCase()) ||
       (typeof me.data?.country === "string" &&
         me.data.country.trim().toUpperCase()) ||
+      "";
+    const localAvatar =
+      (typeof me.data?.avatarUrl === "string" && me.data.avatarUrl.trim()) ||
+      (typeof localPlayer?.avatarUrl === "string" &&
+        localPlayer.avatarUrl.trim()) ||
       "";
 
     const byId = new Map<string, HubRosterRow>();
@@ -310,6 +340,7 @@ export default function HubScreen() {
         country,
         accent: accentAgainstFloor(preferred, floorColor, entry.userId),
         isLocal: Boolean(localUserId && entry.userId === localUserId),
+        avatarUrl: avatarByUser.get(entry.userId),
       });
     }
 
@@ -321,6 +352,7 @@ export default function HubScreen() {
         country: existing?.country || localCountry || undefined,
         accent: localAccent,
         isLocal: true,
+        avatarUrl: localAvatar || existing?.avatarUrl,
       });
     }
 
@@ -340,7 +372,9 @@ export default function HubScreen() {
     game?.players,
     localUserId,
     localPlayer?.country,
+    localPlayer?.avatarUrl,
     me.data?.country,
+    me.data?.avatarUrl,
     username,
     localAccent,
     floorColor,
@@ -731,6 +765,12 @@ export default function HubScreen() {
                   radius: walk.avatarRadius,
                   initials: walk.initials,
                   accent: localAccent,
+                  imageUrl:
+                    (typeof me.data?.avatarUrl === "string" &&
+                      me.data.avatarUrl.trim()) ||
+                    (typeof localPlayer?.avatarUrl === "string" &&
+                      localPlayer.avatarUrl.trim()) ||
+                    null,
                 }}
                 remotes={remotes}
                 remoteRadius={walk.avatarRadius}

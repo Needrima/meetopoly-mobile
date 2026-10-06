@@ -38,6 +38,10 @@ After 2, the player auto-resigns (forfeit).
 not stored on the game document).
  */
   country?: string;
+  /** Phase 19.0 — public profile photo URL from the user profile (enriched on read;
+not stored on the game document).
+ */
+  avatarUrl?: string;
   /**
    * Phase 8.2 — set while the player is inside a location hub
 (e.g. `hub:africa-1:lagos`); null/omitted when on the board.

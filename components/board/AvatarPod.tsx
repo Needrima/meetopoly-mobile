@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { fonts } from '@/theme/fonts';
 
@@ -7,21 +7,26 @@ type AvatarPodProps = {
   accent: string;
   /** Face radius in px (board uses ~radius * 1.55 for face). */
   radius?: number;
+  /** Public profile photo — circular face; border uses accent (Phase 19.1). */
+  imageUrl?: string | null;
 };
 
 /**
- * Static board-style avatar (pod + initial callout) for overlays / sheets.
+ * Static board-style avatar (pod + face callout) for overlays / sheets.
  * Matches `BoardAvatar` look without Reanimated pose.
  */
 export function AvatarPod({
   initials,
   accent,
   radius = 18,
+  imageUrl = null,
 }: AvatarPodProps) {
   const podW = radius * 1.7;
   const podH = radius * 0.85;
   const face = radius * 1.55;
   const ink = inkForAccent(accent);
+  const photo = typeof imageUrl === 'string' ? imageUrl.trim() : '';
+  const faceBorder = photo ? accent : ink;
 
   return (
     <View
@@ -37,19 +42,31 @@ export function AvatarPod({
             height: face,
             borderRadius: face / 2,
             backgroundColor: accent,
-            borderColor: ink,
+            borderColor: faceBorder,
             marginBottom: -face * 0.12,
           },
         ]}
       >
-        <Text
-          style={[
-            styles.initials,
-            { color: ink, fontSize: Math.max(9, face * 0.38) },
-          ]}
-        >
-          {initials}
-        </Text>
+        {photo ? (
+          <Image
+            source={{ uri: photo }}
+            style={{
+              width: face,
+              height: face,
+              borderRadius: face / 2,
+            }}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text
+            style={[
+              styles.initials,
+              { color: ink, fontSize: Math.max(9, face * 0.38) },
+            ]}
+          >
+            {initials}
+          </Text>
+        )}
       </View>
       <View
         style={[
@@ -88,6 +105,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   initials: {
     fontFamily: fonts.bodySemiBold,

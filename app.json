@@ -15,7 +15,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "Meetopoly uses your location for nearby players and place-based features.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Meetopoly uses your location for nearby players and place-based features.",
-        "NSLocationAlwaysUsageDescription": "Meetopoly uses your location for nearby players and place-based features."
+        "NSLocationAlwaysUsageDescription": "Meetopoly uses your location for nearby players and place-based features.",
+        "NSPhotoLibraryUsageDescription": "Meetopoly uses your photos so you can set a profile avatar."
       },
       "bitcode": false
     },
@@ -40,7 +41,8 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.READ_MEDIA_IMAGES"
       ]
     },
     "web": {
@@ -70,6 +72,12 @@
         "expo-local-authentication",
         {
           "faceIDPermission": "Meetopoly uses biometrics to verify your identity when you sign in."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Meetopoly uses your photos so you can set a profile avatar."
         }
       ]
     ],

@@ -80,7 +80,12 @@ export function PlayerInfoModal({
       <View style={styles.center} pointerEvents="box-none">
         <View style={styles.sheet}>
           <View style={styles.avatarWrap}>
-            <AvatarPod initials={initials} accent={pin} radius={28} />
+            <AvatarPod
+              initials={initials}
+              accent={pin}
+              radius={28}
+              imageUrl={player.avatarUrl}
+            />
           </View>
           <Text style={styles.name} numberOfLines={1}>
             {isLocal ? "You" : name}

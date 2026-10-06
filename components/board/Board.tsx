@@ -45,6 +45,7 @@ type BoardProps = {
     radius: number;
     initials: string;
     accent: string;
+    imageUrl?: string | null;
   } | null;
   /** Phase 7.2 — other players' presence avatars (pins stay from game WS). */
   remotes?: Omit<RemoteAvatarModel, "boardSize" | "radius">[];
@@ -170,6 +171,7 @@ const BoardRemotesLayer = memo(function BoardRemotesLayer({
           accent={r.accent}
           radius={radius}
           boardSize={boardSize}
+          imageUrl={r.imageUrl}
         />
       ))}
     </>
@@ -228,6 +230,7 @@ export function Board({
           radius={avatar.radius}
           initials={avatar.initials}
           accent={avatar.accent}
+          imageUrl={avatar.imageUrl}
         />
       ) : null}
       {deckDrawFly && onDeckDrawFlyComplete ? (

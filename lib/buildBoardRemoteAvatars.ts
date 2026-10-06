@@ -6,6 +6,7 @@ import { PRESENCE_POSE_TYPE, type PresencePose } from "@/lib/presencePose";
 export type BoardRemoteDraw = {
   pose: PresencePose;
   accent: string;
+  imageUrl?: string | null;
 };
 
 type BuildOpts = {
@@ -49,11 +50,16 @@ export function buildBoardRemoteAvatars({
   );
 
   const colorByUser = new Map<string, string>();
+  const avatarByUser = new Map<string, string>();
   const resigned = new Set<string>();
   const inHub = new Set<string>();
   for (const p of players) {
     if (p.pinColor) {
       colorByUser.set(p.userId, p.pinColor);
+    }
+    const url = typeof p.avatarUrl === 'string' ? p.avatarUrl.trim() : '';
+    if (url) {
+      avatarByUser.set(p.userId, url);
     }
     if (p.resigned) {
       resigned.add(p.userId);
@@ -79,6 +85,7 @@ export function buildBoardRemoteAvatars({
     byUser.set(pose.userId, {
       pose,
       accent: colorByUser.get(pose.userId) ?? fallbackAccent,
+      imageUrl: avatarByUser.get(pose.userId) ?? null,
     });
   }
 
@@ -107,6 +114,7 @@ export function buildBoardRemoteAvatars({
         y: (tile.y + tile.height / 2) / size,
       },
       accent: colorByUser.get(p.userId) ?? fallbackAccent,
+      imageUrl: avatarByUser.get(p.userId) ?? null,
     });
   }
 

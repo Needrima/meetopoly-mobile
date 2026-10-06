@@ -45,6 +45,8 @@ export type BoardSeatTileProps = {
   isLocal: boolean;
   resigned?: boolean;
   hubCode?: string;
+  /** Profile photo URL (Phase 19.1). */
+  imageUrl?: string | null;
   /** Show live video when stream present and camera not off. */
   stream: PresenceMediaStream | null;
   cameraOff: boolean;
@@ -79,6 +81,7 @@ export function BoardSeatTile({
   isLocal,
   resigned = false,
   hubCode = "",
+  imageUrl = null,
   stream,
   cameraOff,
   mirror = false,
@@ -220,7 +223,12 @@ export function BoardSeatTile({
           </View>
         ) : (
           <View style={styles.placeholder}>
-            <AvatarPod initials={initials} accent={pinColor} radius={22} />
+            <AvatarPod
+              initials={initials}
+              accent={pinColor}
+              radius={22}
+              imageUrl={imageUrl}
+            />
           </View>
         )}
       </View>

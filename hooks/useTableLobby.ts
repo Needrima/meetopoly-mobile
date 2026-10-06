@@ -19,6 +19,8 @@ export type LobbySeat = {
   displayName: string | null;
   /** Unique seat accent from lobby join. */
   pinColor: string | null;
+  /** Public profile photo URL (Phase 19.1). */
+  avatarUrl: string | null;
   ready: boolean;
   isBot: boolean;
   isLocal: boolean;
@@ -34,11 +36,16 @@ type TableEvent = {
 
 function seatFromApi(s: TableSeat, localPlayerId: string): LobbySeat {
   const holdEndsAt = s.holdEndsAt ? Date.parse(s.holdEndsAt) : null;
+  const avatar =
+    typeof s.avatarUrl === 'string' && s.avatarUrl.trim()
+      ? s.avatarUrl.trim()
+      : null;
   return {
     seatIndex: s.seatIndex,
     playerId: s.userId ?? null,
     displayName: s.username ?? null,
     pinColor: s.pinColor ?? null,
+    avatarUrl: avatar,
     ready: s.ready,
     isBot: false,
     isLocal: Boolean(s.userId && s.userId === localPlayerId),
@@ -54,6 +61,7 @@ function seatsFromTable(table: Table | null, localPlayerId: string): LobbySeat[]
       playerId: null,
       displayName: null,
       pinColor: null,
+      avatarUrl: null,
       ready: false,
       isBot: false,
       isLocal: false,

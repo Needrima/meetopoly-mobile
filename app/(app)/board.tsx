@@ -1135,6 +1135,14 @@ export default function BoardScreen() {
                 radius: walk.avatarRadius,
                 initials: walk.initials,
                 accent: displayAccent,
+                imageUrl:
+                  (typeof me.data?.avatarUrl === "string" &&
+                    me.data.avatarUrl.trim()) ||
+                  (typeof user?.avatarUrl === "string" &&
+                    user.avatarUrl.trim()) ||
+                  (typeof localGamePlayer?.avatarUrl === "string" &&
+                    localGamePlayer.avatarUrl.trim()) ||
+                  null,
               }}
               remotes={remoteAvatars}
               pins={boardPins}

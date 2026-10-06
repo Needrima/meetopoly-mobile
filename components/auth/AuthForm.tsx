@@ -65,6 +65,8 @@ export function AuthScreen({
 type AuthFieldProps = {
   placeholder: string;
   onChangeText: (value: string) => void;
+  /** Controlled value (Settings / Formik reinitialize). Prefer over defaultValue when set. */
+  value?: string;
   defaultValue?: string;
   secureTextEntry?: boolean;
   keyboardType?: TextInputProps['keyboardType'];
@@ -79,6 +81,7 @@ type AuthFieldProps = {
 export function AuthField({
   placeholder,
   onChangeText,
+  value,
   defaultValue,
   secureTextEntry = false,
   keyboardType = 'default',
@@ -118,7 +121,9 @@ export function AuthField({
       <TextInput
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
-        defaultValue={defaultValue}
+        {...(value !== undefined
+          ? { value }
+          : { defaultValue })}
         onChangeText={onChangeText}
         secureTextEntry={isSecure}
         keyboardType={keyboardType}

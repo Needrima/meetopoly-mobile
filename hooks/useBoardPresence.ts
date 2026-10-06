@@ -68,13 +68,15 @@ type PresencePeer = {
   userId: string;
   username: string;
   country?: string;
+  avatarUrl?: string;
 };
 
-/** Hub/board presence roster row (Phase 9.0a). */
+/** Hub/board presence roster row (Phase 9.0a + 19.1 avatar). */
 export type PresenceRosterEntry = {
   userId: string;
   username: string;
   country?: string;
+  avatarUrl?: string;
 };
 
 type WelcomeMessage = {
@@ -83,6 +85,7 @@ type WelcomeMessage = {
   userId: string;
   username: string;
   country?: string;
+  avatarUrl?: string;
   peers?: PresencePeer[];
   iceServers?: { urls: string | string[] }[];
 };
@@ -92,6 +95,7 @@ type PeerJoinedMessage = {
   userId: string;
   username: string;
   country?: string;
+  avatarUrl?: string;
 };
 
 type PeerLeftMessage = {
@@ -1396,10 +1400,15 @@ function usePresenceChannel({
                 ? welcome.country.trim().toUpperCase()
                 : "";
             if (welcome.userId) {
+              const localAvatar =
+                typeof welcome.avatarUrl === "string"
+                  ? welcome.avatarUrl.trim()
+                  : "";
               nextRoster[welcome.userId] = {
                 userId: welcome.userId,
                 username: welcome.username || "Player",
                 ...(localCountry ? { country: localCountry } : {}),
+                ...(localAvatar ? { avatarUrl: localAvatar } : {}),
               };
             }
             for (const peer of welcome.peers ?? []) {
@@ -1410,10 +1419,15 @@ function usePresenceChannel({
                 typeof peer.country === "string"
                   ? peer.country.trim().toUpperCase()
                   : "";
+              const peerAvatar =
+                typeof peer.avatarUrl === "string"
+                  ? peer.avatarUrl.trim()
+                  : "";
               nextRoster[peer.userId] = {
                 userId: peer.userId,
                 username: peer.username || "Player",
                 ...(peerCountry ? { country: peerCountry } : {}),
+                ...(peerAvatar ? { avatarUrl: peerAvatar } : {}),
               };
             }
             setRosterMap(nextRoster);
@@ -1508,6 +1522,8 @@ function usePresenceChannel({
             typeof peer.country === "string"
               ? peer.country.trim().toUpperCase()
               : "";
+          const peerAvatar =
+            typeof peer.avatarUrl === "string" ? peer.avatarUrl.trim() : "";
           if (peer.userId) {
             setRosterMap((prev) => ({
               ...prev,
@@ -1515,6 +1531,7 @@ function usePresenceChannel({
                 userId: peer.userId,
                 username: peer.username || "Player",
                 ...(peerCountry ? { country: peerCountry } : {}),
+                ...(peerAvatar ? { avatarUrl: peerAvatar } : {}),
               },
             }));
           }

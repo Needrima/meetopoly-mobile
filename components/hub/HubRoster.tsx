@@ -73,6 +73,7 @@ export function HubRoster({
                 initials={initials}
                 accent={item.accent}
                 radius={AVATAR_RADIUS}
+                imageUrl={item.avatarUrl}
               />
             </View>
             <Text

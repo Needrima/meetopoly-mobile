@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   type SharedValue,
@@ -12,12 +12,14 @@ type BoardAvatarProps = {
   radius: number;
   initials: string;
   accent: string;
+  /** Public profile photo — circular face; border uses accent (Phase 19.1). */
+  imageUrl?: string | null;
   /** Local avatar sits above remotes (default 20). */
   zIndex?: number;
 };
 
 /**
- * Walking avatar: pod + initial callout.
+ * Walking avatar: pod + face callout.
  * Position via Reanimated shared values (UI thread; no React re-render per frame).
  */
 export function BoardAvatar({
@@ -26,12 +28,15 @@ export function BoardAvatar({
   radius,
   initials,
   accent,
+  imageUrl = null,
   zIndex = 20,
 }: BoardAvatarProps) {
   const podW = radius * 1.7;
   const podH = radius * 0.85;
   const face = radius * 1.55;
   const ink = inkForAccent(accent);
+  const photo = typeof imageUrl === 'string' ? imageUrl.trim() : '';
+  const faceBorder = photo ? accent : ink;
   const rootH = podH + face * 0.7;
   const offsetY = podH / 2 + face * 0.55;
 
@@ -62,19 +67,31 @@ export function BoardAvatar({
             height: face,
             borderRadius: face / 2,
             backgroundColor: accent,
-            borderColor: ink,
+            borderColor: faceBorder,
             marginBottom: -face * 0.12,
           },
         ]}
       >
-        <Text
-          style={[
-            styles.initials,
-            { color: ink, fontSize: Math.max(9, face * 0.38) },
-          ]}
-        >
-          {initials}
-        </Text>
+        {photo ? (
+          <Image
+            source={{ uri: photo }}
+            style={{
+              width: face,
+              height: face,
+              borderRadius: face / 2,
+            }}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text
+            style={[
+              styles.initials,
+              { color: ink, fontSize: Math.max(9, face * 0.38) },
+            ]}
+          >
+            {initials}
+          </Text>
+        )}
       </View>
       <View
         style={[
@@ -114,6 +131,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   initials: {
     fontFamily: fonts.bodySemiBold,

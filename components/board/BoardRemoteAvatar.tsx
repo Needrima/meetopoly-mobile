@@ -14,6 +14,8 @@ export type RemoteAvatarModel = {
   boardSize: number;
   /** Pixel height when the surface is not square (hub rail). */
   boardHeight?: number;
+  /** Profile photo URL when set (Phase 19.1). */
+  imageUrl?: string | null;
 };
 
 /**
@@ -26,6 +28,7 @@ export const BoardRemoteAvatar = memo(function BoardRemoteAvatar({
   radius,
   boardSize,
   boardHeight,
+  imageUrl = null,
 }: RemoteAvatarModel) {
   const h = boardHeight ?? boardSize;
   const { poseX, poseY } = useInterpolatedBoardPose(
@@ -43,6 +46,7 @@ export const BoardRemoteAvatar = memo(function BoardRemoteAvatar({
       radius={radius}
       initials={initials}
       accent={accent}
+      imageUrl={imageUrl}
       zIndex={18}
     />
   );
@@ -57,6 +61,7 @@ function posePropsEqual(
     prev.radius === next.radius &&
     prev.boardSize === next.boardSize &&
     prev.boardHeight === next.boardHeight &&
+    (prev.imageUrl ?? '') === (next.imageUrl ?? '') &&
     prev.pose.userId === next.pose.userId &&
     prev.pose.x === next.pose.x &&
     prev.pose.y === next.pose.y &&
