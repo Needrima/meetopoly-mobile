@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { useWorlds } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
 import { useTableLobby } from '@/hooks/useTableLobby';
+import { formatWorldLabel } from '@/lib/worldDisplay';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -29,7 +31,6 @@ export default function LobbyScreen() {
 
   const { user } = useSession();
   const { data } = useWorlds();
-  const world = data?.worlds.find((w) => w.worldId === worldId) ?? null;
 
   const localPlayerId = user?.id ?? '';
 
@@ -71,6 +72,13 @@ export default function LobbyScreen() {
     );
   }
 
+  const worldLabel = formatWorldLabel(worldId);
+  const subtitleParts = [worldLabel];
+  if (lobby.tableId) {
+    subtitleParts.push(lobby.tableId.slice(0, 6));
+  }
+  const headerSubtitle = subtitleParts.join(' · ');
+
   const statusLine = lobby.joining
     ? 'Joining matchmaking…'
     : lobby.localHolding
@@ -92,44 +100,23 @@ export default function LobbyScreen() {
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Leave lobby"
           onPress={leave}
-          style={({ pressed }) => [styles.back, pressed ? styles.pressed : null]}
-        >
-          <Text style={styles.backLabel}>Leave</Text>
-        </Pressable>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Lobby</Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {world
-              ? `${world.worldId} · ${world.count} spaces`
-              : worldId}
-            {lobby.tableId ? ` · ${lobby.tableId.slice(0, 6)}` : ''}
-          </Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{
-            disabled: !lobby.canToggleReady,
-            selected: lobby.localReady,
-          }}
-          disabled={!lobby.canToggleReady}
-          onPress={lobby.toggleReady}
+          hitSlop={8}
           style={({ pressed }) => [
-            styles.readyHeaderBtn,
-            lobby.localReady ? styles.readyHeaderBtnOn : null,
-            !lobby.canToggleReady ? styles.readyDisabled : null,
-            pressed && lobby.canToggleReady ? styles.pressed : null,
+            styles.backBtn,
+            pressed ? styles.pressed : null,
           ]}
         >
-          <Text
-            style={[
-              styles.readyHeaderLabel,
-              lobby.localReady ? styles.readyHeaderLabelOn : null,
-            ]}
-          >
-            {readyLabel}
-          </Text>
+          <Ionicons name="arrow-back" size={22} color={colors.brand} />
         </Pressable>
+        <View style={styles.headerCenter} pointerEvents="none">
+          <Text style={styles.title}>Lobby</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {headerSubtitle}
+          </Text>
+        </View>
+        <View style={styles.headerSpacer} />
       </View>
 
       {lobby.error ? (
@@ -175,11 +162,6 @@ export default function LobbyScreen() {
             />
           ))}
         </View>
-        {!lobby.joining && lobby.waitingForPlayers ? (
-          <Text style={styles.waitNote}>
-            Real matchmaking — another player must join this World to Ready.
-          </Text>
-        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -201,57 +183,42 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    borderBottomColor: colors.border,
   },
-  back: {
+  backBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
-  backLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.ink,
+  headerSpacer: {
+    width: 40,
+    height: 40,
   },
-  headerText: {
+  headerCenter: {
     flex: 1,
+    alignItems: 'center',
     minWidth: 0,
   },
   title: {
     fontFamily: fonts.displayBold,
     fontSize: 24,
     color: colors.brand,
+    textAlign: 'center',
   },
   subtitle: {
     marginTop: 2,
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.muted,
-  },
-  readyHeaderBtn: {
-    borderRadius: 10,
-    backgroundColor: colors.brand,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-  },
-  readyHeaderBtnOn: {
-    backgroundColor: colors.accent,
-  },
-  readyHeaderLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    color: colors.onBrand,
-  },
-  readyHeaderLabelOn: {
-    color: colors.onAccent,
-  },
-  readyDisabled: {
-    opacity: 0.45,
+    textAlign: 'center',
   },
   banner: {
     marginHorizontal: 16,
@@ -302,13 +269,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.muted,
   },
-  waitNote: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.muted,
-    textAlign: 'center',
-    marginTop: 8,
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -316,11 +276,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   footer: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: colors.surface,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
   },
   center: {
     flex: 1,
@@ -335,6 +292,6 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
   pressed: {
-    opacity: 0.8,
+    opacity: 0.85,
   },
 });
