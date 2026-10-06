@@ -1619,7 +1619,7 @@ function usePresenceChannel({
             notify({
               type: "error",
               title: "Hub full",
-              message: "This hub already has 16 players",
+              message: "This hub already has 10 players",
               visibilityTime: 3600,
             });
             stopFatal("error");

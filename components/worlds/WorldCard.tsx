@@ -22,12 +22,17 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { WorldSummary } from '@/api/types';
+import { WorldFloatingIcons } from '@/components/worlds/WorldFloatingIcons';
 import { formatWorldLabel, formatWorldLabelLines, resolveWorldImage } from '@/lib/worldDisplay';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
-/** Scale past cover so both axes always have pan room. */
-const COVER_BLEED = 1.12;
+/** Scale past cover so both axes always have pan room (avoids edge gaps). */
+const COVER_BLEED = 1.22;
+/** Keep a few px of image past every edge during Ken Burns / pan. */
+const EDGE_INSET = 4;
+/** Dark fill so any subpixel gap never flashes cream. */
+const MAP_VOID = '#14201B';
 
 function hashSeed(input: string): number {
   let h = 2166136261;
@@ -110,13 +115,18 @@ export function WorldCard({
       Math.max(box.w / intrinsic.width, box.h / intrinsic.height) * COVER_BLEED;
     const width = intrinsic.width * scale;
     const height = intrinsic.height * scale;
+    // Strict cover range, then pull inward so drift never exposes the void.
+    const rawMinX = box.w - width;
+    const rawMinY = box.h - height;
+    const insetX = Math.min(EDGE_INSET, Math.max(0, (width - box.w) / 2));
+    const insetY = Math.min(EDGE_INSET, Math.max(0, (height - box.h) / 2));
     return {
       width,
       height,
-      minX: box.w - width,
-      maxX: 0,
-      minY: box.h - height,
-      maxY: 0,
+      minX: rawMinX + insetX,
+      maxX: -insetX,
+      minY: rawMinY + insetY,
+      maxY: -insetY,
     };
   }, [intrinsic, box.w, box.h]);
 
@@ -264,9 +274,13 @@ export function WorldCard({
 
   const gesture = Gesture.Simultaneous(pan, tap);
 
-  const imageStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: tx.value }, { translateY: ty.value }],
-  }));
+  const imageStyle = useAnimatedStyle(() => {
+    const x = Math.min(maxX.value, Math.max(minX.value, tx.value));
+    const y = Math.min(maxY.value, Math.max(minY.value, ty.value));
+    return {
+      transform: [{ translateX: x }, { translateY: y }],
+    };
+  });
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -285,9 +299,8 @@ export function WorldCard({
         accessibilityLabel={label}
         accessibilityState={{ selected }}
         style={[styles.card, selected ? styles.cardSelected : null, style]}
-        onLayout={onLayout}
       >
-        <View style={styles.clip}>
+        <View style={styles.clip} onLayout={onLayout}>
           {image && scaled ? (
             <Animated.Image
               source={image}
@@ -301,6 +314,11 @@ export function WorldCard({
           ) : (
             <View style={[styles.cardImageFill, styles.cardFallback]} />
           )}
+          <WorldFloatingIcons
+            worldId={world.worldId}
+            width={box.w}
+            height={box.h}
+          />
           <View style={styles.labelWrap} pointerEvents="none">
             {labelLines.map((line) => (
               <Text key={line} style={styles.cardLabel}>
@@ -320,18 +338,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: colors.surface,
+    backgroundColor: MAP_VOID,
     borderWidth: 1,
     borderColor: colors.border,
   },
   cardSelected: {
     borderWidth: 3,
-    borderColor: colors.accent,
+    borderColor: colors.brand,
   },
   clip: {
     flex: 1,
     overflow: 'hidden',
     borderRadius: 13,
+    backgroundColor: MAP_VOID,
   },
   cardImage: {
     position: 'absolute',
@@ -342,7 +361,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
   },
   cardFallback: {
-    backgroundColor: colors.brandMuted,
+    backgroundColor: MAP_VOID,
   },
   labelWrap: {
     ...StyleSheet.absoluteFill,
@@ -357,8 +376,8 @@ const styles = StyleSheet.create({
     lineHeight: 48,
     color: colors.onBrand,
     textAlign: 'center',
-    textShadowColor: 'rgba(20, 32, 27, 0.65)',
+    textShadowColor: 'rgba(20, 32, 27, 0.75)',
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    textShadowRadius: 10,
   },
 });

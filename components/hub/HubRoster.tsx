@@ -38,7 +38,7 @@ const AVATAR_RADIUS = 22;
  */
 export function HubRoster({
   rows,
-  maxPeers = 16,
+  maxPeers = 10,
   locationName,
   statusSlot,
   headerRight,
