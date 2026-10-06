@@ -397,6 +397,26 @@ export default function HubScreen() {
     return map;
   }, [rosterRows, remotes, localUserId, localAccent]);
 
+  /** Profile photos for hub chat bubbles (Phase 19.1). */
+  const chatAvatarByUserId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of rosterRows) {
+      const url =
+        typeof row.avatarUrl === "string" ? row.avatarUrl.trim() : "";
+      if (url) {
+        map[row.userId] = url;
+      }
+    }
+    for (const remote of remotes) {
+      const url =
+        typeof remote.imageUrl === "string" ? remote.imageUrl.trim() : "";
+      if (url && !map[remote.pose.userId]) {
+        map[remote.pose.userId] = url;
+      }
+    }
+    return map;
+  }, [rosterRows, remotes]);
+
   const bankLabel =
     localUserId && turnClock?.userId === localUserId ? turnClock.label : "";
   const canRoll = Boolean(isMyTurn && game?.canRoll);
@@ -719,6 +739,7 @@ export default function HubScreen() {
             messages={presence.chatMessages}
             localUserId={localUserId}
             accentByUserId={chatAccentByUserId}
+            avatarUrlByUserId={chatAvatarByUserId}
             locationName={hubDisplayName}
             dcOpen={presence.dcOpen}
             onSend={presence.sendChat}

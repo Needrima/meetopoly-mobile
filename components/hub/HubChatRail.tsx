@@ -9,6 +9,8 @@ import {
 import { AntDesign } from "@expo/vector-icons";
 import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 
+import { AvatarPod } from "@/components/board/AvatarPod";
+import { usernameInitials } from "@/hooks/useBoardWalk";
 import type { HubChatMessage } from "@/lib/hubChat";
 import { MAX_HUB_CHAT_RUNES } from "@/lib/hubChat";
 import { formatUsername } from "@/lib/formatUsername";
@@ -20,21 +22,26 @@ type HubChatRailProps = {
   localUserId: string | null;
   /** Avatar/pin accent per userId — fills bubble background. */
   accentByUserId?: Record<string, string>;
+  /** Profile photo URL per userId (Phase 19.1). */
+  avatarUrlByUserId?: Record<string, string>;
   /** Location display name for empty-state copy. */
   locationName?: string;
   dcOpen: boolean;
   onSend: (text: string) => boolean;
 };
 
+const CHAT_AVATAR_RADIUS = 11;
+
 /**
  * Phase 17.1 — left-rail ephemeral hub chat (FlashList + fixed composer).
  * FlashList v2: chronological data + startRenderingFromBottom (no `inverted`).
- * Bubbles use each player's avatar accent + white text.
+ * Bubbles use each player's avatar accent + white text; AvatarPod beside bubble.
  */
 export function HubChatRail({
   messages,
   localUserId,
   accentByUserId,
+  avatarUrlByUserId,
   locationName,
   dcOpen,
   onSend,
@@ -56,15 +63,24 @@ export function HubChatRail({
   const renderItem = useCallback<ListRenderItem<HubChatMessage>>(
     ({ item }) => {
       const mine = Boolean(localUserId) && item.userId === localUserId;
-      const who = mine
-        ? "You"
-        : formatUsername(item.username) || "Player";
+      const displayName = formatUsername(item.username) || "Player";
+      const who = mine ? "You" : displayName;
       const fill = accentByUserId?.[item.userId]?.trim() || colors.muted;
-      return (
+      const photo = avatarUrlByUserId?.[item.userId]?.trim() || null;
+      const avatar = (
+        <View style={styles.avatarSlot}>
+          <AvatarPod
+            initials={usernameInitials(displayName)}
+            accent={fill}
+            radius={CHAT_AVATAR_RADIUS}
+            imageUrl={photo}
+          />
+        </View>
+      );
+      const bubble = (
         <View
           style={[
             styles.bubble,
-            mine ? styles.bubbleMine : null,
             { backgroundColor: fill, borderColor: fill },
           ]}
         >
@@ -74,9 +90,28 @@ export function HubChatRail({
           <Text style={styles.body}>{item.text}</Text>
         </View>
       );
+      return (
+        <View
+          style={[styles.row, mine ? styles.rowMine : styles.rowOther]}
+        >
+          {mine ? (
+            <>
+              {bubble}
+              {avatar}
+            </>
+          ) : (
+            <>
+              {avatar}
+              {bubble}
+            </>
+          )}
+        </View>
+      );
     },
-    [accentByUserId, localUserId],
+    [accentByUserId, avatarUrlByUserId, localUserId],
   );
+
+  const listExtra = { accentByUserId, avatarUrlByUserId };
 
   return (
     <View style={styles.root}>
@@ -92,7 +127,7 @@ export function HubChatRail({
           ) : (
             <FlashList
               data={messages}
-              extraData={accentByUserId}
+              extraData={listExtra}
               keyExtractor={(item, index) =>
                 `${item.userId}:${item.t}:${index}`
               }
@@ -169,17 +204,32 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "500",
   },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 6,
+    marginBottom: 6,
+    maxWidth: "100%",
+  },
+  rowOther: {
+    alignSelf: "stretch",
+    justifyContent: "flex-start",
+  },
+  rowMine: {
+    alignSelf: "stretch",
+    justifyContent: "flex-end",
+  },
+  avatarSlot: {
+    flexShrink: 0,
+    marginBottom: 2,
+  },
   bubble: {
-    alignSelf: "flex-start",
-    maxWidth: "94%",
+    flexShrink: 1,
+    maxWidth: "78%",
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 5,
-    marginBottom: 6,
-  },
-  bubbleMine: {
-    alignSelf: "flex-end",
   },
   who: {
     fontFamily: fonts.bodySemiBold,
