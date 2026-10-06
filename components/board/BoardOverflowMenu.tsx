@@ -25,7 +25,7 @@ const DRAWER_WIDTH = 300;
 
 /**
  * Board ⋯ right drawer (absolute overlay, not RN Modal).
- * Leave board / Health / Locations — Log out lives on the home menu only.
+ * Leave game / Health / Locations — Log out lives on the home menu only.
  */
 export function BoardOverflowMenu({
   visible,
@@ -59,7 +59,7 @@ export function BoardOverflowMenu({
     },
     {
       key: 'leave',
-      label: 'Leave board',
+      label: 'Leave game',
       danger: true,
       onPress: () => {
         onClose();

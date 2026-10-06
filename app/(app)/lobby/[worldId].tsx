@@ -129,9 +129,11 @@ export default function LobbyScreen() {
   const headerSubtitle = subtitleParts.join(' · ');
 
   const statusLine = lobby.joining
-    ? lobby.private
-      ? 'Opening private lobby…'
-      : 'Joining matchmaking…'
+    ? mode === 'code'
+      ? 'Joining with invite…'
+      : lobby.private
+        ? 'Opening private lobby…'
+        : 'Joining matchmaking…'
     : lobby.localHolding
       ? `Reconnecting… seat held ${lobby.holdRemainingSec}s`
       : lobby.holdingCount > 0

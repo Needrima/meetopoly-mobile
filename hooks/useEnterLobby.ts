@@ -17,24 +17,14 @@ export function useEnterLobby() {
   const [error, setError] = useState<string | null>(null);
 
   const enter = async (worldId: string, mode: LobbyEnterMode) => {
-    console.log('[enterLobby] start', {
-      worldId,
-      mode,
-      typeofCreateTable: typeof createTable,
-      typeofStartLoading: typeof startLoading,
-      typeofRouterPush: typeof router.push,
-    });
-
     const id = worldId.trim();
     if (!id) {
-      console.log('[enterLobby] empty worldId — bail');
       return;
     }
 
     setError(null);
 
     if (mode === 'public') {
-      console.log('[enterLobby] public push', id);
       router.push({
         pathname: '/(app)/lobby/[worldId]',
         params: { worldId: id, mode: 'public' },
@@ -42,23 +32,9 @@ export function useEnterLobby() {
       return;
     }
 
-    if (typeof createTable !== 'function') {
-      console.log('[enterLobby] createTable is NOT a function', createTable);
-      setError('createTable is not a function');
-      return;
-    }
-
     startLoading();
     try {
-      console.log('[enterLobby] calling createTable', id);
       const table = await createTable({ worldId: id });
-      console.log('[enterLobby] createTable ok', {
-        id: table?.id,
-        worldId: table?.worldId,
-        private: table?.private,
-        inviteCode: table?.inviteCode,
-      });
-
       const code =
         typeof table.inviteCode === 'string' ? table.inviteCode.trim() : '';
       if (!code) {
@@ -66,7 +42,6 @@ export function useEnterLobby() {
       }
 
       const nextWorld = (table.worldId || id).trim();
-      console.log('[enterLobby] pushing lobby', { nextWorld, code });
       router.push({
         pathname: '/(app)/lobby/[worldId]',
         params: {
@@ -75,13 +50,10 @@ export function useEnterLobby() {
           inviteCode: code,
         },
       });
-      console.log('[enterLobby] push done');
     } catch (err) {
-      console.log('[enterLobby] catch', err);
       setError(err instanceof Error ? err.message : 'Failed to start lobby');
     } finally {
       stopLoading();
-      console.log('[enterLobby] finally');
     }
   };
 

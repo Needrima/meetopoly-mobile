@@ -384,7 +384,7 @@ export type PresenceChannelResult = {
   sendChat: (text: string) => boolean;
   /** Drop a remote avatar (call when game marks them resigned — Phase 7.5). */
   clearRemote: (userId: string) => void;
-  /** Tear down presence WS + WebRTC immediately (leave board / resign). */
+  /** Tear down presence WS + WebRTC immediately (leave game / resign). */
   disconnect: () => void;
 };
 

@@ -1,16 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AuthError, AuthField } from '@/components/auth/AuthForm';
+import { Button } from '@/components/ui/Button';
+import { useJoinByInviteCode } from '@/hooks/useJoinByInviteCode';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 /**
- * Phase 20.3 — navigation stub for join-by-code.
- * Form + API wire-up lands in 20.5.
+ * Phase 20.5 — join a private lobby by 8-char Crockford invite code.
  */
-export default function JoinCodeStubScreen() {
+export default function JoinCodeScreen() {
+  const form = useJoinByInviteCode();
+
   const back = () => {
     if (router.canGoBack()) {
       router.back();
@@ -41,11 +45,32 @@ export default function JoinCodeStubScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      <View style={styles.body}>
-        <Text style={styles.hint}>
-          Invite code entry comes next. Use Back to return to Play.
-        </Text>
-      </View>
+      <KeyboardAvoidingView
+        style={styles.body}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.form}>
+          <Text style={styles.hint}>
+            8 characters — letters and digits.
+          </Text>
+          <AuthField
+            placeholder="Invite code"
+            value={form.values.inviteCode}
+            onChangeText={form.setInviteCode}
+            autoCapitalize="characters"
+            maxLength={12}
+            keyboardType="default"
+          />
+          <AuthError message={form.error} />
+          <Button
+            label="Join lobby"
+            onPress={form.submit}
+            loading={form.loading}
+            disabled={form.values.inviteCode.trim().length === 0}
+            style={styles.submit}
+          />
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -95,17 +120,25 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 28,
+  },
+  form: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+    gap: 12,
   },
   hint: {
     fontFamily: fonts.body,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
     color: colors.muted,
+    marginBottom: 4,
     textAlign: 'center',
-    maxWidth: 360,
+  },
+  submit: {
+    marginTop: 4,
   },
   pressed: {
     opacity: 0.8,
