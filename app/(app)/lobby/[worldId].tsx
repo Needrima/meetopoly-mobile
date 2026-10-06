@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -13,30 +14,52 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SeatSlot } from '@/components/lobby/SeatSlot';
 import { Button } from '@/components/ui/Button';
-import { useWorlds } from '@/hooks/useLocations';
 import { useSession } from '@/hooks/useSession';
-import { useTableLobby } from '@/hooks/useTableLobby';
+import {
+  useTableLobby,
+  type LobbyMode,
+} from '@/hooks/useTableLobby';
 import { formatWorldLabel } from '@/lib/worldDisplay';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
+function paramOne(
+  value: string | string[] | undefined,
+): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
+}
+
 /**
- * Phase 5.6 — real table matchmaking over HTTP + WebSocket.
+ * Phase 5.6 + 20.4 — table lobby over HTTP + WebSocket (public / private invite).
  */
 export default function LobbyScreen() {
-  const params = useLocalSearchParams<{ worldId?: string | string[] }>();
-  const worldId = Array.isArray(params.worldId)
-    ? params.worldId[0]
-    : params.worldId;
+  const params = useLocalSearchParams<{
+    worldId?: string | string[];
+    mode?: string | string[];
+    inviteCode?: string | string[];
+  }>();
+  const worldId = paramOne(params.worldId);
+  const modeRaw = paramOne(params.mode);
+  const inviteCode = paramOne(params.inviteCode)?.trim() ?? '';
+
+  let mode: LobbyMode = 'public';
+  if (modeRaw === 'private') {
+    mode = 'private';
+  } else if (modeRaw === 'code' || inviteCode) {
+    mode = 'code';
+  }
 
   const { user } = useSession();
-  const { data } = useWorlds();
-
   const localPlayerId = user?.id ?? '';
 
   const lobby = useTableLobby({
     worldId: worldId ?? '',
     localPlayerId,
+    mode,
+    inviteCode,
   });
 
   const startedRef = useRef(false);
@@ -57,30 +80,58 @@ export default function LobbyScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/(app)/worlds');
+      router.replace('/(app)/play');
     }
   };
 
-  if (!worldId) {
+  const shareInvite = () => {
+    const code = lobby.inviteCode;
+    if (!code) {
+      return;
+    }
+    void Share.share({
+      message: `Join my Meetopoly lobby with invite code: ${code}`,
+    }).catch(() => undefined);
+  };
+
+  if (!worldId && mode !== 'code') {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
         <View style={styles.center}>
           <Text style={styles.error}>Missing World</Text>
-          <Button label="Back to Worlds" onPress={leave} />
+          <Button label="Back to Play" onPress={leave} />
         </View>
       </SafeAreaView>
     );
   }
 
-  const worldLabel = formatWorldLabel(worldId);
+  if (mode === 'code' && !inviteCode) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
+        <View style={styles.center}>
+          <Text style={styles.error}>Missing invite code</Text>
+          <Button label="Back to Play" onPress={leave} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const resolvedWorldId = worldId || lobby.tableId ? worldId : undefined;
+  const worldLabel = resolvedWorldId
+    ? formatWorldLabel(resolvedWorldId)
+    : 'Lobby';
   const subtitleParts = [worldLabel];
-  if (lobby.tableId) {
+  if (lobby.private && lobby.inviteCode) {
+    subtitleParts.push(lobby.inviteCode);
+  } else if (lobby.tableId) {
     subtitleParts.push(lobby.tableId.slice(0, 6));
   }
   const headerSubtitle = subtitleParts.join(' · ');
 
   const statusLine = lobby.joining
-    ? 'Joining matchmaking…'
+    ? lobby.private
+      ? 'Opening private lobby…'
+      : 'Joining matchmaking…'
     : lobby.localHolding
       ? `Reconnecting… seat held ${lobby.holdRemainingSec}s`
       : lobby.holdingCount > 0
@@ -122,6 +173,37 @@ export default function LobbyScreen() {
       {lobby.error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorBannerText}>{lobby.error}</Text>
+        </View>
+      ) : null}
+
+      {lobby.private && lobby.inviteCode && !lobby.joining ? (
+        <View style={styles.inviteBanner}>
+          <View style={styles.inviteTextCol}>
+            <Text style={styles.inviteLabel}>Invite code</Text>
+            <Text style={styles.inviteCode} selectable>
+              {lobby.inviteCode}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Share invite code"
+            onPress={shareInvite}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.inviteShare,
+              pressed ? styles.pressed : null,
+            ]}
+          >
+            <View style={styles.inviteShareIconWrap}>
+              <Ionicons
+                name="share-outline"
+                size={20}
+                color={colors.brand}
+                style={styles.inviteShareIcon}
+              />
+            </View>
+            <Text style={styles.inviteShareLabel}>Share</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -220,6 +302,65 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.muted,
     textAlign: 'center',
+  },
+  inviteBanner: {
+    marginHorizontal: 16,
+    marginBottom: 4,
+    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  inviteTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inviteLabel: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
+  },
+  inviteCode: {
+    marginTop: 2,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 20,
+    letterSpacing: 2,
+    color: colors.ink,
+  },
+  inviteShare: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    width: 56,
+  },
+  inviteShareIconWrap: {
+    width: 28,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteShareIcon: {
+    width: 28,
+    textAlign: 'center',
+  },
+  inviteShareLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: colors.brand,
+    textAlign: 'center',
+    includeFontPadding: false,
+    width: '100%',
   },
   banner: {
     marginHorizontal: 16,

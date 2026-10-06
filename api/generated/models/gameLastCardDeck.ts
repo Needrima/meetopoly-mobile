@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.28.0
+ * OpenAPI spec version: 0.29.0
  */
 
 export type GameLastCardDeck = typeof GameLastCardDeck[keyof typeof GameLastCardDeck];

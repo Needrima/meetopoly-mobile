@@ -8,6 +8,7 @@ Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
  * OpenAPI spec version: 0.29.0
  */
 
-export interface PasswordResetStartRequest {
-  email: string;
+export interface CreateTableRequest {
+  /** World pack for the private lobby (Phase 20 Start a game) */
+  worldId: string;
 }

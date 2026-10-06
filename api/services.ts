@@ -9,11 +9,14 @@
 export * from './generated/endpoints';
 export {
   buyProperty,
+  createTable,
   endTurn,
   getEndTurnUrl,
   getGame,
   getGetGameUrl,
   getRollDiceUrl,
+  joinTable,
+  joinTableByCode,
   resignGame,
   rollDice,
   setPinColor,

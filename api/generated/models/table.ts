@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.28.0
+ * OpenAPI spec version: 0.29.0
  */
 import type { TableStatus } from './tableStatus';
 import type { TableSeat } from './tableSeat';
@@ -14,6 +14,19 @@ export interface Table {
   id: string;
   worldId: string;
   status: TableStatus;
+  /** Phase 20 — `true` for invite-only lobbies created via `POST /tables`.
+Private tables are excluded from public matchmaking.
+ */
+  private: boolean;
+  /**
+   * Phase 20 — 8-character Crockford Base32 code for private lobbies.
+Null on public pool tables. Valid for join only while `status` is `lobby`.
+
+   * @minLength 8
+   * @maxLength 8
+   * @nullable
+   */
+  inviteCode?: string | null;
   /**
    * Set when lobby starts an M1 game (Phase 6+)
    * @nullable

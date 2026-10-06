@@ -5,16 +5,18 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.28.0
+ * OpenAPI spec version: 0.29.0
  */
 import type {
   AuctionBidBody,
   AuthSessionResponse,
   BuildRequest,
+  CreateTableRequest,
   EnterHubRequest,
   Game,
   GetLocationBySlugParams,
   HealthResponse,
+  JoinTableByCodeRequest,
   JoinTableRequest,
   ListLocationsParams,
   Location,
@@ -473,8 +475,42 @@ export const listWorlds = async ( options?: RequestInit): Promise<WorldsResponse
 
 
 /**
- * Finds an open lobby for `worldId` (or creates one), seats the caller,
-and returns the table snapshot. Connect to `GET /ws/tables/{tableId}?token=`
+ * Phase 20 — creates a **private** lobby for `worldId`, seats the host, and
+returns a table snapshot including an 8-character `inviteCode` (Crockford
+Base32, case-insensitive). Private tables are excluded from public
+matchmaking (`POST /tables/join`). Friends join via `POST /tables/join-code`.
+Connect to `GET /ws/tables/{tableId}?token=` for live seat/ready updates.
+Invite codes are valid only while `status` is `lobby`; after all-Ready
+starts the game the lobby is sealed (no late join).
+
+ * @summary Create a private lobby (Start a game)
+ */
+export const getCreateTableUrl = () => {
+
+
+  
+
+  return `/tables`
+}
+
+export const createTable = async (createTableRequest: CreateTableRequest, options?: RequestInit): Promise<Table> => {
+  
+  return apiMutator<Table>(getCreateTableUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createTableRequest,)
+  }
+);}
+
+
+
+/**
+ * Finds an open **public** lobby for `worldId` (or creates one), seats the caller,
+and returns the table snapshot. Private tables (Phase 20) are never matched here.
+Connect to `GET /ws/tables/{tableId}?token=`
 for live seat/ready updates. Messages: client `{type:ready|leave|ping}`,
 server `{type:state|started|pong|error}`.
 
@@ -497,6 +533,37 @@ export const joinTable = async (joinTableRequest: JoinTableRequest, options?: Re
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       joinTableRequest,)
+  }
+);}
+
+
+
+/**
+ * Phase 20 — seats the caller into the lobby identified by `inviteCode`
+(8-char Crockford Base32; lookup is case-insensitive). Fails if the code
+is unknown, the table is full, or the lobby is no longer joinable
+(`status` is not `lobby` — e.g. game already started). Returns the table
+snapshot; connect to `GET /ws/tables/{tableId}?token=` for live updates.
+
+ * @summary Join a private lobby by invite code
+ */
+export const getJoinTableByCodeUrl = () => {
+
+
+  
+
+  return `/tables/join-code`
+}
+
+export const joinTableByCode = async (joinTableByCodeRequest: JoinTableByCodeRequest, options?: RequestInit): Promise<Table> => {
+  
+  return apiMutator<Table>(getJoinTableByCodeUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      joinTableByCodeRequest,)
   }
 );}
 

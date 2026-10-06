@@ -11,23 +11,29 @@ import {
   type NativeSyntheticEvent,
   type ViewToken,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { WorldSummary } from "@/api/types";
 import { Button } from "@/components/ui/Button";
 import { WorldCard } from "@/components/worlds/WorldCard";
+import { useEnterLobby } from "@/hooks/useEnterLobby";
 import { useWorlds } from "@/hooks/useLocations";
 import { colors } from "@/theme/colors";
 import { fonts } from "@/theme/fonts";
 
 /**
- * Phase 5.0 — pick a World (carousel); Proceed → lobby; See locations → browse.
+ * Phase 5.0 + 20.4 — pick a World; Proceed → public lobby or private create.
  * One-finger swipe pages the carousel; two-finger pan explores the map image.
  */
 export default function WorldsScreen() {
+  const params = useLocalSearchParams<{ mode?: string | string[] }>();
+  const modeParam = Array.isArray(params.mode) ? params.mode[0] : params.mode;
+  const lobbyMode = modeParam === "private" ? "private" : "public";
+
   const { data, error, isLoading, isError } = useWorlds();
+  const { enter, loading: entering, error: enterError } = useEnterLobby();
   const worlds = data?.worlds ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [scrollEnabled, setScrollEnabled] = useState(true);
@@ -140,10 +146,14 @@ export default function WorldsScreen() {
             <Ionicons name="arrow-back" size={22} color={colors.brand} />
           </Pressable>
           <Text style={styles.title} pointerEvents="none">
-            Choose a World
+            {lobbyMode === "private" ? "Start a game" : "Choose a World"}
           </Text>
           <View style={styles.headerSpacer} />
         </View>
+
+        {enterError ? (
+          <Text style={styles.enterError}>{enterError}</Text>
+        ) : null}
 
         {isLoading ? (
           <View style={styles.center}>
@@ -299,13 +309,14 @@ export default function WorldsScreen() {
           </View>
           <View style={styles.footerBtn}>
             <Button
-              label="Proceed"
-              disabled={!canAct}
+              label={lobbyMode === "private" ? "Start lobby" : "Proceed"}
+              disabled={!canAct || entering}
+              loading={entering}
               onPress={() => {
                 if (!selected) {
                   return;
                 }
-                router.push(`/(app)/lobby/${selected.worldId}`);
+                void enter(selected.worldId, lobbyMode);
               }}
             />
           </View>
@@ -433,6 +444,14 @@ const styles = StyleSheet.create({
   error: {
     fontFamily: fonts.body,
     fontSize: 15,
+    color: colors.danger,
+    textAlign: "center",
+  },
+  enterError: {
+    marginHorizontal: 20,
+    marginBottom: 4,
+    fontFamily: fonts.body,
+    fontSize: 13,
     color: colors.danger,
     textAlign: "center",
   },

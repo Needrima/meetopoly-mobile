@@ -11,7 +11,7 @@ import { fonts } from '@/theme/fonts';
 
 /**
  * Signed-in menu home (not the board).
- * Play → World picker (Phase 5); Settings / About stubs; Log out.
+ * Play → hub; Settings / About; Log out.
  */
 export default function HomeMenuScreen() {
   const { user } = useSession();
@@ -30,7 +30,7 @@ export default function HomeMenuScreen() {
           <Button
             label="Play"
             onPress={() => {
-              router.push('/(app)/worlds');
+              router.push('/(app)/play');
             }}
             style={styles.playBtn}
           />

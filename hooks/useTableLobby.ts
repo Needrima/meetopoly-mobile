@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 
 import { getWsBaseUrl } from '@/api/client';
 import {
-  joinTable,
-  leaveTable,
-  setTableReady,
-} from '@/api/services';
+  createTable,
+  joinTableByCode,
+} from '@/api/generated/endpoints';
+import { joinTable, leaveTable, setTableReady } from '@/api/services';
 import type { Table, TableSeat } from '@/api/types';
 import { useSession } from '@/hooks/useSession';
 
 export const LOBBY_MAX_SEATS = 6;
 export const LOBBY_MIN_SEATS = 2;
 export const DISCONNECT_HOLD_MS = 45_000;
+
+export type LobbyMode = 'public' | 'private' | 'code';
 
 export type LobbySeat = {
   seatIndex: number;
@@ -75,12 +77,39 @@ function seatsFromTable(table: Table | null, localPlayerId: string): LobbySeat[]
 export type UseTableLobbyArgs = {
   worldId: string;
   localPlayerId: string;
+  /** Phase 20 — public pool, private create, or join-by-code. */
+  mode?: LobbyMode;
+  /** Required when mode is `code`. */
+  inviteCode?: string;
 };
 
+async function seatIntoLobby(
+  mode: LobbyMode,
+  worldId: string,
+  inviteCode: string,
+): Promise<Table> {
+  if (mode === 'code') {
+    const code = inviteCode.trim();
+    if (!code) {
+      throw new Error('Invite code required');
+    }
+    return joinTableByCode({ inviteCode: code });
+  }
+  if (mode === 'private') {
+    return createTable({ worldId });
+  }
+  return joinTable({ worldId });
+}
+
 /**
- * Phase 5.6 — real HTTP join + WebSocket seat sync (replaces useLobbyStub).
+ * Phase 5.6 + 20.4 — HTTP seat + WebSocket sync (public / private / invite code).
  */
-export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
+export function useTableLobby({
+  worldId,
+  localPlayerId,
+  mode = 'public',
+  inviteCode = '',
+}: UseTableLobbyArgs) {
   const { token } = useSession();
   const [table, setTable] = useState<Table | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,9 +121,17 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
   const intentionalLeave = useRef(false);
 
   useEffect(() => {
-    if (!worldId || !token || !localPlayerId) {
+    if (!token || !localPlayerId) {
       return;
     }
+    if (mode === 'code') {
+      if (!inviteCode.trim()) {
+        return;
+      }
+    } else if (!worldId) {
+      return;
+    }
+
     let cancelled = false;
     intentionalLeave.current = false;
     setJoining(true);
@@ -103,7 +140,7 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
 
     void (async () => {
       try {
-        const joined = await joinTable({ worldId });
+        const joined = await seatIntoLobby(mode, worldId, inviteCode);
         if (cancelled) {
           return;
         }
@@ -122,7 +159,11 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
             if (msg.table) {
               setTable(msg.table);
             }
-            if (msg.type === 'started' || msg.table?.status === 'starting' || msg.table?.status === 'in_game') {
+            if (
+              msg.type === 'started' ||
+              msg.table?.status === 'starting' ||
+              msg.table?.status === 'in_game'
+            ) {
               setStarted(true);
             }
             if (msg.type === 'error' && msg.error) {
@@ -152,12 +193,11 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
-      // Voluntary leave only when intentionalLeave; otherwise WS disconnect → server hold.
       if (intentionalLeave.current && tableIdRef.current) {
         void leaveTable(tableIdRef.current).catch(() => undefined);
       }
     };
-  }, [worldId, token, localPlayerId]);
+  }, [worldId, token, localPlayerId, mode, inviteCode]);
 
   useEffect(() => {
     const anyHolding = table?.seats.some((s) => s.holding);
@@ -193,7 +233,11 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
     void setTableReady(id, { ready: !local.ready })
       .then((next) => {
         setTable(next);
-        if (next.gameId || next.status === 'in_game' || next.status === 'starting') {
+        if (
+          next.gameId ||
+          next.status === 'in_game' ||
+          next.status === 'starting'
+        ) {
           setStarted(true);
         }
       })
@@ -219,6 +263,12 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
       table?.status === 'in_game' ||
       table?.status === 'starting');
 
+  const invite =
+    typeof table?.inviteCode === 'string' && table.inviteCode.trim()
+      ? table.inviteCode.trim()
+      : null;
+  const isPrivate = Boolean(table?.private) || mode === 'private' || mode === 'code';
+
   const holdRemainingFor = (holdEndsAt: number | null): number => {
     if (holdEndsAt == null) {
       return 0;
@@ -229,6 +279,8 @@ export function useTableLobby({ worldId, localPlayerId }: UseTableLobbyArgs) {
   return {
     tableId: table?.id ?? null,
     gameId: table?.gameId ?? null,
+    inviteCode: invite,
+    private: isPrivate,
     seats,
     seatedCount,
     readyCount,
