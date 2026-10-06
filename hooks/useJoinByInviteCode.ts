@@ -13,7 +13,7 @@ function joinCodeErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     switch (err.code) {
       case 'not_found':
-        return 'Invite code not found';
+        return 'Invite code not found or lobby expired';
       case 'table_full':
         return 'That lobby is full';
       case 'wrong_status':

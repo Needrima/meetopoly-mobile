@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { getWsBaseUrl } from '@/api/client';
+import { ApiError, getWsBaseUrl } from '@/api/client';
 import {
   createTable,
   joinTableByCode,
@@ -74,6 +74,22 @@ function seatsFromTable(table: Table | null, localPlayerId: string): LobbySeat[]
   return table.seats.map((s) => seatFromApi(s, localPlayerId));
 }
 
+function parseExpiresAtMs(raw: string | undefined | null): number | null {
+  if (typeof raw !== 'string' || !raw.trim()) {
+    return null;
+  }
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Format remaining lobby life as `M:SS` (Phase 20.7). */
+export function formatLobbyCountdown(totalSec: number): string {
+  const sec = Math.max(0, Math.floor(totalSec));
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export type UseTableLobbyArgs = {
   worldId: string;
   localPlayerId: string;
@@ -102,7 +118,7 @@ async function seatIntoLobby(
 }
 
 /**
- * Phase 5.6 + 20.4 — HTTP seat + WebSocket sync (public / private / invite code).
+ * Phase 5.6 + 20.4 + 20.7 — table lobby HTTP + WS; countdown from server `expiresAt`.
  */
 export function useTableLobby({
   worldId,
@@ -115,6 +131,7 @@ export function useTableLobby({
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(true);
   const [started, setStarted] = useState(false);
+  const [expired, setExpired] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const wsRef = useRef<WebSocket | null>(null);
   const tableIdRef = useRef<string | null>(null);
@@ -137,6 +154,7 @@ export function useTableLobby({
     setJoining(true);
     setError(null);
     setStarted(false);
+    setExpired(false);
 
     void (async () => {
       try {
@@ -148,6 +166,13 @@ export function useTableLobby({
         tableIdRef.current = joined.id;
         setJoining(false);
 
+        const expiresMs = parseExpiresAtMs(joined.expiresAt);
+        if (expiresMs != null && expiresMs <= Date.now()) {
+          setExpired(true);
+          setError('Lobby expired');
+          return;
+        }
+
         const ws = new WebSocket(
           `${getWsBaseUrl()}/ws/tables/${encodeURIComponent(joined.id)}?token=${encodeURIComponent(token)}`,
         );
@@ -156,6 +181,20 @@ export function useTableLobby({
         ws.onmessage = (ev) => {
           try {
             const msg = JSON.parse(String(ev.data)) as TableEvent;
+            if (msg.type === 'expired') {
+              setExpired(true);
+              setError('Lobby expired');
+              setStarted(false);
+              if (msg.table) {
+                setTable(msg.table);
+              }
+              const sock = wsRef.current;
+              wsRef.current = null;
+              if (sock && sock.readyState === WebSocket.OPEN) {
+                sock.close();
+              }
+              return;
+            }
             if (msg.table) {
               setTable(msg.table);
             }
@@ -181,7 +220,12 @@ export function useTableLobby({
       } catch (err) {
         if (!cancelled) {
           setJoining(false);
-          setError(err instanceof Error ? err.message : 'Failed to join lobby');
+          if (err instanceof ApiError && err.code === 'not_found') {
+            setExpired(true);
+            setError('Lobby expired');
+          } else {
+            setError(err instanceof Error ? err.message : 'Failed to join lobby');
+          }
         }
       }
     })();
@@ -199,19 +243,42 @@ export function useTableLobby({
     };
   }, [worldId, token, localPlayerId, mode, inviteCode]);
 
+  const expiresAtMs = parseExpiresAtMs(table?.expiresAt);
+  const needsTick =
+    Boolean(table) &&
+    !joining &&
+    !started &&
+    !expired &&
+    (Boolean(expiresAtMs) || Boolean(table?.seats.some((s) => s.holding)));
+
   useEffect(() => {
-    const anyHolding = table?.seats.some((s) => s.holding);
-    if (!anyHolding) {
+    if (!needsTick) {
       return;
     }
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [table]);
+  }, [needsTick]);
+
+  useEffect(() => {
+    if (expired || started || joining || expiresAtMs == null) {
+      return;
+    }
+    if (expiresAtMs <= nowMs) {
+      setExpired(true);
+      setError('Lobby expired');
+      intentionalLeave.current = false;
+      const ws = wsRef.current;
+      wsRef.current = null;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    }
+  }, [expiresAtMs, nowMs, expired, started, joining]);
 
   const leave = () => {
-    intentionalLeave.current = true;
+    intentionalLeave.current = !expired;
     const id = tableIdRef.current;
-    if (id) {
+    if (id && !expired) {
       void leaveTable(id).catch(() => undefined);
     }
     const ws = wsRef.current;
@@ -223,7 +290,7 @@ export function useTableLobby({
 
   const toggleReady = () => {
     const id = tableIdRef.current;
-    if (!id || !table) {
+    if (!id || !table || expired) {
       return;
     }
     const local = table.seats.find((s) => s.userId === localPlayerId);
@@ -242,6 +309,11 @@ export function useTableLobby({
         }
       })
       .catch((err: unknown) => {
+        if (err instanceof ApiError && err.code === 'not_found') {
+          setExpired(true);
+          setError('Lobby expired');
+          return;
+        }
         setError(err instanceof Error ? err.message : 'Ready failed');
       });
   };
@@ -256,7 +328,8 @@ export function useTableLobby({
   const localSeat = seats.find((s) => s.isLocal) ?? null;
   const localReady = Boolean(localSeat?.ready && !localSeat.holding);
   const localHolding = Boolean(localSeat?.holding);
-  const canToggleReady = !waitingForPlayers && !localHolding && !joining;
+  const canToggleReady =
+    !expired && !waitingForPlayers && !localHolding && !joining;
   const allReady =
     Boolean(table?.gameId) &&
     (started ||
@@ -275,6 +348,11 @@ export function useTableLobby({
     }
     return Math.max(0, Math.ceil((holdEndsAt - nowMs) / 1000));
   };
+
+  const expiresInSec =
+    expiresAtMs == null || expired || started
+      ? null
+      : Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));
 
   return {
     tableId: table?.id ?? null,
@@ -295,6 +373,10 @@ export function useTableLobby({
     allReady,
     joining,
     error,
+    expired,
+    expiresInSec,
+    expiresLabel:
+      expiresInSec == null ? null : formatLobbyCountdown(expiresInSec),
     minSeats: LOBBY_MIN_SEATS,
     maxSeats: LOBBY_MAX_SEATS,
     holdMs: DISCONNECT_HOLD_MS,

@@ -5,7 +5,7 @@
  * Meetopoly HTTP API contract.
 Source of truth for mobile codegen (orval → meetopoly-mobile/api/).
 
- * OpenAPI spec version: 0.29.0
+ * OpenAPI spec version: 0.30.0
  */
 import type { TableStatus } from './tableStatus';
 import type { TableSeat } from './tableSeat';
@@ -32,6 +32,11 @@ Null on public pool tables. Valid for join only while `status` is `lobby`.
    * @nullable
    */
   gameId?: string | null;
+  /** Phase 20.6 — when an unstarted lobby is swept (`createdAt` + 15 minutes).
+Clients should treat join/ready as failed after this instant; the sweeper
+deletes the table and may push WebSocket `{type:expired}`.
+ */
+  expiresAt: string;
   /**
    * @minItems 6
    * @maxItems 6

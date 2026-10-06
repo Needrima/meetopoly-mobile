@@ -33,7 +33,7 @@ function paramOne(
 }
 
 /**
- * Phase 5.6 + 20.4 — table lobby over HTTP + WebSocket (public / private invite).
+ * Phase 5.6 + 20.4 + 20.7 — table lobby; countdown from server `expiresAt`.
  */
 export default function LobbyScreen() {
   const params = useLocalSearchParams<{
@@ -116,6 +116,21 @@ export default function LobbyScreen() {
     );
   }
 
+  if (lobby.expired && !lobby.joining) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
+        <View style={styles.center}>
+          <Text style={styles.error}>Lobby expired</Text>
+          <Text style={styles.expiredHint}>
+            Lobbies close after 15 minutes if the game hasn’t started. Start a
+            new game or join with a fresh invite code.
+          </Text>
+          <Button label="Back to Play" onPress={leave} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const resolvedWorldId = worldId || lobby.tableId ? worldId : undefined;
   const worldLabel = resolvedWorldId
     ? formatWorldLabel(resolvedWorldId)
@@ -175,6 +190,23 @@ export default function LobbyScreen() {
       {lobby.error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorBannerText}>{lobby.error}</Text>
+        </View>
+      ) : null}
+
+      {lobby.expiresLabel && !lobby.joining && !lobby.allReady ? (
+        <View style={styles.expiryBanner}>
+          <Text style={styles.expiryLabel}>Lobby closes in</Text>
+          <Text
+            style={[
+              styles.expiryValue,
+              lobby.expiresInSec != null && lobby.expiresInSec <= 60
+                ? styles.expiryUrgent
+                : null,
+            ]}
+            accessibilityLabel={`Lobby closes in ${lobby.expiresLabel}`}
+          >
+            {lobby.expiresLabel}
+          </Text>
         </View>
       ) : null}
 
@@ -330,7 +362,7 @@ const styles = StyleSheet.create({
   inviteCode: {
     marginTop: 2,
     fontFamily: fonts.bodySemiBold,
-    fontSize: 20,
+    fontSize: 16,
     letterSpacing: 2,
     color: colors.ink,
   },
@@ -393,6 +425,43 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.danger,
+  },
+  expiryBanner: {
+    marginHorizontal: 16,
+    marginBottom: 4,
+    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  expiryLabel: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.muted,
+  },
+  expiryValue: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 18,
+    letterSpacing: 1,
+    color: colors.ink,
+    fontVariant: ['tabular-nums'],
+  },
+  expiryUrgent: {
+    color: colors.warn,
+  },
+  expiredHint: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.muted,
+    textAlign: 'center',
+    maxWidth: 360,
   },
   body: {
     flex: 1,
