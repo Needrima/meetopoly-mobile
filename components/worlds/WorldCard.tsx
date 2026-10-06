@@ -6,6 +6,8 @@ import {
   View,
   type ImageSourcePropType,
   type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -20,7 +22,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { WorldSummary } from '@/api/types';
-import { formatWorldLabel, resolveWorldImage } from '@/lib/worldDisplay';
+import { formatWorldLabel, formatWorldLabelLines, resolveWorldImage } from '@/lib/worldDisplay';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
@@ -57,22 +59,27 @@ export type WorldCardProps = {
   world: WorldSummary;
   selected: boolean;
   onSelect: () => void;
-  /** Parent ScrollView should disable while the user drags inside a card. */
+  /** Parent carousel should disable while the user two-finger pans. */
   onDragActiveChange?: (active: boolean) => void;
+  style?: StyleProp<ViewStyle>;
 };
 
 /**
- * Square world tile: map image with Ken Burns idle drift + two-finger drag-to-pan.
- * Tap selects; one finger scrolls the list; two fingers pan the map.
- * Pan offsets live until this card unmounts (leave screen).
+ * World carousel slide: Ken Burns idle + two-finger pan; one finger left for paging.
+ * Tap toggles selection. Centered multi-line region title.
  */
 export function WorldCard({
   world,
   selected,
   onSelect,
   onDragActiveChange,
+  style,
 }: WorldCardProps) {
   const label = formatWorldLabel(world.worldId);
+  const labelLines = useMemo(
+    () => formatWorldLabelLines(world.worldId),
+    [world.worldId],
+  );
   const image = resolveWorldImage(world.worldId);
   const intrinsic = useMemo(
     () => (image ? resolveIntrinsicSize(image) : null),
@@ -125,8 +132,6 @@ export function WorldCard({
     durX.value = 9000 + (seed % 5) * 1100;
     durY.value = 11000 + (seed % 7) * 900;
 
-    // Center once when geometry first becomes available; keep position on re-layout
-    // only if still within bounds (e.g. rotation). Fresh mount starts centered.
     const cx = (scaled.minX + scaled.maxX) / 2;
     const cy = (scaled.minY + scaled.maxY) / 2;
     if (ready.value === 0) {
@@ -230,7 +235,7 @@ export function WorldCard({
       runOnJS(onSelect)();
     });
 
-  // Two fingers = map pan; one finger is left free for the outer ScrollView.
+  // Two fingers = map pan; one finger stays free for the carousel FlatList.
   const pan = Gesture.Pan()
     .minPointers(2)
     .maxPointers(2)
@@ -279,29 +284,30 @@ export function WorldCard({
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ selected }}
-        style={styles.card}
+        style={[styles.card, selected ? styles.cardSelected : null, style]}
         onLayout={onLayout}
       >
-        {image && scaled ? (
-          <Animated.Image
-            source={image}
-            style={[
-              styles.cardImage,
-              { width: scaled.width, height: scaled.height },
-              imageStyle,
-            ]}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.cardImageFill, styles.cardFallback]} />
-        )}
-        {selected ? (
-          <View style={styles.selectedOverlay} pointerEvents="none" />
-        ) : null}
-        <View style={styles.labelChip} pointerEvents="none">
-          <Text style={styles.cardLabel} numberOfLines={2}>
-            {label}
-          </Text>
+        <View style={styles.clip}>
+          {image && scaled ? (
+            <Animated.Image
+              source={image}
+              style={[
+                styles.cardImage,
+                { width: scaled.width, height: scaled.height },
+                imageStyle,
+              ]}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.cardImageFill, styles.cardFallback]} />
+          )}
+          <View style={styles.labelWrap} pointerEvents="none">
+            {labelLines.map((line) => (
+              <Text key={line} style={styles.cardLabel}>
+                {line}
+              </Text>
+            ))}
+          </View>
         </View>
       </View>
     </GestureDetector>
@@ -310,14 +316,22 @@ export function WorldCard({
 
 const styles = StyleSheet.create({
   card: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 12,
+    flex: 1,
+    borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  cardSelected: {
+    borderWidth: 3,
+    borderColor: colors.accent,
+  },
+  clip: {
+    flex: 1,
+    overflow: 'hidden',
+    borderRadius: 13,
   },
   cardImage: {
     position: 'absolute',
@@ -330,26 +344,21 @@ const styles = StyleSheet.create({
   cardFallback: {
     backgroundColor: colors.brandMuted,
   },
-  selectedOverlay: {
+  labelWrap: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-  },
-  labelChip: {
-    position: 'absolute',
-    right: 6,
-    bottom: 6,
-    maxWidth: '90%',
-    alignItems: 'flex-end',
-    backgroundColor: 'rgba(20, 32, 27, 0.55)',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
     zIndex: 2,
   },
   cardLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
+    fontFamily: fonts.displayBold,
+    fontSize: 42,
+    lineHeight: 48,
     color: colors.onBrand,
-    textAlign: 'right',
+    textAlign: 'center',
+    textShadowColor: 'rgba(20, 32, 27, 0.65)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
 });

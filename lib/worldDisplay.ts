@@ -29,22 +29,38 @@ function parseWorldId(worldId: string): { region: string; pack: string | null } 
   return { region: match[1], pack: match[2] };
 }
 
-function titleCaseRegion(region: string): string {
-  return region
-    .split('-')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+function titleCaseWord(word: string): string {
+  if (!word) {
+    return word;
+  }
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 /** Derive a human label from API `worldId` (e.g. `europe-3` → `Europe 3`). */
 export function formatWorldLabel(worldId: string): string {
+  return formatWorldLabelLines(worldId).join(' ');
+}
+
+/**
+ * Display lines for carousel titles — one word per line for multi-word regions
+ * (`Central` / `America`). Pack number rides the last line (`Europe 3`).
+ */
+export function formatWorldLabelLines(worldId: string): string[] {
   const { region, pack } = parseWorldId(worldId);
-  const title = titleCaseRegion(region);
-  if (!pack || SINGLETON_REGIONS.has(region)) {
-    return title;
+  const words = region.split('-').filter(Boolean).map(titleCaseWord);
+  if (words.length === 0) {
+    return [worldId];
   }
-  return `${title} ${pack}`;
+  const showPack = Boolean(pack) && !SINGLETON_REGIONS.has(region);
+  if (!showPack) {
+    return words;
+  }
+  if (words.length === 1) {
+    return [`${words[0]} ${pack}`];
+  }
+  const lines = [...words];
+  lines[lines.length - 1] = `${lines[lines.length - 1]} ${pack}`;
+  return lines;
 }
 
 /** Map image for a world pack — multi-pack regions share one PNG. */
