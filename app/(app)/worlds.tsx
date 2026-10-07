@@ -1,16 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   StyleSheet,
   Text,
   View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  type ViewToken,
 } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 import { router, useLocalSearchParams } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { WorldCard } from "@/components/worlds/WorldCard";
 import { useEnterLobby } from "@/hooks/useEnterLobby";
 import { useWorlds } from "@/hooks/useLocations";
+import { useWorldsCarousel } from "@/hooks/useWorldsCarousel";
 import { colors } from "@/theme/colors";
 import { fonts } from "@/theme/fonts";
 
@@ -35,90 +33,57 @@ export default function WorldsScreen() {
   const { data, error, isLoading, isError } = useWorlds();
   const { enter, loading: entering, error: enterError } = useEnterLobby();
   const worlds = data?.worlds ?? [];
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [scrollEnabled, setScrollEnabled] = useState(true);
-  const [index, setIndex] = useState(0);
-  /** Exact FlatList viewport — must match page width (not window; SafeArea insets). */
-  const [viewport, setViewport] = useState({ w: 0, h: 0 });
-  const listRef = useRef<FlatList<WorldSummary>>(null);
 
-  const selected = worlds.find((w) => w.worldId === selectedId) ?? null;
-  const canAct = selected != null;
-  const pageWidth = viewport.w;
-  const pageHeight = viewport.h;
-  const ready = pageWidth > 0 && pageHeight > 0;
-  const canGoPrev = index > 0;
-  const canGoNext = index < worlds.length - 1;
+  const {
+    listRef,
+    selected,
+    index,
+    scrollEnabled,
+    pageWidth,
+    pageHeight,
+    layoutReady,
+    canAct,
+    canGoPrev,
+    canGoNext,
+    extraData,
+    drawDistance,
+    goToIndex,
+    onMomentumScrollEnd,
+    onViewableItemsChanged,
+    viewabilityConfig,
+    onViewportLayout,
+    toggleSelect,
+    onDragActiveChange,
+  } = useWorldsCarousel({ worlds });
 
-  useEffect(() => {
-    if (worlds.length === 0) {
-      return;
-    }
-    setSelectedId((prev) => {
-      if (prev && worlds.some((w) => w.worldId === prev)) {
-        return prev;
-      }
-      return worlds[0]!.worldId;
-    });
-  }, [worlds]);
-
-  useEffect(() => {
-    if (!selectedId) {
-      return;
-    }
-    const i = worlds.findIndex((w) => w.worldId === selectedId);
-    if (i >= 0) {
-      setIndex(i);
-    }
-  }, [selectedId, worlds]);
-
-  const selectIndex = useCallback(
-    (next: number) => {
-      const clamped = Math.max(0, Math.min(worlds.length - 1, next));
-      const item = worlds[clamped];
-      if (item) {
-        setSelectedId(item.worldId);
-      }
-      setIndex(clamped);
+  const renderItem = useCallback<ListRenderItem<WorldSummary>>(
+    ({ item }) => {
+      const selectedItem = item.worldId === extraData.selectedId;
+      const active = item.worldId === extraData.activeWorldId;
+      return (
+        <View
+          style={[styles.page, { width: pageWidth, height: pageHeight }]}
+        >
+          <WorldCard
+            world={item}
+            selected={selectedItem}
+            active={active}
+            onToggleSelect={toggleSelect}
+            onDragActiveChange={onDragActiveChange}
+            style={styles.card}
+          />
+        </View>
+      );
     },
-    [worlds],
+    [
+      pageWidth,
+      pageHeight,
+      extraData.selectedId,
+      extraData.activeWorldId,
+      toggleSelect,
+      onDragActiveChange,
+    ],
   );
-
-  const goToIndex = useCallback(
-    (next: number) => {
-      if (pageWidth <= 0 || worlds.length === 0) {
-        return;
-      }
-      const clamped = Math.max(0, Math.min(worlds.length - 1, next));
-      selectIndex(clamped);
-      listRef.current?.scrollToIndex({ index: clamped, animated: true });
-    },
-    [pageWidth, selectIndex, worlds.length],
-  );
-
-  const onMomentumScrollEnd = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (pageWidth <= 0) {
-        return;
-      }
-      const next = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
-      selectIndex(next);
-    },
-    [selectIndex, pageWidth],
-  );
-
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      const first = viewableItems.find((v) => v.isViewable && v.index != null);
-      if (first?.index != null) {
-        selectIndex(first.index);
-      }
-    },
-  ).current;
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 60,
-  }).current;
 
   return (
     <GestureHandlerRootView style={styles.flex}>
@@ -175,24 +140,19 @@ export default function WorldsScreen() {
             style={styles.carouselHost}
             onLayout={(e) => {
               const { width, height } = e.nativeEvent.layout;
-              if (width <= 0 || height <= 0) {
-                return;
-              }
-              setViewport((prev) =>
-                prev.w === width && prev.h === height
-                  ? prev
-                  : { w: width, h: height },
-              );
+              onViewportLayout(width, height);
             }}
           >
             {worlds.length === 0 ? (
               <Text style={styles.muted}>No worlds returned from the API.</Text>
-            ) : ready ? (
+            ) : layoutReady ? (
               <>
-                <FlatList
+                <FlashList
                   ref={listRef}
                   data={worlds}
+                  extraData={extraData}
                   keyExtractor={(item) => item.worldId}
+                  renderItem={renderItem}
                   style={styles.list}
                   horizontal
                   pagingEnabled
@@ -200,45 +160,10 @@ export default function WorldsScreen() {
                   scrollEnabled={scrollEnabled}
                   decelerationRate="fast"
                   disableIntervalMomentum
-                  getItemLayout={(_, i) => ({
-                    length: pageWidth,
-                    offset: pageWidth * i,
-                    index: i,
-                  })}
+                  drawDistance={drawDistance}
                   onMomentumScrollEnd={onMomentumScrollEnd}
                   onViewableItemsChanged={onViewableItemsChanged}
                   viewabilityConfig={viewabilityConfig}
-                  onScrollToIndexFailed={(info) => {
-                    const wait = new Promise((r) => setTimeout(r, 80));
-                    void wait.then(() => {
-                      listRef.current?.scrollToIndex({
-                        index: info.index,
-                        animated: true,
-                      });
-                    });
-                  }}
-                  renderItem={({ item }) => (
-                    <View
-                      style={[
-                        styles.page,
-                        { width: pageWidth, height: pageHeight },
-                      ]}
-                    >
-                      <WorldCard
-                        world={item}
-                        selected={item.worldId === selectedId}
-                        onSelect={() =>
-                          setSelectedId((prev) =>
-                            prev === item.worldId ? null : item.worldId,
-                          )
-                        }
-                        onDragActiveChange={(active) => {
-                          setScrollEnabled(!active);
-                        }}
-                        style={styles.card}
-                      />
-                    </View>
-                  )}
                 />
                 <View pointerEvents="box-none" style={styles.navOverlay}>
                   <View style={styles.navRailLeft} pointerEvents="box-none">
