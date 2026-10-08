@@ -23,7 +23,10 @@ import { HubChatRail } from "@/components/hub/HubChatRail";
 import { HubLocationCopy } from "@/components/hub/HubLocationCopy";
 import { HubMediaRail } from "@/components/hub/HubMediaRail";
 import { HubRoster, type HubRosterRow } from "@/components/hub/HubRoster";
-import { HubScene } from "@/components/hub/HubScene";
+import {
+  HubScene,
+  type HubLocalAvatarProps,
+} from "@/components/hub/HubScene";
 import { HubTurnSheet } from "@/components/hub/HubTurnSheet";
 import { useMe } from "@/hooks/useAuth";
 import { useBlockHardwareBack } from "@/hooks/useBlockHardwareBack";
@@ -51,6 +54,8 @@ import { buildDiceRollToast } from "@/lib/economyFeedback";
 import { formatUsername } from "@/lib/formatUsername";
 import { abortHubEnter } from "@/lib/hubEnterGuard";
 import { buildHubRemoteMetas } from "@/lib/buildHubRemoteMetas";
+import { usePresencePlayerRevision } from "@/hooks/usePresencePlayerRevision";
+import { usePresenceRosterRevision } from "@/hooks/usePresenceRosterRevision";
 import { accentAgainstFloor } from "@/lib/hubFloorContrast";
 import { notify } from "@/lib/notify";
 import { colors } from "@/theme/colors";
@@ -290,20 +295,28 @@ export default function HubScreen() {
     ),
   );
 
+  const remotePeerKey = presence.remotePeerIds.join("\0");
+  const { rosterSig, rosterSnap } = usePresenceRosterRevision(presence.roster);
+  const { presencePlayerSig, playersSnap } = usePresencePlayerRevision(
+    game?.players,
+  );
+
   const registryRemotes = useMemo(
     () =>
       buildHubRemoteMetas({
         remotePeerIds: presence.remotePeerIds,
-        roster: presence.roster,
-        players: game?.players ?? [],
+        roster: [...rosterSnap],
+        players: [...playersSnap],
         localUserId,
         floorColor,
         fallbackAccent: colors.muted,
       }),
     [
-      presence.remotePeerIds,
-      presence.roster,
-      game?.players,
+      remotePeerKey,
+      rosterSig,
+      presencePlayerSig,
+      rosterSnap,
+      playersSnap,
       floorColor,
       localUserId,
     ],
@@ -317,6 +330,30 @@ export default function HubScreen() {
       localUserId ?? username ?? "local",
     );
   }, [localPlayer?.pinColor, walk.accent, floorColor, localUserId, username]);
+
+  const hubLocalAvatar = useMemo((): HubLocalAvatarProps => {
+    const imageUrl =
+      (typeof me.data?.avatarUrl === "string" && me.data.avatarUrl.trim()) ||
+      (typeof localPlayer?.avatarUrl === "string" &&
+        localPlayer.avatarUrl.trim()) ||
+      null;
+    return {
+      poseX: walk.poseX,
+      poseY: walk.poseY,
+      radius: walk.avatarRadius,
+      initials: walk.initials,
+      accent: localAccent,
+      imageUrl,
+    };
+  }, [
+    walk.poseX,
+    walk.poseY,
+    walk.avatarRadius,
+    walk.initials,
+    localAccent,
+    me.data?.avatarUrl,
+    localPlayer?.avatarUrl,
+  ]);
 
   const rosterRows = useMemo((): HubRosterRow[] => {
     const pinByUser = new Map<string, string>();
@@ -811,19 +848,7 @@ export default function HubScreen() {
               <HubScene
                 width={surfaceW}
                 height={surfaceH}
-                local={{
-                  poseX: walk.poseX,
-                  poseY: walk.poseY,
-                  radius: walk.avatarRadius,
-                  initials: walk.initials,
-                  accent: localAccent,
-                  imageUrl:
-                    (typeof me.data?.avatarUrl === "string" &&
-                      me.data.avatarUrl.trim()) ||
-                    (typeof localPlayer?.avatarUrl === "string" &&
-                      localPlayer.avatarUrl.trim()) ||
-                    null,
-                }}
+                local={hubLocalAvatar}
                 registryRemotes={registryRemotes}
                 poseRegistry={presence.poseRegistry}
                 remoteRadius={walk.avatarRadius}

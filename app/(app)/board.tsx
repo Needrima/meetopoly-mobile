@@ -70,6 +70,8 @@ import { buildDiceRollToast } from "@/lib/economyFeedback";
 import { eligibleTilesForMode } from "@/lib/economyEligibility";
 import { beginHubEnter } from "@/lib/hubEnterGuard";
 import { buildBoardRemoteMetas } from "@/lib/buildBoardRemoteMetas";
+import { usePresencePlayerRevision } from "@/hooks/usePresencePlayerRevision";
+import type { BoardLocalAvatarProps } from "@/components/board/BoardPresenceLayer";
 import { colors } from "@/theme/colors";
 import { fonts } from "@/theme/fonts";
 
@@ -276,6 +278,11 @@ export default function BoardScreen() {
   // preferIdle wired after dice/pin hooks below — ref updated each render.
   const posePreferIdleRef = useRef<() => boolean>(() => false);
 
+  const remotePeerKey = presence.remotePeerIds.join("\0");
+  const { presencePlayerSig, playersSnap } = usePresencePlayerRevision(
+    game?.players,
+  );
+
   const registryRemotes = useMemo(() => {
     if (!layout) {
       return [];
@@ -283,7 +290,7 @@ export default function BoardScreen() {
     return buildBoardRemoteMetas({
       layout,
       locations,
-      players: game?.players ?? [],
+      players: [...playersSnap],
       remotePeerIds: presence.remotePeerIds,
       localUserId,
       fallbackAccent: colors.muted,
@@ -291,13 +298,48 @@ export default function BoardScreen() {
   }, [
     layout,
     locations,
-    game?.players,
-    presence.remotePeerIds,
     localUserId,
+    remotePeerKey,
+    presencePlayerSig,
+    playersSnap,
   ]);
 
   /** Lobby/game seat color wins over random walk accent. */
   const displayAccent = localGamePinColor ?? walk.accent;
+
+  const localGamePlayerAvatarUrl = useMemo(() => {
+    const p = game?.players?.find((x) => x.userId === localUserId);
+    const url = typeof p?.avatarUrl === "string" ? p.avatarUrl.trim() : "";
+    return url || null;
+  }, [game?.players, localUserId, presencePlayerSig]);
+
+  const localBoardAvatar = useMemo((): BoardLocalAvatarProps | null => {
+    if (!layout) {
+      return null;
+    }
+    const imageUrl =
+      (typeof me.data?.avatarUrl === "string" && me.data.avatarUrl.trim()) ||
+      (typeof user?.avatarUrl === "string" && user.avatarUrl.trim()) ||
+      localGamePlayerAvatarUrl;
+    return {
+      poseX: walk.poseX,
+      poseY: walk.poseY,
+      radius: walk.avatarRadius,
+      initials: walk.initials,
+      accent: displayAccent,
+      imageUrl,
+    };
+  }, [
+    layout,
+    walk.poseX,
+    walk.poseY,
+    walk.avatarRadius,
+    walk.initials,
+    displayAccent,
+    me.data?.avatarUrl,
+    user?.avatarUrl,
+    localGamePlayerAvatarUrl,
+  ]);
 
   const pinRadius = layout ? Math.max(6, Math.round(layout.size * 0.018)) : 8;
   const onSpectatorDiceRoll = useCallback(
@@ -1173,21 +1215,7 @@ export default function BoardScreen() {
                   ? undefined
                   : onTilePress
               }
-              avatar={{
-                poseX: walk.poseX,
-                poseY: walk.poseY,
-                radius: walk.avatarRadius,
-                initials: walk.initials,
-                accent: displayAccent,
-                imageUrl:
-                  (typeof me.data?.avatarUrl === "string" &&
-                    me.data.avatarUrl.trim()) ||
-                  (typeof user?.avatarUrl === "string" &&
-                    user.avatarUrl.trim()) ||
-                  (typeof localGamePlayer?.avatarUrl === "string" &&
-                    localGamePlayer.avatarUrl.trim()) ||
-                  null,
-              }}
+              avatar={localBoardAvatar}
               registryRemotes={registryRemotes}
               poseRegistry={presence.poseRegistry}
               pins={boardPins}

@@ -1,14 +1,15 @@
 import { memo, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
-import type { SharedValue } from "react-native-reanimated";
-
 import type { Location } from "@/api/types";
 import type { GameDeed } from "@/api/types";
 import { BoardAvatar } from "@/components/board/BoardAvatar";
 import { BoardCenter } from "@/components/board/BoardCenter";
 import { BoardPin } from "@/components/board/BoardPin";
 import {
-  BoardRegistryRemoteAvatar,
+  BoardPresenceLayer,
+  type BoardLocalAvatarProps,
+} from "@/components/board/BoardPresenceLayer";
+import {
   BoardRemoteAvatar,
   type RemoteAvatarModel,
 } from "@/components/board/BoardRemoteAvatar";
@@ -42,14 +43,7 @@ type BoardProps = {
   deeds?: readonly GameDeed[];
   /** When set, tiles are tappable (omit while local buy modal is open). */
   onTilePress?: (boardIndex: number) => void;
-  avatar?: {
-    poseX: SharedValue<number>;
-    poseY: SharedValue<number>;
-    radius: number;
-    initials: string;
-    accent: string;
-    imageUrl?: string | null;
-  } | null;
+  avatar?: BoardLocalAvatarProps | null;
   /** Phase 7.2 — pose-prop remotes (hub until 23.2). */
   remotes?: Omit<RemoteAvatarModel, "boardSize" | "radius">[];
   /** Phase 23.1 — board remotes via SharedValue registry. */
@@ -184,36 +178,6 @@ const BoardRemotesLayer = memo(function BoardRemotesLayer({
   );
 });
 
-const BoardRegistryRemotesLayer = memo(function BoardRegistryRemotesLayer({
-  remotes,
-  registry,
-  radius,
-  boardSize,
-}: {
-  remotes: BoardRemoteMeta[];
-  registry: RemotePoseRegistry;
-  radius: number;
-  boardSize: number;
-}) {
-  return (
-    <>
-      {remotes.map((r) => (
-        <BoardRegistryRemoteAvatar
-          key={r.userId}
-          userId={r.userId}
-          username={r.username}
-          accent={r.accent}
-          radius={radius}
-          boardSize={boardSize}
-          imageUrl={r.imageUrl}
-          registry={registry}
-          frozenNorm={r.frozenNorm}
-        />
-      ))}
-    </>
-  );
-});
-
 /**
  * Ring + decks + Reanimated avatar + pins + nearest-tile glow.
  * Pin hops only re-render the pins layer so avatar motion stays smooth.
@@ -256,30 +220,33 @@ export function Board({
         onTilePress={onTilePress}
       />
       <BoardPinsLayer pins={pins} />
-      {poseRegistry && registryRemotes.length > 0 ? (
-        <BoardRegistryRemotesLayer
-          remotes={registryRemotes}
-          registry={poseRegistry}
-          radius={remoteRadius}
+      {poseRegistry ? (
+        <BoardPresenceLayer
           boardSize={layout.size}
+          remoteRadius={remoteRadius}
+          poseRegistry={poseRegistry}
+          registryRemotes={registryRemotes}
+          localAvatar={avatar ?? null}
         />
       ) : (
-        <BoardRemotesLayer
-          remotes={remotes}
-          radius={remoteRadius}
-          boardSize={layout.size}
-        />
+        <>
+          <BoardRemotesLayer
+            remotes={remotes}
+            radius={remoteRadius}
+            boardSize={layout.size}
+          />
+          {avatar ? (
+            <BoardAvatar
+              poseX={avatar.poseX}
+              poseY={avatar.poseY}
+              radius={avatar.radius}
+              initials={avatar.initials}
+              accent={avatar.accent}
+              imageUrl={avatar.imageUrl}
+            />
+          ) : null}
+        </>
       )}
-      {avatar ? (
-        <BoardAvatar
-          poseX={avatar.poseX}
-          poseY={avatar.poseY}
-          radius={avatar.radius}
-          initials={avatar.initials}
-          accent={avatar.accent}
-          imageUrl={avatar.imageUrl}
-        />
-      ) : null}
       {deckDrawFly && onDeckDrawFlyComplete ? (
         <DeckDrawFlyCard
           fly={deckDrawFly}
