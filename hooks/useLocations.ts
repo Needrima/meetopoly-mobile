@@ -6,12 +6,19 @@ import type { Location, LocationsResponse, WorldsResponse } from '@/api/types';
 
 const DEFAULT_WORLD_ID = 'africa-1';
 
+/**
+ * Phase 23.0 — static world/location payloads are Redis-backed on the server
+ * (Phase 21). Avoid refetch-on-focus churn on board and worlds picker.
+ */
+export const WORLDS_AND_LOCATIONS_STALE_MS = 26 * 60 * 60 * 1000;
+
 export function useLocations(worldId: string = DEFAULT_WORLD_ID) {
   const id = worldId.trim();
   return useQuery<LocationsResponse, Error>({
     queryKey: queryKeys.locations(id),
     queryFn: () => listLocations({ worldId: id }),
     enabled: id.length > 0,
+    staleTime: WORLDS_AND_LOCATIONS_STALE_MS,
   });
 }
 
@@ -19,6 +26,7 @@ export function useWorlds() {
   return useQuery<WorldsResponse, Error>({
     queryKey: queryKeys.worlds,
     queryFn: () => listWorlds(),
+    staleTime: WORLDS_AND_LOCATIONS_STALE_MS,
   });
 }
 

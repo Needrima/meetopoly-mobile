@@ -8,6 +8,7 @@ import type { FlashListRef } from '@shopify/flash-list';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/api/queryKeys';
+import { WORLDS_AND_LOCATIONS_STALE_MS } from '@/hooks/useLocations';
 import { listLocations } from '@/api/services';
 import type { WorldSummary } from '@/api/types';
 
@@ -50,6 +51,7 @@ export function useWorldsCarousel({ worlds }: UseWorldsCarouselArgs) {
       void queryClient.prefetchQuery({
         queryKey: queryKeys.locations(worldId),
         queryFn: () => listLocations({ worldId }),
+        staleTime: WORLDS_AND_LOCATIONS_STALE_MS,
       });
     }
   }, [index, worlds, queryClient]);
