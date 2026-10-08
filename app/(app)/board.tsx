@@ -69,7 +69,7 @@ import { formatUsername } from "@/lib/formatUsername";
 import { buildDiceRollToast } from "@/lib/economyFeedback";
 import { eligibleTilesForMode } from "@/lib/economyEligibility";
 import { beginHubEnter } from "@/lib/hubEnterGuard";
-import { buildBoardRemoteAvatars } from "@/lib/buildBoardRemoteAvatars";
+import { buildBoardRemoteMetas } from "@/lib/buildBoardRemoteMetas";
 import { colors } from "@/theme/colors";
 import { fonts } from "@/theme/fonts";
 
@@ -276,19 +276,25 @@ export default function BoardScreen() {
   // preferIdle wired after dice/pin hooks below — ref updated each render.
   const posePreferIdleRef = useRef<() => boolean>(() => false);
 
-  const remoteAvatars = useMemo(() => {
+  const registryRemotes = useMemo(() => {
     if (!layout) {
       return [];
     }
-    return buildBoardRemoteAvatars({
+    return buildBoardRemoteMetas({
       layout,
       locations,
       players: game?.players ?? [],
-      remotes: presence.remotes,
+      remotePeerIds: presence.remotePeerIds,
       localUserId,
       fallbackAccent: colors.muted,
     });
-  }, [layout, locations, game?.players, presence.remotes, localUserId]);
+  }, [
+    layout,
+    locations,
+    game?.players,
+    presence.remotePeerIds,
+    localUserId,
+  ]);
 
   /** Lobby/game seat color wins over random walk accent. */
   const displayAccent = localGamePinColor ?? walk.accent;
@@ -1182,7 +1188,8 @@ export default function BoardScreen() {
                     localGamePlayer.avatarUrl.trim()) ||
                   null,
               }}
-              remotes={remoteAvatars}
+              registryRemotes={registryRemotes}
+              poseRegistry={presence.poseRegistry}
               pins={boardPins}
               deckDrawFly={deckDrawFly}
               onDeckDrawFlyComplete={onDeckDrawFlyComplete}

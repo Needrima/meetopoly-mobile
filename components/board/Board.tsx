@@ -8,9 +8,12 @@ import { BoardAvatar } from "@/components/board/BoardAvatar";
 import { BoardCenter } from "@/components/board/BoardCenter";
 import { BoardPin } from "@/components/board/BoardPin";
 import {
+  BoardRegistryRemoteAvatar,
   BoardRemoteAvatar,
   type RemoteAvatarModel,
 } from "@/components/board/BoardRemoteAvatar";
+import type { BoardRemoteMeta } from "@/lib/buildBoardRemoteMetas";
+import type { RemotePoseRegistry } from "@/lib/remotePoseRegistry";
 import { BoardTile } from "@/components/board/BoardTile";
 import {
   DeckDrawFlyCard,
@@ -47,8 +50,11 @@ type BoardProps = {
     accent: string;
     imageUrl?: string | null;
   } | null;
-  /** Phase 7.2 — other players' presence avatars (pins stay from game WS). */
+  /** Phase 7.2 — pose-prop remotes (hub until 23.2). */
   remotes?: Omit<RemoteAvatarModel, "boardSize" | "radius">[];
+  /** Phase 23.1 — board remotes via SharedValue registry. */
+  registryRemotes?: BoardRemoteMeta[];
+  poseRegistry?: RemotePoseRegistry | null;
   pins?: BoardPinModel[];
   /** Chance/Chest draw fly-off (before card modal). */
   deckDrawFly?: DeckDrawFlyModel | null;
@@ -178,6 +184,36 @@ const BoardRemotesLayer = memo(function BoardRemotesLayer({
   );
 });
 
+const BoardRegistryRemotesLayer = memo(function BoardRegistryRemotesLayer({
+  remotes,
+  registry,
+  radius,
+  boardSize,
+}: {
+  remotes: BoardRemoteMeta[];
+  registry: RemotePoseRegistry;
+  radius: number;
+  boardSize: number;
+}) {
+  return (
+    <>
+      {remotes.map((r) => (
+        <BoardRegistryRemoteAvatar
+          key={r.userId}
+          userId={r.userId}
+          username={r.username}
+          accent={r.accent}
+          radius={radius}
+          boardSize={boardSize}
+          imageUrl={r.imageUrl}
+          registry={registry}
+          frozenNorm={r.frozenNorm}
+        />
+      ))}
+    </>
+  );
+});
+
 /**
  * Ring + decks + Reanimated avatar + pins + nearest-tile glow.
  * Pin hops only re-render the pins layer so avatar motion stays smooth.
@@ -194,6 +230,8 @@ export function Board({
   onTilePress,
   avatar,
   remotes = [],
+  registryRemotes = [],
+  poseRegistry = null,
   pins = [],
   deckDrawFly = null,
   onDeckDrawFlyComplete,
@@ -218,11 +256,20 @@ export function Board({
         onTilePress={onTilePress}
       />
       <BoardPinsLayer pins={pins} />
-      <BoardRemotesLayer
-        remotes={remotes}
-        radius={remoteRadius}
-        boardSize={layout.size}
-      />
+      {poseRegistry && registryRemotes.length > 0 ? (
+        <BoardRegistryRemotesLayer
+          remotes={registryRemotes}
+          registry={poseRegistry}
+          radius={remoteRadius}
+          boardSize={layout.size}
+        />
+      ) : (
+        <BoardRemotesLayer
+          remotes={remotes}
+          radius={remoteRadius}
+          boardSize={layout.size}
+        />
+      )}
       {avatar ? (
         <BoardAvatar
           poseX={avatar.poseX}

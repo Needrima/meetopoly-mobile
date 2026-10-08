@@ -14,6 +14,10 @@ import {
   type PresencePose,
   type PresencePoseInput,
 } from "@/lib/presencePose";
+import {
+  createRemotePoseRegistry,
+  type RemotePoseRegistry,
+} from "@/lib/remotePoseRegistry";
 import { encodeVideoMuted, parseVideoMuted } from "@/lib/boardVideoMute";
 import {
   encodeVideoOrientation,
@@ -356,6 +360,10 @@ export type PresenceChannelResult = {
   roomId: string | null;
   dcOpen: boolean;
   remotes: Record<string, PresencePose>;
+  /** Phase 23.1 — board only; DC poses write here instead of React `remotes`. */
+  poseRegistry: RemotePoseRegistry | null;
+  /** Known DC peers for board draw list (join/leave/resign only). */
+  remotePeerIds: readonly string[];
   /** Peers currently in the room (welcome + peer-joined − peer-left). */
   roster: PresenceRosterEntry[];
   /** Phase 16.1 — local camera preview stream (board only; null when off/unavailable). */
@@ -416,6 +424,11 @@ type PresenceChannelOpts = {
   videoMuted?: boolean;
   /** Phase 17.1 — accept/send hubChat on the presence DC (hub only). */
   enableHubChat?: boolean;
+  /**
+   * Phase 23.1 — board: poses in registry + `remotePeerIds`; skip `setRemotes` on DC.
+   * Hub leaves false until 23.2.
+   */
+  usePoseRegistry?: boolean;
 };
 
 /**
@@ -433,6 +446,7 @@ function usePresenceChannel({
   publishLocalVideo = false,
   videoMuted = false,
   enableHubChat = false,
+  usePoseRegistry = false,
 }: PresenceChannelOpts): PresenceChannelResult {
   const { token } = useSession();
   const path = roomPath?.trim() ?? "";
@@ -441,6 +455,13 @@ function usePresenceChannel({
   const [roomId, setRoomId] = useState<string | null>(null);
   const [dcOpen, setDcOpen] = useState(false);
   const [remotes, setRemotes] = useState<Record<string, PresencePose>>({});
+  const [remotePeerIds, setRemotePeerIds] = useState<string[]>([]);
+  const poseRegistryRef = useRef<RemotePoseRegistry | null>(null);
+  if (usePoseRegistry && poseRegistryRef.current === null) {
+    poseRegistryRef.current = createRemotePoseRegistry();
+  }
+  const usePoseRegistryRef = useRef(usePoseRegistry);
+  usePoseRegistryRef.current = usePoseRegistry;
   const [rosterMap, setRosterMap] = useState<
     Record<string, PresenceRosterEntry>
   >({});
@@ -533,30 +554,65 @@ function usePresenceChannel({
     }
   }, [videoMuted]);
 
-  const applyRemotePose = useCallback((pose: PresencePose) => {
-    setRemotes((prev) => {
-      const prevPose = prev[pose.userId];
-      if (
-        prevPose &&
-        prevPose.x === pose.x &&
-        prevPose.y === pose.y &&
-        prevPose.rot === pose.rot
-      ) {
-        return prev;
-      }
-      return { ...prev, [pose.userId]: pose };
-    });
+  const syncRemotePeerIdsFromRegistry = useCallback(() => {
+    const reg = poseRegistryRef.current;
+    if (!reg) {
+      return;
+    }
+    setRemotePeerIds(reg.getPeerIds());
   }, []);
 
-  const clearRemote = useCallback((userId: string) => {
-    setRemotes((prev) => {
-      if (!(userId in prev)) {
-        return prev;
+  const applyRemotePose = useCallback(
+    (pose: PresencePose) => {
+      if (usePoseRegistryRef.current && poseRegistryRef.current) {
+        const isNew = poseRegistryRef.current.applyPose(pose);
+        if (isNew) {
+          syncRemotePeerIdsFromRegistry();
+        }
+        return;
       }
-      const next = { ...prev };
-      delete next[userId];
-      return next;
-    });
+      setRemotes((prev) => {
+        const prevPose = prev[pose.userId];
+        if (
+          prevPose &&
+          prevPose.x === pose.x &&
+          prevPose.y === pose.y &&
+          prevPose.rot === pose.rot
+        ) {
+          return prev;
+        }
+        return { ...prev, [pose.userId]: pose };
+      });
+    },
+    [syncRemotePeerIdsFromRegistry],
+  );
+
+  const clearRemote = useCallback(
+    (userId: string) => {
+      if (usePoseRegistryRef.current && poseRegistryRef.current) {
+        poseRegistryRef.current.removePeer(userId);
+        syncRemotePeerIdsFromRegistry();
+        return;
+      }
+      setRemotes((prev) => {
+        if (!(userId in prev)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    },
+    [syncRemotePeerIdsFromRegistry],
+  );
+
+  const clearAllRemotePoses = useCallback(() => {
+    if (usePoseRegistryRef.current && poseRegistryRef.current) {
+      poseRegistryRef.current.clearAll();
+      setRemotePeerIds([]);
+      return;
+    }
+    setRemotes({});
   }, []);
 
   const flipCamera = useCallback(async () => {
@@ -711,7 +767,7 @@ function usePresenceChannel({
       setStatus("idle");
       setRoomId(null);
       setDcOpen(false);
-      setRemotes({});
+      clearAllRemotePoses();
       setRosterMap({});
       setChatMessages([]);
       setLocalVideoStream(null);
@@ -1660,7 +1716,7 @@ function usePresenceChannel({
         teardownPeer();
         // Hub: drop ghosts before welcome re-seed. Board keeps linger remotes across soft reconnect.
         if (!cancelled && seedWelcomeRef.current) {
-          setRemotes({});
+          clearAllRemotePoses();
         }
         if (cancelled || stopReconnect) {
           return;
@@ -1701,7 +1757,7 @@ function usePresenceChannel({
       setStatus("idle");
       setRoomId(null);
       setDcOpen(false);
-      setRemotes({});
+      clearAllRemotePoses();
       setRosterMap({});
       setChatMessages([]);
       setLocalVideoStream(null);
@@ -1718,13 +1774,15 @@ function usePresenceChannel({
       hardDisconnect();
       disconnectRef.current = () => {};
     };
-  }, [active, token, path, applyRemotePose]);
+  }, [active, token, path, applyRemotePose, clearAllRemotePoses]);
 
   return {
     status,
     roomId,
     dcOpen,
     remotes,
+    poseRegistry: usePoseRegistry ? poseRegistryRef.current : null,
+    remotePeerIds,
     roster: Object.values(rosterMap),
     chatMessages,
     localVideoStream,
@@ -1763,6 +1821,7 @@ export function useBoardPresence(
     micMuted: muted,
     publishLocalVideo: true,
     videoMuted,
+    usePoseRegistry: true,
   });
 }
 
