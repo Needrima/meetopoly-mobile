@@ -1489,14 +1489,24 @@ function usePresenceChannel({
             setRosterMap(nextRoster);
           }
           if (seedWelcomeRef.current) {
-            const seeded: Record<string, PresencePose> = {};
-            for (const peer of welcome.peers ?? []) {
-              if (!peer.userId || peer.userId === welcome.userId) {
-                continue;
+            if (usePoseRegistryRef.current && poseRegistryRef.current) {
+              for (const peer of welcome.peers ?? []) {
+                if (!peer.userId || peer.userId === welcome.userId) {
+                  continue;
+                }
+                poseRegistryRef.current.applyPose(seedPoseFromPeer(peer));
               }
-              seeded[peer.userId] = seedPoseFromPeer(peer);
+              syncRemotePeerIdsFromRegistry();
+            } else {
+              const seeded: Record<string, PresencePose> = {};
+              for (const peer of welcome.peers ?? []) {
+                if (!peer.userId || peer.userId === welcome.userId) {
+                  continue;
+                }
+                seeded[peer.userId] = seedPoseFromPeer(peer);
+              }
+              setRemotes(seeded);
             }
-            setRemotes(seeded);
           }
           try {
             await startWebRTC(ws, welcome.iceServers);
@@ -1600,19 +1610,32 @@ function usePresenceChannel({
           announceLocalVideoOrientation();
           announceLocalVideoMuted();
           if (seedWelcomeRef.current && peer.userId) {
-            setRemotes((prev) => {
-              if (prev[peer.userId]) {
-                return prev;
+            if (usePoseRegistryRef.current && poseRegistryRef.current) {
+              if (!poseRegistryRef.current.hasPeer(peer.userId)) {
+                poseRegistryRef.current.applyPose(
+                  seedPoseFromPeer({
+                    userId: peer.userId,
+                    username: peer.username,
+                    country: peerCountry || undefined,
+                  }),
+                );
+                syncRemotePeerIdsFromRegistry();
               }
-              return {
-                ...prev,
-                [peer.userId]: seedPoseFromPeer({
-                  userId: peer.userId,
-                  username: peer.username,
-                  country: peerCountry || undefined,
-                }),
-              };
-            });
+            } else {
+              setRemotes((prev) => {
+                if (prev[peer.userId]) {
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  [peer.userId]: seedPoseFromPeer({
+                    userId: peer.userId,
+                    username: peer.username,
+                    country: peerCountry || undefined,
+                  }),
+                };
+              });
+            }
           }
           break;
         }
@@ -1656,14 +1679,19 @@ function usePresenceChannel({
           }
           if (clearOnLeaveRef.current) {
             if (peer.userId) {
-              setRemotes((prev) => {
-                if (!(peer.userId in prev)) {
-                  return prev;
-                }
-                const next = { ...prev };
-                delete next[peer.userId];
-                return next;
-              });
+              if (usePoseRegistryRef.current && poseRegistryRef.current) {
+                poseRegistryRef.current.removePeer(peer.userId);
+                syncRemotePeerIdsFromRegistry();
+              } else {
+                setRemotes((prev) => {
+                  if (!(peer.userId in prev)) {
+                    return prev;
+                  }
+                  const next = { ...prev };
+                  delete next[peer.userId];
+                  return next;
+                });
+              }
             }
           }
           break;
@@ -1843,5 +1871,6 @@ export function useHubPresence(
     publishLocalAudio: false,
     publishLocalVideo: false,
     enableHubChat: true,
+    usePoseRegistry: true,
   });
 }

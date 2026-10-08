@@ -2,9 +2,12 @@ import { StyleSheet, View } from 'react-native';
 
 import { BoardAvatar } from '@/components/board/BoardAvatar';
 import {
+  BoardRegistryRemoteAvatar,
   BoardRemoteAvatar,
   type RemoteAvatarModel,
 } from '@/components/board/BoardRemoteAvatar';
+import type { HubRemoteMeta } from '@/lib/buildHubRemoteMetas';
+import type { RemotePoseRegistry } from '@/lib/remotePoseRegistry';
 import type { SharedValue } from 'react-native-reanimated';
 
 type HubSceneProps = {
@@ -18,7 +21,11 @@ type HubSceneProps = {
     accent: string;
     imageUrl?: string | null;
   } | null;
-  remotes: Omit<RemoteAvatarModel, 'boardSize' | 'radius'>[];
+  /** Phase 23.2 — registry-driven remotes (preferred). */
+  registryRemotes?: HubRemoteMeta[];
+  poseRegistry?: RemotePoseRegistry | null;
+  /** Legacy pose-prop remotes (unused when registry is set). */
+  remotes?: Omit<RemoteAvatarModel, 'boardSize' | 'radius'>[];
   remoteRadius: number;
 };
 
@@ -29,7 +36,9 @@ export function HubScene({
   width,
   height,
   local,
-  remotes,
+  registryRemotes = [],
+  poseRegistry = null,
+  remotes = [],
   remoteRadius,
 }: HubSceneProps) {
   if (width <= 0 || height <= 0) {
@@ -41,17 +50,31 @@ export function HubScene({
       pointerEvents="box-none"
       style={[styles.root, { width, height }]}
     >
-      {remotes.map((r) => (
-        <BoardRemoteAvatar
-          key={r.pose.userId}
-          pose={r.pose}
-          accent={r.accent}
-          radius={remoteRadius}
-          boardSize={width}
-          boardHeight={height}
-          imageUrl={r.imageUrl}
-        />
-      ))}
+      {poseRegistry && registryRemotes.length > 0
+        ? registryRemotes.map((r) => (
+            <BoardRegistryRemoteAvatar
+              key={r.userId}
+              userId={r.userId}
+              username={r.username}
+              accent={r.accent}
+              radius={remoteRadius}
+              boardSize={width}
+              boardHeight={height}
+              imageUrl={r.imageUrl}
+              registry={poseRegistry}
+            />
+          ))
+        : remotes.map((r) => (
+            <BoardRemoteAvatar
+              key={r.pose.userId}
+              pose={r.pose}
+              accent={r.accent}
+              radius={remoteRadius}
+              boardSize={width}
+              boardHeight={height}
+              imageUrl={r.imageUrl}
+            />
+          ))}
       {local ? (
         <BoardAvatar
           poseX={local.poseX}

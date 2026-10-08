@@ -50,6 +50,7 @@ import { useCurrentTurnClock } from "@/hooks/useTurnCountdown";
 import { buildDiceRollToast } from "@/lib/economyFeedback";
 import { formatUsername } from "@/lib/formatUsername";
 import { abortHubEnter } from "@/lib/hubEnterGuard";
+import { buildHubRemoteMetas } from "@/lib/buildHubRemoteMetas";
 import { accentAgainstFloor } from "@/lib/hubFloorContrast";
 import { notify } from "@/lib/notify";
 import { colors } from "@/theme/colors";
@@ -289,34 +290,24 @@ export default function HubScreen() {
     ),
   );
 
-  const remotes = useMemo(() => {
-    const colorByUser = new Map<string, string>();
-    const avatarByUser = new Map<string, string>();
-    for (const p of game?.players ?? []) {
-      if (p.pinColor) {
-        colorByUser.set(p.userId, p.pinColor);
-      }
-      const url = typeof p.avatarUrl === "string" ? p.avatarUrl.trim() : "";
-      if (url) {
-        avatarByUser.set(p.userId, url);
-      }
-    }
-    for (const entry of presence.roster) {
-      const url =
-        typeof entry.avatarUrl === "string" ? entry.avatarUrl.trim() : "";
-      if (url && !avatarByUser.has(entry.userId)) {
-        avatarByUser.set(entry.userId, url);
-      }
-    }
-    return Object.values(presence.remotes).map((pose) => {
-      const preferred = colorByUser.get(pose.userId) ?? colors.muted;
-      return {
-        pose,
-        accent: accentAgainstFloor(preferred, floorColor, pose.userId),
-        imageUrl: avatarByUser.get(pose.userId) ?? null,
-      };
-    });
-  }, [presence.remotes, presence.roster, game?.players, floorColor]);
+  const registryRemotes = useMemo(
+    () =>
+      buildHubRemoteMetas({
+        remotePeerIds: presence.remotePeerIds,
+        roster: presence.roster,
+        players: game?.players ?? [],
+        localUserId,
+        floorColor,
+        fallbackAccent: colors.muted,
+      }),
+    [
+      presence.remotePeerIds,
+      presence.roster,
+      game?.players,
+      floorColor,
+      localUserId,
+    ],
+  );
 
   const localAccent = useMemo(() => {
     const preferred = localPlayer?.pinColor?.trim() || walk.accent;
@@ -426,16 +417,16 @@ export default function HubScreen() {
     for (const row of rosterRows) {
       map[row.userId] = row.accent;
     }
-    for (const remote of remotes) {
-      if (!map[remote.pose.userId]) {
-        map[remote.pose.userId] = remote.accent;
+    for (const remote of registryRemotes) {
+      if (!map[remote.userId]) {
+        map[remote.userId] = remote.accent;
       }
     }
     if (localUserId) {
       map[localUserId] = localAccent;
     }
     return map;
-  }, [rosterRows, remotes, localUserId, localAccent]);
+  }, [rosterRows, registryRemotes, localUserId, localAccent]);
 
   /** Profile photos for hub chat bubbles (Phase 19.1). */
   const chatAvatarByUserId = useMemo(() => {
@@ -447,15 +438,15 @@ export default function HubScreen() {
         map[row.userId] = url;
       }
     }
-    for (const remote of remotes) {
+    for (const remote of registryRemotes) {
       const url =
         typeof remote.imageUrl === "string" ? remote.imageUrl.trim() : "";
-      if (url && !map[remote.pose.userId]) {
-        map[remote.pose.userId] = url;
+      if (url && !map[remote.userId]) {
+        map[remote.userId] = url;
       }
     }
     return map;
-  }, [rosterRows, remotes]);
+  }, [rosterRows, registryRemotes]);
 
   const bankLabel =
     localUserId && turnClock?.userId === localUserId ? turnClock.label : "";
@@ -833,7 +824,8 @@ export default function HubScreen() {
                       localPlayer.avatarUrl.trim()) ||
                     null,
                 }}
-                remotes={remotes}
+                registryRemotes={registryRemotes}
+                poseRegistry={presence.poseRegistry}
                 remoteRadius={walk.avatarRadius}
               />
             </View>
