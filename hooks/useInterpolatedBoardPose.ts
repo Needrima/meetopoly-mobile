@@ -6,11 +6,14 @@ import {
   type SharedValue,
 } from 'react-native-reanimated';
 
+import { REGISTRY_INTERP_DEFAULT_MS } from '@/lib/remotePoseRegistry';
+
 /** Match ~10 Hz presence send so motion eases between samples. */
-const INTERP_MS = 100;
+const INTERP_MS = REGISTRY_INTERP_DEFAULT_MS;
 
 /**
- * Phase 7.2 — board-pixel SharedValues that ease toward each new norm pose.
+ * Phase 7.2 — legacy pose-prop remotes (HubScene fallback only).
+ * Board/hub registry avatars use `useRegistryPoseFrame` (Phase 23.3).
  * `boardHeight` defaults to `boardWidth` for square surfaces (board); hub passes both.
  */
 export function useInterpolatedBoardPose(

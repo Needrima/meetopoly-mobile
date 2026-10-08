@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { InteractionManager } from 'react-native';
 
 /**
- * After locations settle on the focused card, wait until interactions + 2 frames
- * so SVG floaters can mount before Ken Burns starts (avoids pan hitch).
+ * After locations settle on the focused card, defer + wait 2 frames so SVG
+ * floaters can mount before Ken Burns starts (avoids pan hitch).
+ * Avoids deprecated InteractionManager (RN 0.86+).
  */
 export function useWorldCardSceneReady(
   active: boolean,
@@ -19,9 +19,20 @@ export function useWorldCardSceneReady(
     }
 
     let cancelled = false;
-    const handle = InteractionManager.runAfterInteractions(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+    let outerRaf = 0;
+    let innerRaf = 0;
+    const defer =
+      typeof requestIdleCallback === 'function'
+        ? requestIdleCallback
+        : (cb: () => void) => setTimeout(cb, 1);
+    const cancelDefer =
+      typeof cancelIdleCallback === 'function'
+        ? cancelIdleCallback
+        : clearTimeout;
+
+    const deferId = defer(() => {
+      outerRaf = requestAnimationFrame(() => {
+        innerRaf = requestAnimationFrame(() => {
           if (!cancelled) {
             setSceneReady(true);
           }
@@ -31,7 +42,9 @@ export function useWorldCardSceneReady(
 
     return () => {
       cancelled = true;
-      handle.cancel();
+      cancelDefer(deferId as number);
+      cancelAnimationFrame(outerRaf);
+      cancelAnimationFrame(innerRaf);
     };
   }, [active, contentReady, worldId]);
 

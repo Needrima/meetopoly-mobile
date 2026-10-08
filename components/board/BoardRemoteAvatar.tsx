@@ -5,6 +5,7 @@ import { usernameInitials } from '@/hooks/useBoardWalk';
 import { useInterpolatedBoardPose } from '@/hooks/useInterpolatedBoardPose';
 import { formatUsername } from '@/lib/formatUsername';
 import type { PresencePose } from '@/lib/presencePose';
+import { useRegistryPoseFrame } from '@/hooks/useRegistryPoseFrame';
 import type { RemotePoseRegistry } from '@/lib/remotePoseRegistry';
 
 export type RemoteAvatarModel = {
@@ -100,6 +101,8 @@ export const BoardRegistryRemoteAvatar = memo(function BoardRegistryRemoteAvatar
   const h = boardHeight ?? boardSize;
   const slot = registry.ensurePeer(userId);
   const initials = usernameInitials(formatUsername(username));
+
+  useRegistryPoseFrame(slot);
 
   useEffect(() => {
     registry.setSurface(userId, boardSize, h);
