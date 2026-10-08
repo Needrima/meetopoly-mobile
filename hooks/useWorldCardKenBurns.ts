@@ -54,6 +54,8 @@ type UseWorldCardKenBurnsArgs = {
   image: ImageSourcePropType | null | undefined;
   /** Focused carousel page — pause drift when false. */
   active: boolean;
+  /** Locations/floaters settled — delay drift until true so pan doesn’t hitch on icon mount. */
+  contentReady: boolean;
   onSelect: () => void;
   onDragActiveChange?: (active: boolean) => void;
 };
@@ -62,11 +64,12 @@ export function useWorldCardKenBurns({
   worldId,
   image,
   active,
+  contentReady,
   onSelect,
   onDragActiveChange,
 }: UseWorldCardKenBurnsArgs) {
   const appActive = useAppActive();
-  const running = active && appActive;
+  const running = active && appActive && contentReady;
   const runningRef = useRef(running);
   runningRef.current = running;
 

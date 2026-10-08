@@ -8,7 +8,7 @@ import {
 import { useLocations } from '@/hooks/useLocations';
 
 /** Cap for smoothness (Ken Burns + many SVG animations). */
-export const MAX_FLOATERS = 10;
+export const MAX_FLOATERS = 15;
 export const FLOATER_ICON_SIZE = 34;
 
 export type WorldFloater = {
@@ -94,21 +94,24 @@ export function pickFloaters(
 
 /**
  * Resolved floating city icons for a world (cached after first successful pick).
+ * `contentReady` is true once locations have settled (success or error) — use to
+ * gate Ken Burns + floater mount so they start together after load.
  */
 export function useWorldFloaters(worldId: string) {
-  const { data, isSuccess } = useLocations(worldId);
+  const { data, isSuccess, isError, isPending } = useLocations(worldId);
   const locations = data?.locations;
+  const contentReady = isSuccess || isError;
 
   const floaters = useMemo(() => {
     const id = worldId.trim();
-    if (!id || !locations?.length) {
+    if (!id) {
       return [];
     }
     const cached = floaterCache.get(id);
     if (cached) {
       return cached;
     }
-    if (!isSuccess) {
+    if (!isSuccess || !locations?.length) {
       return [];
     }
     const next = pickFloaters(id, locations);
@@ -120,6 +123,9 @@ export function useWorldFloaters(worldId: string) {
 
   return {
     floaters,
+    /** Locations query settled — safe to start map drift + mount icons. */
+    contentReady,
+    isLoading: isPending && !contentReady,
     ready: floaters.length > 0,
   };
 }

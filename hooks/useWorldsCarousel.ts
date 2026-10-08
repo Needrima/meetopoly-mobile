@@ -5,7 +5,10 @@ import type {
   ViewToken,
 } from 'react-native';
 import type { FlashListRef } from '@shopify/flash-list';
+import { useQueryClient } from '@tanstack/react-query';
 
+import { queryKeys } from '@/api/queryKeys';
+import { listLocations } from '@/api/services';
 import type { WorldSummary } from '@/api/types';
 
 export type WorldsCarouselExtraData = {
@@ -21,6 +24,7 @@ type UseWorldsCarouselArgs = {
  * Choose-a-World carousel state: selection, focused page, viewport, FlashList refs.
  */
 export function useWorldsCarousel({ worlds }: UseWorldsCarouselArgs) {
+  const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [index, setIndex] = useState(0);
@@ -31,6 +35,24 @@ export function useWorldsCarousel({ worlds }: UseWorldsCarouselArgs) {
   const pageHeight = viewport.h;
   const layoutReady = pageWidth > 0 && pageHeight > 0;
   const activeWorldId = worlds[index]?.worldId ?? null;
+
+  // Prefetch neighbors so swipe rarely shows the loader.
+  useEffect(() => {
+    for (const offset of [-1, 1] as const) {
+      const neighbor = worlds[index + offset];
+      if (!neighbor) {
+        continue;
+      }
+      const worldId = neighbor.worldId.trim();
+      if (!worldId) {
+        continue;
+      }
+      void queryClient.prefetchQuery({
+        queryKey: queryKeys.locations(worldId),
+        queryFn: () => listLocations({ worldId }),
+      });
+    }
+  }, [index, worlds, queryClient]);
   const selected = worlds.find((w) => w.worldId === selectedId) ?? null;
   const canAct = selected != null;
   const canGoPrev = index > 0;

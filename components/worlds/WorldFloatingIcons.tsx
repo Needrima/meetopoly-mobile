@@ -13,7 +13,6 @@ import Animated, {
 import { useAppActive } from '@/hooks/useAppActive';
 import {
   FLOATER_ICON_SIZE,
-  useWorldFloaters,
   type WorldFloater,
 } from '@/hooks/useWorldFloaters';
 import { colors } from '@/theme/colors';
@@ -101,33 +100,39 @@ function FloatingIcon({
 }
 
 type WorldFloatingIconsProps = {
-  worldId: string;
+  floaters: WorldFloater[];
   width: number;
   height: number;
-  /** Focused carousel page — offscreen unmounts floaters. */
+  /** Mount icons (focused + locations settled). */
   active: boolean;
+  /** Start drift animations (after mount settle / scene ready). */
+  motionActive: boolean;
 };
 
 /**
  * Soft white city icons drifting behind the world title (property icons only).
+ * Parent owns `useWorldFloaters` so load state can gate Ken Burns + spinner.
  */
 export function WorldFloatingIcons({
-  worldId,
+  floaters,
   width,
   height,
   active,
+  motionActive,
 }: WorldFloatingIconsProps) {
   const appActive = useAppActive();
-  const { floaters, ready } = useWorldFloaters(worldId);
 
-  if (!active || width <= 0 || height <= 0 || !ready) {
+  if (!active || width <= 0 || height <= 0 || floaters.length === 0) {
     return null;
   }
 
-  const running = appActive;
+  const running = motionActive && appActive;
 
   return (
-    <View style={styles.layer} pointerEvents="none">
+    <View
+      style={[styles.layer, !motionActive ? styles.layerHidden : null]}
+      pointerEvents="none"
+    >
       {floaters.map((f) => (
         <FloatingIcon
           key={f.path}
@@ -145,6 +150,9 @@ const styles = StyleSheet.create({
   layer: {
     ...StyleSheet.absoluteFill,
     zIndex: 1,
+  },
+  layerHidden: {
+    opacity: 0,
   },
   iconWrap: {
     position: 'absolute',

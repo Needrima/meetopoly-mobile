@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo } from 'react';
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   View,
@@ -12,6 +13,8 @@ import Animated from 'react-native-reanimated';
 import type { WorldSummary } from '@/api/types';
 import { WorldFloatingIcons } from '@/components/worlds/WorldFloatingIcons';
 import { useWorldCardKenBurns } from '@/hooks/useWorldCardKenBurns';
+import { useWorldCardSceneReady } from '@/hooks/useWorldCardSceneReady';
+import { useWorldFloaters } from '@/hooks/useWorldFloaters';
 import {
   formatWorldLabel,
   formatWorldLabelLines,
@@ -37,7 +40,8 @@ export type WorldCardProps = {
 
 /**
  * World carousel slide: Ken Burns idle + two-finger pan; one finger left for paging.
- * Tap toggles selection. Centered multi-line region title.
+ * Focused card: static map + spinner until locations settle and SVG icons mount,
+ * then Ken Burns + floater motion start together (prefetch kept for fast data).
  */
 function WorldCardInner({
   world,
@@ -53,6 +57,12 @@ function WorldCardInner({
     [world.worldId],
   );
   const image = resolveWorldImage(world.worldId);
+  const { floaters, contentReady } = useWorldFloaters(world.worldId);
+  const sceneReady = useWorldCardSceneReady(
+    active,
+    contentReady,
+    world.worldId,
+  );
   const onSelect = useCallback(() => {
     onToggleSelect(world.worldId);
   }, [onToggleSelect, world.worldId]);
@@ -60,9 +70,13 @@ function WorldCardInner({
     worldId: world.worldId,
     image,
     active,
+    contentReady: sceneReady,
     onSelect,
     onDragActiveChange,
   });
+
+  const showLoader = active && !sceneReady;
+  const mountFloaters = active && contentReady;
 
   return (
     <GestureDetector gesture={gesture}>
@@ -87,10 +101,11 @@ function WorldCardInner({
             <View style={[styles.cardImageFill, styles.cardFallback]} />
           )}
           <WorldFloatingIcons
-            worldId={world.worldId}
+            floaters={floaters}
             width={box.w}
             height={box.h}
-            active={active}
+            active={mountFloaters}
+            motionActive={sceneReady}
           />
           <View style={styles.labelWrap} pointerEvents="none">
             {labelLines.map((line) => (
@@ -99,6 +114,11 @@ function WorldCardInner({
               </Text>
             ))}
           </View>
+          {showLoader ? (
+            <View style={styles.loaderWrap} pointerEvents="none">
+              <ActivityIndicator color={colors.onBrand} size="large" />
+            </View>
+          ) : null}
         </View>
       </View>
     </GestureDetector>
@@ -154,5 +174,12 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(20, 32, 27, 0.75)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 10,
+  },
+  loaderWrap: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+    backgroundColor: 'rgba(20, 32, 27, 0.28)',
   },
 });
