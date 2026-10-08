@@ -10,7 +10,7 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { Location } from "@/api/types";
+import type { GameLastRoll, Location } from "@/api/types";
 import { AuctionOverlay } from "@/components/board/AuctionOverlay";
 import { Board } from "@/components/board/Board";
 import { BoardOverflowMenu } from "@/components/board/BoardOverflowMenu";
@@ -31,6 +31,7 @@ import { useBoardSession } from "@/hooks/useBoardSession";
 import { useBoardWalk, type AvatarColorKey } from "@/hooks/useBoardWalk";
 import { useDiceRollMotion } from "@/hooks/useDiceRollMotion";
 import { useDeckDrawFly } from "@/hooks/useDeckDrawFly";
+import { usePresencePoseSend } from "@/hooks/usePresencePoseSend";
 import { useEconomyEventQueue } from "@/hooks/useEconomyEventQueue";
 import { useEconomyFeedback } from "@/hooks/useEconomyFeedback";
 import {
@@ -65,6 +66,7 @@ import { DEFAULT_WORLD_ID, useLocations } from "@/hooks/useLocations";
 import { useSession } from "@/hooks/useSession";
 import { notify } from "@/lib/notify";
 import { formatUsername } from "@/lib/formatUsername";
+import { buildDiceRollToast } from "@/lib/economyFeedback";
 import { eligibleTilesForMode } from "@/lib/economyEligibility";
 import { beginHubEnter } from "@/lib/hubEnterGuard";
 import { buildBoardRemoteAvatars } from "@/lib/buildBoardRemoteAvatars";
@@ -261,28 +263,18 @@ export default function BoardScreen() {
     onAccentReady,
   });
 
-  // Phase 7.1–7.2 — publish local pose ~10 Hz while board focused.
+  // Phase 7.1–7.2 / 22.4 — adaptive pose while board focused (walk 10 Hz, idle ~3 Hz).
   // Stop in hub/Locations blur so remotes freeze / show hub-tile synthetic (8.2).
   const getPoseRef = useRef(walk.getPose);
   getPoseRef.current = walk.getPose;
+  const isWalkingRef = useRef(walk.isWalking);
+  isWalkingRef.current = walk.isWalking;
   const sendPoseRef = useRef(presence.sendPose);
   sendPoseRef.current = presence.sendPose;
-  useEffect(() => {
-    if (!layout || !presence.dcOpen || !gameId || !boardFocused) {
-      return;
-    }
-    const size = layout.size;
-    const tick = () => {
-      const pose = getPoseRef.current();
-      sendPoseRef.current({
-        x: pose.x / size,
-        y: pose.y / size,
-      });
-    };
-    tick();
-    const id = setInterval(tick, 100);
-    return () => clearInterval(id);
-  }, [layout, presence.dcOpen, gameId, boardFocused]);
+  const boardSizeRef = useRef(layout?.size ?? 0);
+  boardSizeRef.current = layout?.size ?? 0;
+  // preferIdle wired after dice/pin hooks below — ref updated each render.
+  const posePreferIdleRef = useRef<() => boolean>(() => false);
 
   const remoteAvatars = useMemo(() => {
     if (!layout) {
@@ -302,11 +294,33 @@ export default function BoardScreen() {
   const displayAccent = localGamePinColor ?? walk.accent;
 
   const pinRadius = layout ? Math.max(6, Math.round(layout.size * 0.018)) : 8;
+  const onSpectatorDiceRoll = useCallback(
+    (roll: GameLastRoll) => {
+      if (!roll || !boardFocused) {
+        return;
+      }
+      const { title, message } = buildDiceRollToast({
+        roll,
+        localUserId,
+        players: game?.players,
+      });
+      notify({
+        type: "info",
+        title,
+        message,
+        visibilityTime: 3200,
+      });
+    },
+    [boardFocused, game?.players, localUserId],
+  );
   const {
     rolling: diceRolling,
     holdPinWalk,
     overlay: diceOverlay,
-  } = useDiceRollMotion(game);
+  } = useDiceRollMotion(game, {
+    localUserId,
+    onSpectatorRoll: onSpectatorDiceRoll,
+  });
   const { pins: motionPins, animating: pinAnimating, cardHold } =
     useGamePinMotion({
       layout,
@@ -316,10 +330,33 @@ export default function BoardScreen() {
       holdWalk: holdPinWalk,
       localAccent: displayAccent,
     });
+
+  // Phase 22.4 — cut pose Hz during dice reveal + pin walk (any local client).
+  posePreferIdleRef.current = () => holdPinWalk || pinAnimating;
+  usePresencePoseSend({
+    enabled: Boolean(layout && presence.dcOpen && gameId && boardFocused),
+    getNormPose: () => {
+      const size = boardSizeRef.current;
+      const pose = getPoseRef.current();
+      if (size <= 0) {
+        return { x: 0, y: 0 };
+      }
+      return { x: pose.x / size, y: pose.y / size };
+    },
+    sendPose: (p) => sendPoseRef.current(p),
+    isWalking: () => isWalkingRef.current(),
+    preferIdle: () => posePreferIdleRef.current(),
+  });
+
   // During Chance/Chest reveal hold, pin is still "busy" for End/Roll but
   // economy feedback must present the card modal (not wait for full settle).
   const pinEconomyIdle = holdPinWalk || (pinAnimating && !cardHold);
 
+  const isCardDrawer = Boolean(
+    localUserId &&
+      game?.lastCard &&
+      game.lastCard.userId === localUserId,
+  );
   const {
     fly: deckDrawFly,
     busy: deckFlyBusy,
@@ -331,6 +368,7 @@ export default function BoardScreen() {
     ready: Boolean(layout && !pinEconomyIdle),
     gameReady: Boolean(game),
     enabled: boardFocused,
+    isDrawer: isCardDrawer,
   });
 
   // Fly-off finishes before Chance/Chest modal (and other idle-gated feedback).

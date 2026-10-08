@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   InputAccessoryView,
   Keyboard,
   Platform,
@@ -10,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -34,7 +34,6 @@ import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/fonts';
 
 const AVATAR_R = 11;
-const SHEET_H = Math.round(Dimensions.get('window').height * 0.9);
 /** One accessory per cash field — iOS drops a shared accessory when focus moves. */
 const TRADE_GIVE_CASH_ACCESSORY_ID = 'meetopolyTradeGiveCashDone';
 const TRADE_TAKE_CASH_ACCESSORY_ID = 'meetopolyTradeTakeCashDone';
@@ -269,6 +268,9 @@ export function TradeOverlay({
   onAccept,
   onDecline,
 }: TradeOverlayProps) {
+  const { height: winH } = useWindowDimensions();
+  // Live window height — module-level Dimensions can stick to portrait on cold start.
+  const sheetH = Math.round(winH * 0.9);
   const trade = game.trade ?? null;
   const partners = useMemo(
     () =>
@@ -417,86 +419,91 @@ export function TradeOverlay({
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'timing', duration: 200 }}
           style={[
-            styles.sheet,
-            { height: SHEET_H },
+            styles.sheetAnim,
+            { height: sheetH, maxHeight: "100%" as const },
             peeking ? styles.sheetPeeking : null,
           ]}
           pointerEvents={peeking ? 'box-none' : 'auto'}
         >
           <View
-            style={peeking ? styles.chromeHidden : null}
-            pointerEvents={peeking ? 'none' : 'auto'}
+            style={[styles.sheet, peeking ? styles.sheetPeeking : null]}
+            pointerEvents={peeking ? 'box-none' : 'auto'}
           >
-            <View style={styles.header}>
-              <Text style={styles.headerText}>TRADE</Text>
-              {pendingReview ? (
-                <Text style={styles.timerLabel}>
-                  Reply {Math.floor(remainSec / 60)}:
-                  {(remainSec % 60).toString().padStart(2, '0')}
-                </Text>
-              ) : null}
+            <View
+              style={peeking ? styles.chromeHidden : null}
+              pointerEvents={peeking ? 'none' : 'auto'}
+            >
+              <View style={styles.header}>
+                <Text style={styles.headerText}>TRADE</Text>
+                {pendingReview ? (
+                  <Text style={styles.timerLabel}>
+                    Reply {Math.floor(remainSec / 60)}:
+                    {(remainSec % 60).toString().padStart(2, '0')}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-          </View>
 
-          {pendingReview && trade ? (
-            <PendingBody
-              peeking={peeking}
-              trade={trade}
-              locations={locations}
-              gameDeeds={game.deeds ?? []}
-              isTarget={isTarget}
-              isProposer={isProposer}
-              busy={busy}
-              needsMortgageChoice={needsMortgageChoice}
-              mortgagePrompt={mortgagePrompt}
-              redeemYouPay={redeemCosts.youPay}
-              redeemPartnerPays={redeemCosts.partnerPays}
-              acceptPending={acceptPending}
-              declinePending={declinePending}
-              onAskMortgage={() => setMortgagePrompt(true)}
-              onAccept={(action) => {
-                setMortgagePrompt(false);
-                onAccept(action);
-              }}
-              onDecline={onDecline}
-              onCancelMortgage={() => setMortgagePrompt(false)}
-              onPeekBoard={onPeekBoard}
-              onEndPeek={onEndPeek}
-            />
-          ) : (
-            <ComposeBody
-              peeking={peeking}
-              localPlayer={local ?? null}
-              myDeeds={myDeeds}
-              partnerDeeds={partnerDeeds}
-              partner={partner}
-              partnersCount={partners.length}
-              giveCash={giveCash}
-              takeCash={takeCash}
-              giveDeeds={giveDeeds}
-              takeDeeds={takeDeeds}
-              giveGoojf={giveGoojf}
-              takeGoojf={takeGoojf}
-              myGoojf={myGoojf}
-              partnerGoojf={partnerGoojf}
-              myCash={local?.cash ?? 0}
-              partnerCash={partner?.cash ?? 0}
-              offerOk={Boolean(offerOk)}
-              busy={busy}
-              onGiveCash={setGiveCash}
-              onTakeCash={setTakeCash}
-              onToggleGive={(bi) => setGiveDeeds((xs) => toggleIndex(xs, bi))}
-              onToggleTake={(bi) => setTakeDeeds((xs) => toggleIndex(xs, bi))}
-              onGiveGoojf={setGiveGoojf}
-              onTakeGoojf={setTakeGoojf}
-              onPrevPartner={() => cyclePartner(-1)}
-              onNextPartner={() => cyclePartner(1)}
-              onClose={onCloseCompose}
-              onPeekBoard={onPeekBoard}
-              onEndPeek={onEndPeek}
-              onOffer={submitPropose}
-            />
-          )}
+            {pendingReview && trade ? (
+              <PendingBody
+                peeking={peeking}
+                trade={trade}
+                locations={locations}
+                gameDeeds={game.deeds ?? []}
+                isTarget={isTarget}
+                isProposer={isProposer}
+                busy={busy}
+                needsMortgageChoice={needsMortgageChoice}
+                mortgagePrompt={mortgagePrompt}
+                redeemYouPay={redeemCosts.youPay}
+                redeemPartnerPays={redeemCosts.partnerPays}
+                acceptPending={acceptPending}
+                declinePending={declinePending}
+                onAskMortgage={() => setMortgagePrompt(true)}
+                onAccept={(action) => {
+                  setMortgagePrompt(false);
+                  onAccept(action);
+                }}
+                onDecline={onDecline}
+                onCancelMortgage={() => setMortgagePrompt(false)}
+                onPeekBoard={onPeekBoard}
+                onEndPeek={onEndPeek}
+              />
+            ) : (
+              <ComposeBody
+                peeking={peeking}
+                localPlayer={local ?? null}
+                myDeeds={myDeeds}
+                partnerDeeds={partnerDeeds}
+                partner={partner}
+                partnersCount={partners.length}
+                giveCash={giveCash}
+                takeCash={takeCash}
+                giveDeeds={giveDeeds}
+                takeDeeds={takeDeeds}
+                giveGoojf={giveGoojf}
+                takeGoojf={takeGoojf}
+                myGoojf={myGoojf}
+                partnerGoojf={partnerGoojf}
+                myCash={local?.cash ?? 0}
+                partnerCash={partner?.cash ?? 0}
+                offerOk={Boolean(offerOk)}
+                busy={busy}
+                onGiveCash={setGiveCash}
+                onTakeCash={setTakeCash}
+                onToggleGive={(bi) => setGiveDeeds((xs) => toggleIndex(xs, bi))}
+                onToggleTake={(bi) => setTakeDeeds((xs) => toggleIndex(xs, bi))}
+                onGiveGoojf={setGiveGoojf}
+                onTakeGoojf={setTakeGoojf}
+                onPrevPartner={() => cyclePartner(-1)}
+                onNextPartner={() => cyclePartner(1)}
+                onClose={onCloseCompose}
+                onPeekBoard={onPeekBoard}
+                onEndPeek={onEndPeek}
+                onOffer={submitPropose}
+              />
+            )}
+          </View>
         </MotiView>
       </View>
     </View>
@@ -958,8 +965,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
+    minHeight: 0,
+  },
+  sheetAnim: {
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    minHeight: 0,
   },
   sheet: {
+    flex: 1,
+    minHeight: 0,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: colors.brand,

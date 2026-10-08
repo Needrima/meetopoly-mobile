@@ -17,6 +17,8 @@ export type HubWalkState = {
   poseX: SharedValue<number>;
   poseY: SharedValue<number>;
   getPose: () => Vec2;
+  /** Phase 22.4 — joystick past deadzone (for adaptive pose send). */
+  isWalking: () => boolean;
   setStick: (stick: StickInput) => void;
   accent: string;
   initials: string;
@@ -148,11 +150,16 @@ export function useHubWalk({
   };
 
   const getPose = () => ({ ...poseRef.current });
+  const isWalking = () => {
+    const stick = stickRef.current;
+    return Math.hypot(stick.x, stick.y) > 0.04;
+  };
 
   return {
     poseX,
     poseY,
     getPose,
+    isWalking,
     setStick,
     accent: accentRef.current.hex,
     initials,

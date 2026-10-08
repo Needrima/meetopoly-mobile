@@ -10,6 +10,7 @@ import {
 import { gameRollKey } from '@/hooks/gameRollKey';
 import {
   CARD_REVEAL_HOLD_MS,
+  ECONOMY_MODAL_MS,
   JAIL_BOARD_INDEX,
 } from '@/lib/economyFeedback';
 
@@ -49,6 +50,26 @@ export type PinMotionPlan =
       resumeSteps: number;
     };
 
+export type PlanPinMotionOpts = {
+  /**
+   * Chance/Chest park duration. Drawer (fly + modal) uses `CARD_REVEAL_HOLD_MS`;
+   * spectators skip fly (22.2) so default to `ECONOMY_MODAL_MS` when omitted callers
+   * pass explicitly via `cardRevealHoldMs`.
+   */
+  cardHoldMs?: number;
+};
+
+/** Phase 22.3 — drawer holds for fly+modal; others for toast/modal window only. */
+export function cardRevealHoldMs(
+  lastCard: GameLastCard | null | undefined,
+  localUserId: string | null,
+): number {
+  if (lastCard && localUserId && lastCard.userId === localUserId) {
+    return CARD_REVEAL_HOLD_MS;
+  }
+  return ECONOMY_MODAL_MS;
+}
+
 /**
  * Jail teleports: walk dice path then jump (no ring past GO).
  * Card teleports: walk to Chance/Chest, hold for reveal modal, then move.
@@ -57,7 +78,9 @@ export function planPinMotion(
   roll: GameLastRoll,
   players: GamePlayer[],
   lastCard?: GameLastCard | null,
+  opts?: PlanPinMotionOpts,
 ): PinMotionPlan {
+  const holdMs = opts?.cardHoldMs ?? CARD_REVEAL_HOLD_MS;
   const mover = players.find((p) => p.userId === roll.userId);
   const diceLand = (roll.fromIndex + roll.total) % BOARD_SPACES;
 
@@ -88,7 +111,7 @@ export function planPinMotion(
       return {
         kind: 'walkThenHoldThenJump',
         walkSteps,
-        holdMs: CARD_REVEAL_HOLD_MS,
+        holdMs,
       };
     }
     if (roll.thirdDoubles || roll.total <= 0) {
@@ -113,13 +136,13 @@ export function planPinMotion(
       return {
         kind: 'walkThenHoldThenJump',
         walkSteps,
-        holdMs: CARD_REVEAL_HOLD_MS,
+        holdMs,
       };
     }
     return {
       kind: 'walkThenHoldThenWalk',
       walkSteps,
-      holdMs: CARD_REVEAL_HOLD_MS,
+      holdMs,
       resumeSteps,
     };
   }
@@ -351,7 +374,9 @@ export function useGamePinMotion(opts: {
       const { roll: r, startPlayers, finalPlayers, settledPlayers, lastCard: card } =
         pending;
       const moverId = r.userId;
-      const plan = planPinMotion(r, settledPlayers, card);
+      const plan = planPinMotion(r, settledPlayers, card, {
+        cardHoldMs: cardRevealHoldMs(card, localUserId),
+      });
 
       if (walkRef.current?.key === pending.key && animatingRef.current) {
         return;
@@ -497,13 +522,16 @@ export function useGamePinMotion(opts: {
     pendingRef.current = pending;
     setDisplayPlayers(pending.startPlayers);
 
-    const plan = planPinMotion(roll, game.players, lastCard);
+    const plan = planPinMotion(roll, game.players, lastCard, {
+      cardHoldMs: cardRevealHoldMs(lastCard, localUserId),
+    });
     if (pinMotionDurationMs(plan) > 0) {
       setAnimating(true);
       animatingRef.current = true;
     }
 
     if (!holdWalk) {
+      startWalk(pending);
       return;
     }
   }, [game, holdWalk, localUserId, localAccent]);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MotiView } from 'moti';
 
@@ -15,6 +15,8 @@ type DiceRollOverlayProps = {
 };
 
 const DIE_SIZE = 25;
+/** Slower than 70ms — fewer setStates on low-end while tumbling. */
+const TUMBLE_TICK_MS = 110;
 
 /** Classic pip maps for faces 1–6 (row-major 3×3). */
 const PIPS: Record<number, number[]> = {
@@ -82,19 +84,32 @@ function TumblingDie({
   rolling: boolean;
   delayMs: number;
 }) {
-  const [shown, setShown] = useState(finalValue);
+  const settled = clampFace(finalValue);
+  const [tumbleFace, setTumbleFace] = useState(settled);
+  const genRef = useRef(0);
 
-  useEffect(() => {
+  // layoutEffect: settle before paint; generation cancels late interval ticks.
+  useLayoutEffect(() => {
+    const gen = ++genRef.current;
     if (!rolling) {
-      setShown(clampFace(finalValue));
+      setTumbleFace(settled);
       return;
     }
-    setShown(1 + Math.floor(Math.random() * 6));
+    setTumbleFace(1 + Math.floor(Math.random() * 6));
     const id = setInterval(() => {
-      setShown(1 + Math.floor(Math.random() * 6));
-    }, 70);
-    return () => clearInterval(id);
-  }, [rolling, finalValue]);
+      if (genRef.current !== gen) {
+        return;
+      }
+      setTumbleFace(1 + Math.floor(Math.random() * 6));
+    }, TUMBLE_TICK_MS);
+    return () => {
+      clearInterval(id);
+      genRef.current += 1;
+    };
+  }, [rolling, settled]);
+
+  // Settled: always render server face (state cannot race past this).
+  const face = rolling ? tumbleFace : settled;
 
   return (
     <MotiView
@@ -105,12 +120,13 @@ function TumblingDie({
       }}
       transition={{
         type: 'timing',
-        duration: rolling ? 280 : 220,
+        duration: rolling ? 280 : 120,
         loop: rolling,
-        delay: delayMs,
+        // No Moti delay when settled — snap out of spin so faces read clearly.
+        delay: rolling ? delayMs : 0,
       }}
     >
-      <DieFace value={shown} size={DIE_SIZE} />
+      <DieFace value={face} size={DIE_SIZE} />
     </MotiView>
   );
 }

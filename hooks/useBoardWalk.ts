@@ -37,6 +37,8 @@ export type BoardWalkState = {
   poseY: SharedValue<number>;
   /** Snapshot pose for Enter / persist (reads JS ref, not React state). */
   getPose: () => Vec2;
+  /** Phase 22.4 — joystick past deadzone (for adaptive pose send). */
+  isWalking: () => boolean;
   pins: BoardPinModel[];
   accent: string;
   accentKey: AvatarColorKey;
@@ -297,11 +299,16 @@ export function useBoardWalk({
   };
 
   const getPose = () => ({ ...poseRef.current });
+  const isWalking = () => {
+    const stick = stickRef.current;
+    return Math.hypot(stick.x, stick.y) > 0.04;
+  };
 
   return {
     poseX,
     poseY,
     getPose,
+    isWalking,
     pins,
     accent: accentRef.current.hex,
     accentKey: accentRef.current.key,

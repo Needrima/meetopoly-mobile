@@ -3,6 +3,7 @@ import type {
   GameDeed,
   GameLastCard,
   GameLastPayment,
+  GameLastRoll,
   GamePlayer,
   Location,
 } from '@/api/types';
@@ -477,6 +478,40 @@ export function isSalaryInvolved(
   passerUserId: string,
 ): boolean {
   return Boolean(localUserId && localUserId === passerUserId);
+}
+
+/** Phase 22.1 — spectators toast when another player rolls. */
+export function buildDiceRollToast(args: {
+  roll: GameLastRoll;
+  localUserId: string | null;
+  players?: GamePlayer[];
+}): { title: string; message: string } {
+  const { roll, localUserId, players } = args;
+  const isYou = Boolean(localUserId && roll.userId === localUserId);
+  const name = isYou ? 'You' : formatUsername(roll.username) || 'Someone';
+  const d1 = roll.die1;
+  const d2 = roll.die2;
+
+  let suffix = '';
+  if (roll.thirdDoubles) {
+    suffix = ' · three doubles → Jail';
+  } else if (roll.isDoubles) {
+    suffix = ' · doubles';
+  }
+
+  const mover = players?.find((p) => p.userId === roll.userId);
+  if (
+    mover?.inJail &&
+    roll.toIndex === roll.fromIndex &&
+    !roll.thirdDoubles
+  ) {
+    suffix = ' · stayed in Jail';
+  }
+
+  return {
+    title: `${name}: Dice roll`,
+    message: `${name} rolls ${d1} + ${d2} = ${roll.total}${suffix}`,
+  };
 }
 
 /** Board: drawer sees card modal; others toast. Hub: toast only. */

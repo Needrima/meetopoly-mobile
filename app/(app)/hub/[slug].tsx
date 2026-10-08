@@ -12,7 +12,7 @@ import { useKeepAwake } from "expo-keep-awake";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { GameBuyOffer, GamePlayer } from "@/api/types";
+import type { GameBuyOffer, GameLastRoll, GamePlayer } from "@/api/types";
 import { Joystick } from "@/components/board/Joystick";
 import { PlayerInfoModal } from "@/components/board/PlayerInfoModal";
 import { stripWorldNamePrefix } from "@/components/board/deedVisual";
@@ -35,9 +35,11 @@ import {
   useLeaveHub,
   useRollDice,
 } from "@/hooks/useGame";
+import { useDiceRollMotion } from "@/hooks/useDiceRollMotion";
 import { useEconomyFeedback } from "@/hooks/useEconomyFeedback";
 import { useHubTurnBusy } from "@/hooks/useHubTurnBusy";
 import { useHubWalk } from "@/hooks/useHubWalk";
+import { usePresencePoseSend } from "@/hooks/usePresencePoseSend";
 import {
   DEFAULT_WORLD_ID,
   useLocationBySlug,
@@ -45,6 +47,7 @@ import {
 } from "@/hooks/useLocations";
 import { useSession } from "@/hooks/useSession";
 import { useCurrentTurnClock } from "@/hooks/useTurnCountdown";
+import { buildDiceRollToast } from "@/lib/economyFeedback";
 import { formatUsername } from "@/lib/formatUsername";
 import { abortHubEnter } from "@/lib/hubEnterGuard";
 import { accentAgainstFloor } from "@/lib/hubFloorContrast";
@@ -136,7 +139,32 @@ export default function HubScreen() {
   const surfaceW = Math.max(0, Math.floor(surfaceBox.w));
   const surfaceH = Math.max(0, Math.floor(surfaceBox.h));
   const surfaceReady = surfaceW > 0 && surfaceH > 0;
-  const turnBusy = useHubTurnBusy(game);
+  /** Dice/economy toasts only while hub focused (board stack owns toasts otherwise). */
+  const [hubFocused, setHubFocused] = useState(true);
+  const onSpectatorDiceRoll = useCallback(
+    (roll: GameLastRoll) => {
+      if (!hubFocused) {
+        return;
+      }
+      const { title, message } = buildDiceRollToast({
+        roll,
+        localUserId,
+        players: game?.players,
+      });
+      notify({
+        type: "info",
+        title,
+        message,
+        visibilityTime: 3200,
+      });
+    },
+    [game?.players, hubFocused, localUserId],
+  );
+  const { holdPinWalk } = useDiceRollMotion(game, {
+    localUserId,
+    onSpectatorRoll: onSpectatorDiceRoll,
+  });
+  const turnBusy = useHubTurnBusy(game, holdPinWalk, localUserId);
 
   // Phase 9.3 — board economy events as hub toasts only.
   useEconomyFeedback({
@@ -145,6 +173,7 @@ export default function HubScreen() {
     localUserId,
     waitIdle: turnBusy,
     surface: "hub",
+    enabled: hubFocused,
   });
 
   const walk = useHubWalk({
@@ -160,7 +189,9 @@ export default function HubScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setHubFocused(true);
       return () => {
+        setHubFocused(false);
         if (skipLeaveOnBlurRef.current) {
           skipLeaveOnBlurRef.current = false;
           return;
@@ -207,24 +238,33 @@ export default function HubScreen() {
 
   const getPoseRef = useRef(walk.getPose);
   getPoseRef.current = walk.getPose;
+  const isWalkingRef = useRef(walk.isWalking);
+  isWalkingRef.current = walk.isWalking;
   const sendPoseRef = useRef(presence.sendPose);
   sendPoseRef.current = presence.sendPose;
+  const surfaceWRef = useRef(surfaceW);
+  surfaceWRef.current = surfaceW;
+  const surfaceHRef = useRef(surfaceH);
+  surfaceHRef.current = surfaceH;
+  // Hub: idle rate while turn cinema (dice hold + pin mirror) is busy.
+  const hubPosePreferIdleRef = useRef<() => boolean>(() => false);
+  hubPosePreferIdleRef.current = () => turnBusy;
 
-  useEffect(() => {
-    if (!presence.dcOpen || !surfaceReady) {
-      return;
-    }
-    const tick = () => {
+  usePresencePoseSend({
+    enabled: Boolean(presence.dcOpen && surfaceReady),
+    getNormPose: () => {
+      const w = surfaceWRef.current;
+      const h = surfaceHRef.current;
       const pose = getPoseRef.current();
-      sendPoseRef.current({
-        x: pose.x / surfaceW,
-        y: pose.y / surfaceH,
-      });
-    };
-    tick();
-    const id = setInterval(tick, 100);
-    return () => clearInterval(id);
-  }, [presence.dcOpen, surfaceReady, surfaceW, surfaceH]);
+      if (w <= 0 || h <= 0) {
+        return { x: 0, y: 0 };
+      }
+      return { x: pose.x / w, y: pose.y / h };
+    },
+    sendPose: (p) => sendPoseRef.current(p),
+    isWalking: () => isWalkingRef.current(),
+    preferIdle: () => hubPosePreferIdleRef.current(),
+  });
 
   const code = location ? shortTileName(location) : "";
   const hubDisplayName = location

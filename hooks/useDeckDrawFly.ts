@@ -17,6 +17,11 @@ type UseDeckDrawFlyArgs = {
   /** False until game snapshot exists — seeds sticky lastCard without flying. */
   gameReady: boolean;
   enabled?: boolean;
+  /**
+   * Phase 22.2 — only the drawer runs the deck fly.
+   * Spectators mark the draw done immediately (no fly, no `busy`).
+   */
+  isDrawer?: boolean;
 };
 
 /**
@@ -25,6 +30,7 @@ type UseDeckDrawFlyArgs = {
  *
  * `busy` stays true while a new draw needs a fly OR the Animated card is still
  * mounted — so the modal cannot race ahead of the fly-off.
+ * Non-drawers skip the fly (Phase 22.2).
  */
 export function useDeckDrawFly({
   lastCard,
@@ -33,6 +39,7 @@ export function useDeckDrawFly({
   ready,
   gameReady,
   enabled = true,
+  isDrawer = true,
 }: UseDeckDrawFlyArgs): {
   fly: DeckDrawFlyModel | null;
   busy: boolean;
@@ -66,8 +73,21 @@ export function useDeckDrawFly({
     setFly(null);
   }, [enabled, gameReady, currentSig]);
 
+  // Spectators: advance doneSig immediately — no fly, no busy gate.
+  useEffect(() => {
+    if (!gameReady || !hydratedRef.current || isDrawer) {
+      return;
+    }
+    if (!currentSig || currentSig === doneSig) {
+      return;
+    }
+    setFly(null);
+    setDoneSig(currentSig);
+  }, [isDrawer, gameReady, currentSig, doneSig]);
+
   const needsFly = Boolean(
     enabled &&
+      isDrawer &&
       gameReady &&
       hydratedRef.current &&
       ready &&
@@ -99,8 +119,8 @@ export function useDeckDrawFly({
   }, []);
 
   return {
-    fly,
-    busy: needsFly || fly != null,
+    fly: isDrawer ? fly : null,
+    busy: isDrawer && (needsFly || fly != null),
     onFlyComplete,
   };
 }
